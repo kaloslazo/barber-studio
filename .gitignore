@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Datasets and weights (too heavy for git)
+data/*
+models/*
+!data/.gitkeep
+!models/.gitkeep
+*.pt
+*.onnx
+*.weights
+
+# Experiment outputs
+backend/training/runs/
+runs/
+results/
