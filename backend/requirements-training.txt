@@ -1,0 +1,5 @@
+# NOTE: ultralytics may pull a conflicting opencv. If cv2 breaks
+# (e.g. "no attribute CascadeClassifier"), fix with:
+#   pip install "opencv-contrib-python>=4.9,<5"
+ultralytics>=8.2
+matplotlib>=3.8

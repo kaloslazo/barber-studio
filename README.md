@@ -37,8 +37,16 @@ Backend:
 cd backend
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt        # app runtime
+pip install -r requirements-dev.txt    # tests
+pip install -r requirements-training.txt  # YOLO fine-tuning (Colab)
 uvicorn app.main:app --reload --port 8000
+```
+
+Tests:
+
+```bash
+cd backend && venv/bin/python -m pytest tests/ -q
 ```
 
 Frontend:
@@ -48,7 +56,19 @@ cd frontend
 python3 -m http.server 5173
 ```
 
-Then open http://localhost:5173. As a smoke test, upload any photo: the current `/api/preview` endpoint returns it in grayscale while the real pipeline is under development.
+Then open http://localhost:5173.
+
+## Current status
+
+- Working **hair dye demo**: upload a photo, pick a color and the app recolors the hair region in HSV space (color theory). Hair region is still provisional (ellipse above the face box) until YOLO segmentation replaces it.
+
+## API
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/health` | Service status |
+| `POST /api/preview` | Returns uploaded photo in grayscale (smoke test) |
+| `POST /api/dye` | Applies hair dye. Form fields: `image` (file), `color` (hex). 422 if no face detected |
 
 ## Roadmap
 
