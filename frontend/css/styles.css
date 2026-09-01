@@ -192,7 +192,7 @@ body {
   font-size: 13px;
 }
 
-.strength {
+.slider {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -200,8 +200,8 @@ body {
   font-size: 13px;
 }
 
-.strength input[type="range"] {
-  width: 140px;
+.slider input[type="range"] {
+  width: 110px;
   accent-color: var(--accent);
 }
 

@@ -60,7 +60,21 @@ Then open http://localhost:5173.
 
 ## Current status
 
-- Working **hair dye demo**: upload a photo, pick a color and the app recolors the hair region in HSV space (color theory). Hair region is still provisional (ellipse above the face box) until YOLO segmentation replaces it.
+- **Hair segmentation with fine-tuned YOLOv8n-seg** (Mask mAP50 = 0.968, trained on Figaro1k + CelebAMask-HQ, see `backend/training/`). The dye pipeline now uses the real hair shape; the geometric dome remains as fallback.
+- Working **hair dye demo**: upload a photo, pick a color and intensity, get a before/after view.
+
+## Model setup
+
+The hair segmentation weights are NOT in git (size). Train them with `backend/training/barberstudio_colab.ipynb` (Colab, ~3.5h on a free T4) and place the resulting `best.pt` at `backend/models/hair_best.pt`. Without it, the app falls back to the provisional geometric mask.
+
+Install order matters to avoid an OpenCV conflict pulled by ultralytics:
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pip install -r requirements-training.txt
+pip install --force-reinstall "opencv-contrib-python>=4.9,<5"
+```
 
 ## API
 
