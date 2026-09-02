@@ -112,7 +112,7 @@ def test_haircut_disabled_style_returns_400():
     response = client.post(
         "/api/haircut",
         files=to_upload(make_test_image()),
-        data={"style": "buzz"},
+        data={"style": "mid-fade"},
     )
     assert response.status_code == 400
     assert "disabled" in response.json()["detail"]
@@ -147,10 +147,27 @@ def test_haircut_does_not_touch_pixels_outside_hair():
 
 def test_haircut_fade_never_touches_face_hull():
     image, mask, face_box, apply_haircut = _haircut_fixture()
-    from app.core.compositing.haircut import _protect_mask
+    from app.core.compositing.haircut import _face_guard
 
     result = apply_haircut(image, mask, face_box, None, "low-fade", 1.0)
-    protect = _protect_mask(image.shape, None, face_box)
-    protect_area = protect > 0
-    if protect_area.sum():
-        assert np.array_equal(result[protect_area], image[protect_area])
+    guard = _face_guard(image.shape, None, face_box)
+    guard_area = guard > 0
+    if guard_area.sum():
+        assert np.array_equal(result[guard_area], image[guard_area])
+
+
+def test_haircut_buzz_shortens_texture():
+    image, mask, face_box, apply_haircut = _haircut_fixture()
+    import cv2
+
+    rng = np.random.default_rng(5)
+    image[45:115, 115:205] = rng.integers(20, 220, (70, 90, 3), dtype=np.uint8)
+    result = apply_haircut(image, mask, face_box, None, "buzz", 1.0)
+    zone = mask > 0
+    original_energy = cv2.Laplacian(
+        cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), cv2.CV_32F
+    )[zone].var()
+    result_energy = cv2.Laplacian(
+        cv2.cvtColor(result, cv2.COLOR_BGR2GRAY), cv2.CV_32F
+    )[zone].var()
+    assert result_energy < 0.6 * original_energy
