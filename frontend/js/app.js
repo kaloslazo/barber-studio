@@ -1,4 +1,4 @@
-const API = "http://localhost:8000/api";
+const API = "/api";
 
 const dropZone = document.getElementById("drop-zone");
 const photoInput = document.getElementById("photo-input");
@@ -147,4 +147,123 @@ document.querySelectorAll(".menu-item").forEach((item) => {
     const panel = document.getElementById(`panel-${item.dataset.panel}`);
     if (panel) panel.classList.add("active");
   });
+});
+
+const beardDrop = document.getElementById("beard-drop");
+const beardInput = document.getElementById("beard-input");
+const beardBtn = document.getElementById("beard-btn");
+const beardError = document.getElementById("beard-error");
+const beardCompare = document.getElementById("beard-compare");
+const beardOriginal = document.getElementById("beard-original");
+const beardResult = document.getElementById("beard-result");
+const beardStrength = document.getElementById("beard-strength");
+const beardMeshToggle = document.getElementById("beard-mesh");
+const beardMeshCard = document.getElementById("beard-mesh-card");
+const beardMeshImage = document.getElementById("beard-mesh-img");
+let beardFile = null;
+let beardStyle = "full";
+
+document.querySelectorAll(".style-btn").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll(".style-btn").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    beardStyle = button.dataset.style;
+  });
+});
+
+function setBeardFile(file) {
+  beardFile = file;
+  beardError.hidden = true;
+  beardOriginal.src = URL.createObjectURL(file);
+  beardCompare.hidden = true;
+  beardResult.removeAttribute("src");
+  beardBtn.disabled = false;
+  beardDrop.querySelector(".dz-title").textContent = file.name;
+  beardDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+}
+
+beardDrop.addEventListener("click", () => beardInput.click());
+
+beardDrop.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    beardInput.click();
+  }
+});
+
+["dragenter", "dragover"].forEach((type) => {
+  beardDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    beardDrop.classList.add("dragging");
+  });
+});
+
+["dragleave", "drop"].forEach((type) => {
+  beardDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    beardDrop.classList.remove("dragging");
+  });
+});
+
+beardDrop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) {
+    setBeardFile(file);
+  }
+});
+
+beardInput.addEventListener("change", () => {
+  if (beardInput.files.length > 0) {
+    setBeardFile(beardInput.files[0]);
+  }
+});
+
+beardBtn.addEventListener("click", async () => {
+  if (!beardFile) return;
+  const formData = new FormData();
+  formData.append("image", beardFile);
+  formData.append("style", beardStyle);
+  formData.append("strength", (beardStrength.value / 100).toString());
+  beardBtn.disabled = true;
+  beardBtn.textContent = "Processing...";
+  beardError.hidden = true;
+  try {
+    const response = await fetch(`${API}/beard`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Request failed: ${response.status}`);
+    }
+    beardResult.src = URL.createObjectURL(await response.blob());
+    beardCompare.hidden = false;
+    if (beardMeshToggle.checked) {
+      try {
+        const meshFormData = new FormData();
+        meshFormData.append("image", beardFile);
+        const meshResponse = await fetch(`${API}/mesh`, {
+          method: "POST",
+          body: meshFormData,
+        });
+        if (meshResponse.ok) {
+          beardMeshImage.src = URL.createObjectURL(await meshResponse.blob());
+          beardMeshCard.hidden = false;
+          beardCompare.classList.add("trio");
+        }
+      } catch (meshError) {
+        beardMeshCard.hidden = true;
+        beardCompare.classList.remove("trio");
+      }
+    } else {
+      beardMeshCard.hidden = true;
+      beardCompare.classList.remove("trio");
+    }
+  } catch (error) {
+    beardError.textContent = error.message;
+    beardError.hidden = false;
+  } finally {
+    beardBtn.disabled = false;
+    beardBtn.textContent = "Apply beard";
+  }
 });

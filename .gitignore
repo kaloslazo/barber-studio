@@ -16,6 +16,7 @@ data/*
 models/*
 !data/.gitkeep
 !models/.gitkeep
+!models/face_landmarker.task
 *.pt
 *.onnx
 *.weights

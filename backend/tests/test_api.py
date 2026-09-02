@@ -23,6 +23,12 @@ def test_health():
     assert response.json() == {"status": "ok"}
 
 
+def test_root_serves_frontend():
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"BarberStudio" in response.content
+
+
 def test_preview_returns_image():
     response = client.post("/api/preview", files=to_upload(make_test_image()))
     assert response.status_code == 200
@@ -42,5 +48,24 @@ def test_dye_without_face_returns_422():
 def test_dye_invalid_color_returns_400():
     response = client.post(
         "/api/dye", files=to_upload(make_test_image()), data={"color": "nope"}
+    )
+    assert response.status_code == 400
+
+
+def test_beard_without_face_returns_422():
+    response = client.post(
+        "/api/beard",
+        files=to_upload(make_test_image()),
+        data={"style": "full", "strength": "0.9"},
+    )
+    assert response.status_code == 422
+    assert "No face" in response.json()["detail"] or "landmark" in response.json()["detail"]
+
+
+def test_beard_invalid_style_returns_400():
+    response = client.post(
+        "/api/beard",
+        files=to_upload(make_test_image()),
+        data={"style": "alien", "strength": "0.9"},
     )
     assert response.status_code == 400

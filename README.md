@@ -29,34 +29,21 @@ Web app where the user uploads a photo (or uses the webcam) and can try on hair 
 - **Frontend** (`frontend/`): vanilla HTML/CSS/JS, no build step.
 - `data/` and `models/` hold datasets and trained weights (gitignored).
 
-## Setup
+## Run
 
-Backend:
+One command from the repo root (creates the venv and installs dependencies on first run):
 
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt        # app runtime
-pip install -r requirements-dev.txt    # tests
-pip install -r requirements-training.txt  # YOLO fine-tuning (Colab)
-uvicorn app.main:app --reload --port 8000
+./run.sh
 ```
+
+Then open http://localhost:8000 — the same server serves the UI and the API. The script also frees port 8000 automatically if a previous instance is stuck.
 
 Tests:
 
 ```bash
 cd backend && venv/bin/python -m pytest tests/ -q
 ```
-
-Frontend:
-
-```bash
-cd frontend
-python3 -m http.server 5173
-```
-
-Then open http://localhost:5173.
 
 ## Current status
 
@@ -65,7 +52,13 @@ Then open http://localhost:5173.
 
 ## Model setup
 
-The hair segmentation weights are NOT in git (size). Train them with `backend/training/barberstudio_colab.ipynb` (Colab, ~3.5h on a free T4) and place the resulting `best.pt` at `backend/models/hair_best.pt`. Without it, the app falls back to the provisional geometric mask.
+Most models are NOT in git (size). Set them up as follows:
+
+- `backend/models/face_landmarker.task` — MediaPipe FaceLandmarker (3.6 MB, **included in the repo**).
+- `backend/models/hair_best.pt` — train it with `backend/training/barberstudio_colab.ipynb` (Colab, ~3.5h on a free T4).
+- `backend/models/lbfmodel.yaml` + `backend/models/yunet.onnx` — legacy fallback landmarks; download links in `backend/training/` scripts.
+
+Without them, the app falls back to provisional masks.
 
 Install order matters to avoid an OpenCV conflict pulled by ultralytics:
 

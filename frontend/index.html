@@ -21,7 +21,7 @@
       </div>
       <nav class="menu">
         <button class="menu-item active" data-panel="dye">Hair Dye</button>
-        <button class="menu-item" data-panel="beard" disabled>Beard <small>soon</small></button>
+        <button class="menu-item" data-panel="beard">Beard</button>
         <button class="menu-item" data-panel="haircut" disabled>Haircut <small>soon</small></button>
       </nav>
       <div class="card tips">
@@ -71,6 +71,54 @@
           <div class="card shot">
             <h3>After</h3>
             <img id="result-image" alt="Result preview">
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-beard">
+        <header class="page-head">
+          <h1>Beard</h1>
+          <p>Try beard styles fitted to your face with Delaunay-tracked landmarks.</p>
+        </header>
+
+        <div class="card drop-zone" id="beard-drop" tabindex="0">
+          <p class="dz-title">Drop your photo here</p>
+          <p class="dz-sub">or click to browse (JPG / PNG)</p>
+          <input type="file" id="beard-input" accept="image/*" hidden>
+        </div>
+
+        <div class="card controls">
+          <div class="style-group" id="style-group">
+            <button class="style-btn active" data-style="full">Full</button>
+            <button class="style-btn" data-style="goatee">Goatee</button>
+            <button class="style-btn" data-style="mustache">Mustache</button>
+            <button class="style-btn" data-style="stubble">Stubble</button>
+          </div>
+          <label class="slider">
+            <span>Density</span>
+            <input type="range" id="beard-strength" min="20" max="100" value="90">
+          </label>
+          <label class="check">
+            <input type="checkbox" id="beard-mesh">
+            <span>Show Delaunay mesh</span>
+          </label>
+          <button id="beard-btn" disabled>Apply beard</button>
+        </div>
+
+        <div class="banner" id="beard-error" hidden></div>
+
+        <div class="compare" id="beard-compare" hidden>
+          <div class="card shot">
+            <h3>Before</h3>
+            <img id="beard-original" alt="Original photo">
+          </div>
+          <div class="card shot" id="beard-mesh-card" hidden>
+            <h3>Delaunay mesh</h3>
+            <img id="beard-mesh-img" alt="Delaunay mesh">
+          </div>
+          <div class="card shot">
+            <h3>After</h3>
+            <img id="beard-result" alt="Beard preview">
           </div>
         </div>
       </section>

@@ -3,6 +3,7 @@ import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
+from app.core.compositing.beard import STYLES
 from app.core.pipeline import StylePipeline
 
 router = APIRouter(prefix="/api")
@@ -48,4 +49,32 @@ async def dye(
         raise HTTPException(status_code=400, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
+    return encode_png(result)
+
+
+@router.post("/beard")
+async def beard(
+    image: UploadFile = File(...),
+    style: str = Form("full"),
+    strength: float = Form(0.9),
+):
+    if style not in STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown beard style: {style}")
+    image_bgr = decode_image(await image.read())
+    result = pipeline.apply_beard(image_bgr, style, strength)
+    if result is None:
+        raise HTTPException(
+            status_code=422, detail="No face detected or landmark model missing"
+        )
+    return encode_png(result)
+
+
+@router.post("/mesh")
+async def mesh(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    result = pipeline.face_mesh(image_bgr)
+    if result is None:
+        raise HTTPException(
+            status_code=422, detail="No face detected or landmark model missing"
+        )
     return encode_png(result)

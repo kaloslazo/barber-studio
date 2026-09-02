@@ -3,3 +3,4 @@ uvicorn[standard]>=0.30
 python-multipart>=0.0.9
 opencv-contrib-python>=4.9,<5
 numpy>=1.26
+mediapipe>=0.10

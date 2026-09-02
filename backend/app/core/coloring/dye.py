@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from app.core.compositing.alpha import inside_feather
+
 
 def hex_to_hsv(hex_color):
     hex_color = hex_color.lstrip("#")
@@ -46,8 +48,7 @@ def apply_dye(image_bgr, mask, target_hsv, strength=0.75):
     dyed = cv2.cvtColor(dyed_hsv, cv2.COLOR_HSV2BGR)
 
     feather = max(4.0, min(25.0, span / 40.0))
-    dist = cv2.distanceTransform((mask > 0).astype(np.uint8), cv2.DIST_L2, 5)
-    alpha = np.clip(dist / feather, 0.0, 1.0).astype(np.float32)
+    alpha = inside_feather(mask, feather)
     alpha = alpha[..., None] * strength
     blended = image_bgr.astype(np.float32) * (1.0 - alpha) + dyed.astype(np.float32) * alpha
     return np.clip(blended, 0, 255).astype(np.uint8)
