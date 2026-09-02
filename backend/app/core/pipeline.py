@@ -19,6 +19,7 @@ class StylePipeline:
         self.segmenter = self._load_segmenter()
         self.landmark_detector = None
         self.beard_templates = load_templates()
+        self._live_crop = None
 
     @staticmethod
     def _load_segmenter():
@@ -80,6 +81,7 @@ class StylePipeline:
     def face_mesh(self, image_bgr, crop=False):
         face = self.detector.largest_face(image_bgr)
         if face is None:
+            self._live_crop = None
             return None
         points = self._landmarks(image_bgr, face)
         if points is None:
@@ -90,11 +92,29 @@ class StylePipeline:
             h, w = image_bgr.shape[:2]
             x, y, fw, fh = face
             mx = int(fw * 0.7)
-            my_top = int(fh * 0.5)
-            my_bottom = int(fh * 0.7)
-            x0 = max(0, x - mx)
-            y0 = max(0, y - my_top)
-            x1 = min(w, x + fw + mx)
-            y1 = min(h, y + fh + my_bottom)
-            canvas = canvas[y0:y1, x0:x1]
+            x0 = float(max(0, x - mx))
+            y0 = float(max(0, y - fh * 0.5))
+            x1 = float(min(w, x + fw + mx))
+            y1 = float(min(h, y + fh + fh * 0.7))
+            cw, ch = x1 - x0, y1 - y0
+            if cw > ch:
+                pad = (cw - ch) / 2
+                y0 = max(0.0, y0 - pad)
+                y1 = min(float(h), y1 + pad)
+            else:
+                pad = (ch - cw) / 2
+                x0 = max(0.0, x0 - pad)
+                x1 = min(float(w), x1 + pad)
+
+            previous = self._live_crop
+            if previous is not None:
+                jump = abs((x0 + x1) / 2 - (previous[0] + previous[2]) / 2)
+                if jump < fw * 1.5:
+                    alpha = 0.25
+                    x0 = previous[0] * (1 - alpha) + x0 * alpha
+                    y0 = previous[1] * (1 - alpha) + y0 * alpha
+                    x1 = previous[2] * (1 - alpha) + x1 * alpha
+                    y1 = previous[3] * (1 - alpha) + y1 * alpha
+            self._live_crop = (x0, y0, x1, y1)
+            canvas = canvas[int(y0):int(y1), int(x0):int(x1)]
         return canvas

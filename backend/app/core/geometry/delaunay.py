@@ -37,7 +37,7 @@ def draw_mesh(image_bgr, points, triangles, color=(255, 90, 40)):
     points = np.asarray(points, dtype=np.int32)
     for a, b, c in triangles:
         pts = points[[a, b, c]].reshape(-1, 1, 2)
-        cv2.polylines(canvas, [pts], True, color, 2, cv2.LINE_AA)
+        cv2.polylines(canvas, [pts], True, color, 1, cv2.LINE_AA)
     for px, py in points:
-        cv2.circle(canvas, (int(px), int(py)), 3, color, -1)
+        cv2.circle(canvas, (int(px), int(py)), 2, color, -1)
     return canvas
