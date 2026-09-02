@@ -88,3 +88,21 @@ def test_live_invalid_mode_returns_400():
         data={"mode": "alien"},
     )
     assert response.status_code == 400
+
+
+def test_haircut_without_face_returns_422():
+    response = client.post(
+        "/api/haircut",
+        files=to_upload(make_test_image()),
+        data={"style": "low-fade", "strength": "0.9"},
+    )
+    assert response.status_code == 422
+
+
+def test_haircut_invalid_style_returns_400():
+    response = client.post(
+        "/api/haircut",
+        files=to_upload(make_test_image()),
+        data={"style": "mohawk"},
+    )
+    assert response.status_code == 400

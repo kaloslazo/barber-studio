@@ -386,3 +386,93 @@ liveBtn.addEventListener("click", async () => {
     liveError.hidden = false;
   }
 });
+
+const hcDrop = document.getElementById("hc-drop");
+const hcInput = document.getElementById("hc-input");
+const hcBtn = document.getElementById("hc-btn");
+const hcError = document.getElementById("hc-error");
+const hcCompare = document.getElementById("hc-compare");
+const hcOriginal = document.getElementById("hc-original");
+const hcResult = document.getElementById("hc-result");
+const hcStrength = document.getElementById("hc-strength");
+let hcFile = null;
+let hcStyle = "low-fade";
+
+document.querySelectorAll("[data-hc-style]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-hc-style]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    hcStyle = button.dataset.hcStyle;
+  });
+});
+
+function setHcFile(file) {
+  hcFile = file;
+  hcError.hidden = true;
+  hcOriginal.src = URL.createObjectURL(file);
+  hcCompare.hidden = true;
+  hcResult.removeAttribute("src");
+  hcBtn.disabled = false;
+  hcDrop.querySelector(".dz-title").textContent = file.name;
+  hcDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+}
+
+hcDrop.addEventListener("click", () => hcInput.click());
+hcDrop.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    hcInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((type) => {
+  hcDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    hcDrop.classList.add("dragging");
+  });
+});
+["dragleave", "drop"].forEach((type) => {
+  hcDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    hcDrop.classList.remove("dragging");
+  });
+});
+hcDrop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) {
+    setHcFile(file);
+  }
+});
+hcInput.addEventListener("change", () => {
+  if (hcInput.files.length > 0) {
+    setHcFile(hcInput.files[0]);
+  }
+});
+
+hcBtn.addEventListener("click", async () => {
+  if (!hcFile) return;
+  const formData = new FormData();
+  formData.append("image", hcFile);
+  formData.append("style", hcStyle);
+  formData.append("strength", (hcStrength.value / 100).toString());
+  hcBtn.disabled = true;
+  hcBtn.textContent = "Processing...";
+  hcError.hidden = true;
+  try {
+    const response = await fetch(`${API}/haircut`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Request failed: ${response.status}`);
+    }
+    hcResult.src = URL.createObjectURL(await response.blob());
+    hcCompare.hidden = false;
+  } catch (error) {
+    hcError.textContent = error.message;
+    hcError.hidden = false;
+  } finally {
+    hcBtn.disabled = false;
+    hcBtn.textContent = "Apply cut";
+  }
+});

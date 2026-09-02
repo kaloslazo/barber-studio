@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
 from app.core.compositing.beard import STYLES
+from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.pipeline import StylePipeline
 
 router = APIRouter(prefix="/api")
@@ -66,6 +67,21 @@ async def beard(
         raise HTTPException(
             status_code=422, detail="No face detected or landmark model missing"
         )
+    return encode_png(result)
+
+
+@router.post("/haircut")
+async def haircut(
+    image: UploadFile = File(...),
+    style: str = Form("low-fade"),
+    strength: float = Form(0.9),
+):
+    if style not in HAIRCUT_STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown haircut style: {style}")
+    image_bgr = decode_image(await image.read())
+    result = pipeline.apply_haircut(image_bgr, style, strength)
+    if result is None:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
     return encode_png(result)
 
 
