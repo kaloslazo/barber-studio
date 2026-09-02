@@ -78,3 +78,25 @@ async def mesh(image: UploadFile = File(...)):
             status_code=422, detail="No face detected or landmark model missing"
         )
     return encode_png(result)
+
+
+@router.post("/live")
+async def live(
+    image: UploadFile = File(...),
+    mode: str = Form("dye"),
+    color: str = Form("#7a3ba8"),
+    style: str = Form("full"),
+    strength: float = Form(0.75),
+):
+    if mode not in ("dye", "beard"):
+        raise HTTPException(status_code=400, detail=f"Unknown live mode: {mode}")
+    image_bgr = decode_image(await image.read())
+    h, w = image_bgr.shape[:2]
+    if w > 640:
+        scale = 640 / w
+        image_bgr = cv2.resize(image_bgr, (640, int(h * scale)))
+    if mode == "beard":
+        result = pipeline.apply_beard(image_bgr, style, strength)
+    else:
+        result = pipeline.apply_hair_dye(image_bgr, color, strength)
+    return encode_png(result if result is not None else image_bgr)

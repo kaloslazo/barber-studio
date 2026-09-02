@@ -223,8 +223,7 @@ beardBtn.addEventListener("click", async () => {
   const formData = new FormData();
   formData.append("image", beardFile);
   formData.append("style", beardStyle);
-  formData.append("strength", (beardStrength.value / 100).toString());
-  beardBtn.disabled = true;
+  formData.append("strength", (beardStrength.value / 100).toString());  beardBtn.disabled = true;
   beardBtn.textContent = "Processing...";
   beardError.hidden = true;
   try {
@@ -265,5 +264,126 @@ beardBtn.addEventListener("click", async () => {
   } finally {
     beardBtn.disabled = false;
     beardBtn.textContent = "Apply beard";
+  }
+});
+
+const liveBtn = document.getElementById("live-btn");
+const liveVideo = document.getElementById("live-video");
+const liveCanvas = document.getElementById("live-canvas");
+const liveResult = document.getElementById("live-result");
+const liveError = document.getElementById("live-error");
+const liveStage = document.getElementById("live-stage");
+const liveFps = document.getElementById("live-fps");
+const liveSwatches = document.getElementById("live-swatches");
+const liveStyles = document.getElementById("live-styles");
+const liveStrength = document.getElementById("live-strength");
+const liveModeDye = document.getElementById("live-mode-dye");
+const liveModeBeard = document.getElementById("live-mode-beard");
+
+let liveRunning = false;
+let liveStream = null;
+let liveBusy = false;
+let liveMode = "dye";
+let liveStyle = "full";
+let liveColor = PRESETS[0].hex;
+
+PRESETS.forEach((preset) => {
+  const button = document.createElement("button");
+  button.className = "swatch";
+  button.style.background = preset.hex;
+  button.title = preset.name;
+  button.addEventListener("click", () => {
+    liveColor = preset.hex;
+    liveSwatches.querySelectorAll(".swatch").forEach((b) => b.classList.remove("selected"));
+    button.classList.add("selected");
+  });
+  liveSwatches.appendChild(button);
+});
+
+liveModeDye.addEventListener("click", () => {
+  liveMode = "dye";
+  liveModeDye.classList.add("active");
+  liveModeBeard.classList.remove("active");
+  liveSwatches.hidden = false;
+  liveStyles.hidden = true;
+});
+
+liveModeBeard.addEventListener("click", () => {
+  liveMode = "beard";
+  liveModeBeard.classList.add("active");
+  liveModeDye.classList.remove("active");
+  liveSwatches.hidden = true;
+  liveStyles.hidden = false;
+});
+
+document.querySelectorAll("[data-live-style]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-live-style]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    liveStyle = button.dataset.liveStyle;
+  });
+});
+
+async function liveLoop() {
+  if (!liveRunning) return;
+  if (!liveBusy && liveVideo.videoWidth > 0) {
+    liveBusy = true;
+    const started = performance.now();
+    try {
+      const targetW = 640;
+      const scale = targetW / liveVideo.videoWidth;
+      liveCanvas.width = targetW;
+      liveCanvas.height = Math.round(liveVideo.videoHeight * scale);
+      const ctx = liveCanvas.getContext("2d");
+      ctx.save();
+      ctx.translate(liveCanvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(liveVideo, 0, 0, liveCanvas.width, liveCanvas.height);
+      ctx.restore();
+      const blob = await new Promise((resolve) => liveCanvas.toBlob(resolve, "image/jpeg", 0.85));
+      const formData = new FormData();
+      formData.append("image", blob, "frame.jpg");
+      formData.append("mode", liveMode);
+      formData.append("color", liveColor);
+      formData.append("style", liveStyle);
+      formData.append("strength", (liveStrength.value / 100).toString());
+      const response = await fetch(`${API}/live`, { method: "POST", body: formData });
+      if (response.ok) {
+        liveResult.src = URL.createObjectURL(await response.blob());
+        const elapsed = (performance.now() - started) / 1000;
+        liveFps.textContent = `${(1 / elapsed).toFixed(1)} fps`;
+      }
+    } catch (error) {
+      liveError.textContent = error.message;
+      liveError.hidden = false;
+    } finally {
+      liveBusy = false;
+    }
+  }
+  setTimeout(liveLoop, 100);
+}
+
+liveBtn.addEventListener("click", async () => {
+  liveError.hidden = true;
+  if (liveRunning) {
+    liveRunning = false;
+    liveStream.getTracks().forEach((track) => track.stop());
+    liveBtn.textContent = "Start camera";
+    return;
+  }
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, facingMode: "user" },
+      audio: false,
+    });
+    liveVideo.srcObject = liveStream;
+    await liveVideo.play();
+    liveStage.hidden = false;
+    liveRunning = true;
+    liveBtn.textContent = "Stop camera";
+    liveLoop();
+  } catch (error) {
+    liveError.textContent = `Camera unavailable: ${error.message}`;
+    liveError.hidden = false;
   }
 });

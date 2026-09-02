@@ -69,3 +69,22 @@ def test_beard_invalid_style_returns_400():
         data={"style": "alien", "strength": "0.9"},
     )
     assert response.status_code == 400
+
+
+def test_live_returns_image_even_without_face():
+    response = client.post(
+        "/api/live",
+        files=to_upload(make_test_image()),
+        data={"mode": "dye", "color": "#7a3ba8", "strength": "0.75"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+
+
+def test_live_invalid_mode_returns_400():
+    response = client.post(
+        "/api/live",
+        files=to_upload(make_test_image()),
+        data={"mode": "alien"},
+    )
+    assert response.status_code == 400

@@ -317,6 +317,18 @@ button.loading {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
+.live-meta {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#live-stage img {
+  display: block;
+  width: 100%;
+  border-radius: 4px;
+}
+
 @media (max-width: 800px) {
   .layout {
     grid-template-columns: 1fr;

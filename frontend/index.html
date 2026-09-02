@@ -23,6 +23,7 @@
         <button class="menu-item active" data-panel="dye">Hair Dye</button>
         <button class="menu-item" data-panel="beard">Beard</button>
         <button class="menu-item" data-panel="haircut" disabled>Haircut <small>soon</small></button>
+        <button class="menu-item" data-panel="live">Live</button>
       </nav>
       <div class="card tips">
         <h3>Photo tips</h3>
@@ -73,6 +74,42 @@
             <img id="result-image" alt="Result preview">
           </div>
         </div>
+      </section>
+
+      <section class="panel" id="panel-live">
+        <header class="page-head">
+          <h1>Live try-on</h1>
+          <p>Real-time webcam preview. Photo mode has better quality.</p>
+        </header>
+
+        <div class="card controls">
+          <div class="style-group">
+            <button class="style-btn active" id="live-mode-dye">Hair dye</button>
+            <button class="style-btn" id="live-mode-beard">Beard</button>
+          </div>
+          <div class="swatches" id="live-swatches"></div>
+          <div class="style-group" id="live-styles" hidden>
+            <button class="style-btn active" data-live-style="full">Full</button>
+            <button class="style-btn" data-live-style="goatee">Goatee</button>
+            <button class="style-btn" data-live-style="mustache">Mustache</button>
+            <button class="style-btn" data-live-style="stubble">Stubble</button>
+          </div>
+          <label class="slider">
+            <span>Intensity</span>
+            <input type="range" id="live-strength" min="20" max="100" value="75">
+          </label>
+          <button id="live-btn">Start camera</button>
+        </div>
+
+        <div class="banner" id="live-error" hidden></div>
+
+        <div class="card" id="live-stage" hidden>
+          <img id="live-result" alt="Live preview">
+          <div class="live-meta"><span id="live-fps">-- fps</span></div>
+        </div>
+
+        <video id="live-video" hidden autoplay playsinline muted></video>
+        <canvas id="live-canvas" hidden></canvas>
       </section>
 
       <section class="panel" id="panel-beard">
