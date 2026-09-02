@@ -2,7 +2,7 @@ from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import apply_real_beard, load_templates
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
-from app.core.compositing.haircut import apply_haircut
+from app.core.compositing.haircut import apply_haircut, load_hair_templates
 from app.core.detection.face_detector import FaceDetector
 from app.core.detection.landmarks import LandmarkDetector
 from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
@@ -21,6 +21,7 @@ class StylePipeline:
         self.segmenter = self._load_segmenter()
         self.landmark_detector = None
         self.beard_templates = load_templates()
+        self.hair_templates = load_hair_templates()
         self._live_crop = None
 
     @staticmethod
@@ -61,7 +62,10 @@ class StylePipeline:
             return None
         points = self._landmarks(image_bgr, face)
         hair_mask = self.hair_mask(image_bgr, face)
-        return apply_haircut(image_bgr, hair_mask, face, points, style, strength)
+        return apply_haircut(
+            image_bgr, hair_mask, face, points, style, strength,
+            templates=self.hair_templates,
+        )
 
     def apply_beard(self, image_bgr, style="full", strength=0.9):
         face = self.detector.largest_face(image_bgr)
