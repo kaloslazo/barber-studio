@@ -1,17 +1,13 @@
 import cv2
 import numpy as np
 
-from app.core.geometry.delaunay import delaunay_triangles
-from app.core.geometry.warp import warp_template
-
-try:
-    from pathlib import Path
-    ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets/haircuts"
-except ImportError:
-    ASSETS_DIR = None
-
 STYLES = {
-    "low-fade": {"side_start": 0.50, "side_full": 0.85},
+    "low-fade": {
+        "ear_reach": 0.50,
+        "temple_reach": 0.30,
+        "ear_short": 0.95,
+        "temple_short": 0.60,
+    },
 }
 DISABLED_STYLES = ("mid-fade", "high-fade", "buzz")
 
@@ -21,49 +17,7 @@ def _smoothstep(x):
     return x * x * (3.0 - 2.0 * x)
 
 
-def hair_virtual_points(points, hair_mask, face_box):
-    """14 observed hair anchors: 7 hairline samples, 5 crown samples, 2 ears.
-    Built identically on donors and users from their own masks/landmarks."""
-    x, y, fw, fh = [float(v) for v in face_box]
-    pts68 = np.asarray(points, np.float32)
-    hair = (hair_mask > 0).astype(np.uint8)
-    h, w = hair.shape
-    brow_y = float((pts68[19][1] + pts68[24][1]) / 2.0)
-    virtuals = []
-
-    def column_band(px, radius=10):
-        w0 = max(0, int(px) - radius)
-        w1 = min(w, int(px) + radius)
-        return hair[:, w0:w1]
-
-    for t in np.linspace(0.15, 0.85, 7):
-        px = int(x + t * fw)
-        band = column_band(px)
-        rows = np.where(band.any(axis=1))[0]
-        if len(rows):
-            virtuals.append((px, float(rows.min()) - 2.0))
-        else:
-            virtuals.append((px, brow_y - fh * 0.40))
-
-    for t in np.linspace(0.30, 0.70, 5):
-        px = int(x + t * fw)
-        band = column_band(px)
-        rows = np.where(band.any(axis=1))[0]
-        if len(rows):
-            virtuals.append((px, float(rows.max()) + 2.0))
-        else:
-            virtuals.append((px, y - fh * 0.60))
-
-    ear_l = (float(pts68[0][0]) - fw * 0.03, float(pts68[0][1]) - fh * 0.28)
-    ear_r = (float(pts68[16][0]) + fw * 0.03, float(pts68[16][1]) - fh * 0.28)
-    virtuals.extend([ear_l, ear_r])
-    return np.vstack([pts68, np.asarray(virtuals, np.float32)])
-
-
 def _face_guard(shape, points, face_box, hair_mask=None):
-    """Face protection: the CONCAVE face oval (jaw arc + brow arc) so the
-    sideburn/hair zone beside the jaw stays reachable, plus the forehead
-    strip up to the observed hairline."""
     h, w = shape[:2]
     guard = np.zeros((h, w), np.uint8)
     if points is not None:
@@ -102,131 +56,184 @@ def _face_guard(shape, points, face_box, hair_mask=None):
     return guard
 
 
-def _side_zone(shape, hair_soft, face_box, points):
-    """Template application zone: temples, sides and sideburns."""
+def _head_envelope(shape, hair_mask, face_box, points):
+    """Observed head envelope: bounded above by the REAL top contour of the
+    hair mask, on the sides by ear landmarks, below by the jaw line."""
     h, w = shape[:2]
+    hair = (hair_mask > 0).astype(np.uint8)
+    pts68 = np.asarray(points, np.float32)
     x, y, fw, fh = [float(v) for v in face_box]
+    x0 = max(0, int(float(pts68[0][0]) - fw * 0.10))
+    x1 = min(w - 1, int(float(pts68[16][0]) + fw * 0.10))
+    jaw_y = float(pts68[8][1])
+    bottom = int(jaw_y + fh * 0.10)
+
+    top_row = np.full(w, -1.0)
+    for col in range(x0, x1 + 1):
+        rows = np.where(hair[:, col] > 0)[0]
+        if len(rows):
+            top_row[col] = float(rows.min())
+    valid = np.where(top_row >= 0)[0]
+    if len(valid) < 5:
+        return np.zeros((h, w), np.float32)
+    top_row = np.interp(np.arange(w), valid, top_row[valid])
+    kernel = np.ones(21)
+    top_row = np.convolve(top_row, kernel / kernel.sum(), mode="same")
+
+    ys, xs = np.mgrid[0:h, 0:w]
+    head = (ys >= top_row[None, :]) & (ys <= bottom) & (xs >= x0) & (xs <= x1)
+    head = cv2.morphologyEx(
+        head.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8)
+    )
+    return head.astype(np.float32)
+
+
+def _shortness_field(shape, hair_soft, face_box, points):
+    """Continuous shortness in [0,1]: 0 top-center, medium at temples,
+    high at ears/sideburns/lower sides. Symmetric, no forehead stripe."""
+    h, w = shape[:2]
     cfg = STYLES["low-fade"]
+    pts68 = np.asarray(points, np.float32)
+    x, y, fw, fh = [float(v) for v in face_box]
+    cx = x + fw / 2.0
+    brow_y = float((pts68[19][1] + pts68[24][1]) / 2.0)
+    ear_l = np.array([float(pts68[0][0]), float(pts68[0][1]) - fh * 0.28])
+    ear_r = np.array([float(pts68[16][0]), float(pts68[16][1]) - fh * 0.28])
+    temple_l = np.array([float(pts68[17][0]), float(pts68[17][1]) - fh * 0.22])
+    temple_r = np.array([float(pts68[26][0]), float(pts68[26][1]) - fh * 0.22])
+
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    d_ear = np.minimum(np.hypot(xs - ear_l[0], ys - ear_l[1]), np.hypot(xs - ear_r[0], ys - ear_r[1]))
+    d_temple = np.minimum(
+        np.hypot(xs - temple_l[0], ys - temple_l[1]),
+        np.hypot(xs - temple_r[0], ys - temple_r[1]),
+    )
+    short_ear = cfg["ear_short"] * _smoothstep((cfg["ear_reach"] * fh - d_ear) / (0.30 * fh))
+    short_temple = cfg["temple_short"] * _smoothstep((cfg["temple_reach"] * fh - d_temple) / (0.25 * fh))
+    lateral = np.abs(xs - cx) / max(fw, 1.0)
+    below_ear = 0.9 * _smoothstep((ear_l[1] + 0.05 * fh - ys) * -1.0 / (0.35 * fh)) * _smoothstep((lateral - 0.32) / 0.18)
+    central_kill = _smoothstep((lateral - 0.18) / 0.15)
+
+    shortness = np.maximum.reduce([short_ear, short_temple, below_ear])
+    shortness = shortness * central_kill * hair_soft
+    return np.clip(shortness, 0.0, 1.0)
+
+
+def _scalp_roi(image_bgr, face_box, points, hair_mask):
+    h, w = image_bgr.shape[:2]
+    pts68 = np.asarray(points, np.float32)
+    x, y, fw, fh = [int(v) for v in face_box]
+    roi = np.zeros((h, w), np.uint8)
+    nose_len = np.linalg.norm(pts68[30] - pts68[27])
+    forehead = (pts68[27] + pts68[28]) / 2 + np.array([0.0, -nose_len * 0.45])
+    cv2.circle(roi, (int(forehead[0]), int(forehead[1])), max(4, int(nose_len * 0.4)), 255, -1)
+    cx = (pts68[19][0] + pts68[24][0]) / 2
+    for corner in (pts68[36], pts68[45]):
+        temple = corner + np.array([np.sign(corner[0] - cx) * fw * 0.08, -fh * 0.02])
+        cv2.circle(roi, (int(temple[0]), int(temple[1])), max(3, int(fw * 0.05)), 255, -1)
+    roi = cv2.subtract(roi, (hair_mask > 0).astype(np.uint8) * 255)
+    return roi
+
+
+def _lab_median(pixels_bgr):
+    if len(pixels_bgr) == 0:
+        return np.array([0.0, 128.0, 128.0], np.float32)
+    lab = cv2.cvtColor(pixels_bgr.reshape(-1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2LAB)
+    return np.median(lab.reshape(-1, 3), axis=0).astype(np.float32)
+
+
+def _background_plate(image_bgr, hair_mask, face_guard, face_box, points):
+    """Clean plate from reliable background: samples far from hair, face and
+    the neck/shoulder band. Returns None when the background is not uniform."""
+    h, w = image_bgr.shape[:2]
+    far = 1 - (
+        cv2.dilate((hair_mask > 0).astype(np.uint8), np.ones((81, 81), np.uint8)) > 0
+    ).astype(np.uint8)
+    far[face_guard > 0] = 0
+    far = cv2.dilate(far, np.ones((9, 9), np.uint8))
     if points is not None:
         pts68 = np.asarray(points, np.float32)
-        brow_y = float((pts68[19][1] + pts68[24][1]) / 2.0)
-        ear_y = float((pts68[0][1] + pts68[16][1]) / 2.0) - fh * 0.28
-        jaw_y = float(pts68[8][1])
-    else:
-        brow_y = y + fh * 0.30
-        ear_y = y + fh * 0.45
-        jaw_y = y + fh
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-    lateral = np.abs(xs - (x + fw / 2.0)) / max(fw * 0.62, 1.0)
-    w_side = _smoothstep((lateral - cfg["side_start"]) / (cfg["side_full"] - cfg["side_start"]))
-    w_below = _smoothstep((ear_y - ys) / (fh * 0.35)) * _smoothstep((lateral - 0.30) / 0.30)
-    zone = np.maximum(w_side, w_below)
-    return np.clip(zone * hair_soft, 0.0, 1.0)
-
-
-def _lab_stats(pixels_bgr):
-    lab_pixels = cv2.cvtColor(
-        pixels_bgr.reshape(-1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2LAB
-    ).astype(np.float32).reshape(-1, 3)
-    return np.stack([lab_pixels.mean(0), lab_pixels.std(0)], axis=1)
-
-
-def _match_lab(warped_rgb, warped_alpha, donor_lab, user_lab):
-    """Match donor hair luminance mean/std to the user's hair, keep hue close."""
-    visible = warped_alpha > 0.3
-    if not visible.any():
-        return warped_rgb
-    lab = cv2.cvtColor(
-        np.clip(warped_rgb, 0, 255).astype(np.uint8), cv2.COLOR_BGR2LAB
-    ).astype(np.float32)
-    k = np.clip(user_lab[:, 1] / np.maximum(donor_lab[:, 1], 1.0), 0.6, 1.6)
-    for channel in range(3):
-        gain = k[channel] if channel == 0 else 0.7
-        lab[..., channel] = np.clip(
-            (lab[..., channel] - donor_lab[channel, 0]) * gain + user_lab[channel, 0],
-            0,
-            255,
-        )
-    matched = cv2.cvtColor(np.clip(lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR)
-    out = warped_rgb.copy()
-    out[visible] = matched[visible].astype(np.float32)
-    return out
-
-
-def load_hair_templates():
-    templates = []
-    if ASSETS_DIR is None:
-        return templates
-    for path in sorted(ASSETS_DIR.glob("*.npz")):
-        data = np.load(path)
-        templates.append(
-            {
-                "name": path.stem,
-                "bgra": data["bgra"],
-                "points": data["points"],
-                "lab": data["lab"],
-            }
-        )
-    return templates
+        fh = float(face_box[3])
+        cv2.rectangle(far, (0, int(pts68[8][1] - fh * 0.1)), (w - 1, h - 1), 0, -1)
+    if (far > 0).sum() < 2000:
+        return None
+    pixels = image_bgr[far > 0]
+    lab = cv2.cvtColor(pixels.reshape(-1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2LAB).reshape(-1, 3)
+    if float(lab[:, 0].std()) > 22.0:
+        return None
+    return np.median(pixels, axis=0).astype(np.float32)
 
 
 def apply_haircut(image_bgr, hair_mask, face_box, points, style, strength, templates=None):
-    """Low fade via a real short-hair template warped with Delaunay:
-    top hair preserved, template only on temples/sides/sideburns, external
-    hanging locks inpainted. Falls back to the untouched original when the
-    template data is missing or geometry is unreliable."""
+    """Low-fade layered renderer (template-free):
+    M_side gets synthetic short hair, M_external locks are cleaned with a
+    background plate, M_top keeps the original pixels."""
     if style not in STYLES:
         raise ValueError(f"Style '{style}' is temporarily disabled")
     density = float(np.clip(strength, 0.0, 1.0))
     if density <= 0.0:
         return image_bgr.copy()
-    if not templates or points is None:
+    if points is None:
         return image_bgr.copy()
 
     h, w = image_bgr.shape[:2]
     fw, fh = float(face_box[2]), float(face_box[3])
-    template = templates[0]
-
     hair_soft = cv2.GaussianBlur(
         (hair_mask > 0).astype(np.float32), (0, 0), max(2.0, fw / 150.0)
     )
     face_guard = _face_guard(image_bgr.shape, points, face_box, hair_mask)
-    guard_soft = cv2.GaussianBlur(
-        (face_guard > 0).astype(np.float32), (0, 0), max(2.0, fh / 90.0)
-    )
+    head = _head_envelope(image_bgr.shape, hair_mask, face_box, points)
 
-    src_points = template["points"]
-    dst_points = hair_virtual_points(points, hair_mask, face_box)
-    triangles = delaunay_triangles(dst_points)
-    warped = warp_template(template["bgra"], src_points, dst_points, triangles, (h, w))
-    warped_rgb = warped[..., :3]
-    warped_alpha = warped[..., 3] / 255.0
+    m_external = (hair_soft > 0.4) * (1.0 - head)
+    m_external[face_guard > 0] = 0.0
+
+    shortness = _shortness_field(image_bgr.shape, hair_soft, face_box, points)
+    m_side = shortness * head * hair_soft
+    m_side[face_guard > 0] = 0.0
+
+    bg_plate = _background_plate(image_bgr, hair_mask, face_guard, face_box, points)
+    background_clean = image_bgr.copy()
+    if bg_plate is not None:
+        locks = (m_external > 0.5).astype(np.uint8)
+        if locks.sum() > 100:
+            background_clean[locks > 0] = bg_plate.astype(np.uint8)
+            edges = cv2.dilate(locks, np.ones((9, 9), np.uint8)) - locks
+            background_clean = cv2.inpaint(
+                background_clean, edges * 255, 3, cv2.INPAINT_TELEA
+            )
 
     hair_pixels = image_bgr[hair_mask > 0]
-    if len(hair_pixels) < 100:
-        return image_bgr.copy()
-    user_lab = _lab_stats(hair_pixels)
-    matched_rgb = _match_lab(warped_rgb, warped_alpha, template["lab"], user_lab)
+    hair_lab = _lab_median(hair_pixels)
+    scalp_pixels = image_bgr[_scalp_roi(image_bgr, face_box, points, hair_mask) > 0]
+    scalp_lab = _lab_median(scalp_pixels)
 
-    side = _side_zone(image_bgr.shape, hair_soft, face_box, points)
-    alpha = np.clip(warped_alpha * side * density * (1.0 - guard_soft), 0.0, 1.0)
-    alpha[face_guard > 0] = 0.0
+    replaced = image_bgr.astype(np.float32)
+    replaced[hair_mask > 127] = scalp_pixels.reshape(-1, 3).mean(axis=0).astype(np.uint8) if len(scalp_pixels) else 0
+    lighting_gray = cv2.cvtColor(replaced.astype(np.uint8), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    lighting_gray = cv2.GaussianBlur(lighting_gray, (0, 0), max(8.0, h / 16.0))
+    zone = lighting_gray[m_side > 0.3]
+    light_norm = lighting_gray / max(np.median(zone) if zone.size else 128.0, 1.0)
 
-    warped_binary = (warped_alpha > 0.3).astype(np.uint8)
-    external_hair = ((hair_mask > 0) & (cv2.dilate(warped_binary, np.ones((51, 51), np.uint8)) == 0)).astype(np.uint8)
-    external_hair[face_guard > 0] = 0
-    inpaint_mask = (external_hair > 0).astype(np.uint8) * 255
-    inpaint_mask = cv2.dilate(inpaint_mask, np.ones((5, 5), np.uint8))
-    safe = (inpaint_mask & face_guard).sum() == 0 and (inpaint_mask > 0).sum() < 0.12 * h * w
-    base = image_bgr.copy()
-    if safe and (inpaint_mask > 0).sum() > 150:
-        base = cv2.inpaint(base, inpaint_mask, 5, cv2.INPAINT_TELEA)
+    dist_inside = cv2.distanceTransform((hair_soft > 0.5).astype(np.uint8), cv2.DIST_L2, 5)
+    coverage = np.clip(dist_inside / (0.22 * fh), 0.0, 1.0)
+    pigment_mix = 0.45 + 0.45 * coverage
 
-    out = base.astype(np.float32)
-    out = out * (1.0 - alpha[..., None]) + matched_rgb * alpha[..., None]
+    lab_layer = np.empty((h, w, 3), np.float32)
+    for channel in range(3):
+        base = scalp_lab[channel] * (1.0 - pigment_mix) + hair_lab[channel] * pigment_mix
+        lab_layer[..., channel] = base
+    lab_layer[..., 0] = np.clip(lab_layer[..., 0] * (0.55 + 0.45 * light_norm), 0, 255)
 
-    top_keep = np.clip(1.0 - side, 0.0, 1.0) * hair_soft
-    out = out * (1.0 - top_keep[..., None]) + image_bgr.astype(np.float32) * top_keep[..., None]
+    layer_bgr = cv2.cvtColor(np.clip(lab_layer, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR).astype(np.float32)
+    hair_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    detail = hair_gray - cv2.GaussianBlur(hair_gray, (0, 0), 3.0)
+    rng = np.random.default_rng(7)
+    fine = (cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), 1.0) - 0.5) * 8.0
+    layer_bgr += (0.30 * detail[..., None]) + fine[..., None]
+
+    alpha = np.clip(m_side, 0.0, 1.0) * density
+    out = background_clean.astype(np.float32)
+    out = out * (1.0 - alpha[..., None]) + np.clip(layer_bgr, 0, 255) * alpha[..., None]
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
@@ -235,21 +242,11 @@ def debug_sheet(image_bgr, hair_mask, face_box, points, style, strength=0.9, tem
         (hair_mask > 0).astype(np.float32), (0, 0), max(2.0, float(face_box[2]) / 150.0)
     )
     face_guard = _face_guard(image_bgr.shape, points, face_box, hair_mask)
-    side = _side_zone(image_bgr.shape, hair_soft, face_box, points)
-    warped_alpha = np.zeros_like(hair_soft)
-    if templates and points is not None:
-        template = templates[0]
-        dst_points = hair_virtual_points(points, hair_mask, face_box)
-        triangles = delaunay_triangles(dst_points)
-        warped = warp_template(
-            template["bgra"], template["points"], dst_points, triangles, image_bgr.shape
-        )
-        warped_alpha = warped[..., 3] / 255.0
-    warped_binary = (warped_alpha > 0.3).astype(np.uint8)
-    external = ((hair_mask > 0) & (cv2.dilate(warped_binary, np.ones((51, 51), np.uint8)) == 0)).astype(np.float32)
-    alpha = np.clip(warped_alpha * side * float(strength), 0.0, 1.0)
-    alpha[face_guard > 0] = 0.0
-    result = apply_haircut(image_bgr, hair_mask, face_box, points, style, strength, templates)
+    head = _head_envelope(image_bgr.shape, hair_mask, face_box, points)
+    shortness = _shortness_field(image_bgr.shape, hair_soft, face_box, points)
+    m_side = shortness * head * hair_soft
+    m_external = (hair_soft > 0.4) * (1.0 - head)
+    result = apply_haircut(image_bgr, hair_mask, face_box, points, style, strength)
 
     def overlay(mask, color):
         canvas = image_bgr.astype(np.float32)
@@ -257,12 +254,12 @@ def debug_sheet(image_bgr, hair_mask, face_box, points, style, strength=0.9, tem
         return (canvas * (1.0 - 0.55 * m) + np.array(color, np.float32) * (0.55 * m)).astype(np.uint8)
 
     panels = [
-        (overlay(hair_soft, (80, 220, 80)), "1 user hair"),
+        (overlay(hair_soft, (80, 220, 80)), "1 hair"),
         (overlay((face_guard > 0).astype(np.float32), (60, 60, 240)), "2 face guard"),
-        (overlay(warped_alpha, (220, 120, 60)), "3 template mask"),
-        (overlay(external, (60, 200, 240)), "4 old external"),
-        (overlay(np.clip(1.0 - side, 0, 1) * hair_soft, (120, 220, 120)), "5 top keep"),
-        (overlay(alpha, (40, 140, 255)), "6 final alpha"),
+        (overlay(head, (220, 120, 60)), "3 head env"),
+        (overlay(m_side, (200, 60, 200)), "4 side zone"),
+        (overlay(m_external, (60, 200, 240)), "5 external"),
+        (overlay(np.clip(m_side, 0, 1) * float(strength), (40, 140, 255)), "6 alpha"),
         (result, "7 result"),
     ]
     bar = np.full((56, image_bgr.shape[1], 3), 245, np.uint8)
