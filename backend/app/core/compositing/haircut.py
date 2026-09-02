@@ -59,18 +59,24 @@ def apply_haircut(image_bgr, hair_mask, face_box, points, style, strength):
     clump = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), max(4.0, fw / 30.0))
     clump = (clump - clump.min()) / (np.ptp(clump) + 1e-6)
     clump = np.clip((clump - 0.2) * 1.5, 0.0, 1.0)
-    follicle = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), 1.2)
+    follicle = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), 1.0)
 
     scalp = _scalp_reference(image_bgr, points)
     shading = _hair_shading(image_bgr, hair_mask, face_box)
     hair_mean_v = shading[hair_mask > 0].mean() if (hair_mask > 0).any() else 128.0
-    rel_shading = shading / max(hair_mean_v, 1.0)
+    rel_shading = np.clip(shading / max(hair_mean_v, 1.0), 0.7, 1.3)
 
-    scalp_v = scalp[0]
-    cut_layer = np.empty((h, w, 3), np.float32)
-    cut_v = np.clip(rel_shading * scalp_v * (0.85 + 0.3 * follicle), 0, 255)
+    stubble_dots = (follicle > 0.62).astype(np.float32)
+    base_v = scalp[0] * 0.66 * (0.8 + 0.2 * rel_shading)
+    cut_v = base_v * (1.0 - 0.5 * stubble_dots)
+    cut_v = cut_v * (0.92 + 0.08 * follicle)
+
     cut_layer_ycc = np.stack(
-        [cut_v, np.full((h, w), scalp[1], np.float32), np.full((h, w), scalp[2], np.float32)],
+        [
+            np.clip(cut_v, 0, 255),
+            np.full((h, w), scalp[1], np.float32),
+            np.full((h, w), scalp[2], np.float32),
+        ],
         axis=-1,
     )
     cut_layer = cv2.cvtColor(
