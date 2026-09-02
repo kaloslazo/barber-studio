@@ -106,3 +106,40 @@ def test_haircut_invalid_style_returns_400():
         data={"style": "mohawk"},
     )
     assert response.status_code == 400
+
+
+def _haircut_fixture():
+    import cv2
+
+    from app.core.compositing.haircut import apply_haircut
+
+    rng = np.random.default_rng(3)
+    image = rng.integers(0, 255, (240, 320, 3), dtype=np.uint8)
+    mask = np.zeros((240, 320), np.uint8)
+    mask[40:120, 110:210] = 255
+    face_box = (90, 100, 140, 110)
+    return image, mask, face_box, apply_haircut
+
+
+def test_haircut_zero_strength_is_identity():
+    image, mask, face_box, apply_haircut = _haircut_fixture()
+    result = apply_haircut(image, mask, face_box, None, "low-fade", 0.0)
+    assert np.array_equal(result, image)
+
+
+def test_haircut_does_not_touch_pixels_outside_hair():
+    image, mask, face_box, apply_haircut = _haircut_fixture()
+    result = apply_haircut(image, mask, face_box, None, "buzz", 1.0)
+    far_outside = np.zeros_like(mask)
+    far_outside[160:230, 10:80] = 255
+    assert np.array_equal(result[far_outside > 0], image[far_outside > 0])
+
+
+def test_haircut_styles_differ():
+    image, mask, face_box, apply_haircut = _haircut_fixture()
+    low = apply_haircut(image, mask, face_box, None, "low-fade", 0.9)
+    high = apply_haircut(image, mask, face_box, None, "high-fade", 0.9)
+    buzz = apply_haircut(image, mask, face_box, None, "buzz", 0.9)
+    assert not np.array_equal(low, high)
+    assert not np.array_equal(low, buzz)
+    assert not np.array_equal(high, buzz)
