@@ -98,7 +98,9 @@ async def live(
     if mode == "beard":
         result = pipeline.apply_beard(image_bgr, style, strength)
     elif mode == "mesh":
-        result = pipeline.face_mesh(image_bgr)
+        result = pipeline.face_mesh(image_bgr, crop=True)
     else:
         result = pipeline.apply_hair_dye(image_bgr, color, strength)
-    return encode_png(result if result is not None else image_bgr)
+    response = encode_png(result if result is not None else image_bgr)
+    response.headers["X-Face-Found"] = "0" if result is None else "1"
+    return response

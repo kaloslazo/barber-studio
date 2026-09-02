@@ -106,7 +106,10 @@
 
         <div class="card" id="live-stage" hidden>
           <img id="live-result" alt="Live preview">
-          <div class="live-meta"><span id="live-fps">-- fps</span></div>
+          <div class="live-meta">
+            <span id="live-fps">-- fps</span>
+            <span id="live-status" class="live-status" hidden>Face not detected</span>
+          </div>
         </div>
 
         <video id="live-video" hidden autoplay playsinline muted></video>

@@ -274,6 +274,7 @@ const liveResult = document.getElementById("live-result");
 const liveError = document.getElementById("live-error");
 const liveStage = document.getElementById("live-stage");
 const liveFps = document.getElementById("live-fps");
+const liveStatus = document.getElementById("live-status");
 const liveSwatches = document.getElementById("live-swatches");
 const liveStyles = document.getElementById("live-styles");
 const liveStrength = document.getElementById("live-strength");
@@ -349,6 +350,7 @@ async function liveLoop() {
         liveResult.src = URL.createObjectURL(await response.blob());
         const elapsed = (performance.now() - started) / 1000;
         liveFps.textContent = `${(1 / elapsed).toFixed(1)} fps`;
+        liveStatus.hidden = response.headers.get("X-Face-Found") !== "0";
       }
     } catch (error) {
       liveError.textContent = error.message;

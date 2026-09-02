@@ -321,6 +321,18 @@ button.loading {
   margin-top: 10px;
   font-size: 13px;
   color: var(--muted);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.live-status {
+  padding: 3px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: #fdf1f0;
+  color: var(--danger);
+  font-size: 12px;
 }
 
 #live-stage img {

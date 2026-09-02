@@ -77,7 +77,7 @@ class StylePipeline:
                 pass
         return render_beard(image_bgr, points, style, strength)
 
-    def face_mesh(self, image_bgr):
+    def face_mesh(self, image_bgr, crop=False):
         face = self.detector.largest_face(image_bgr)
         if face is None:
             return None
@@ -85,4 +85,16 @@ class StylePipeline:
         if points is None:
             return None
         triangles = delaunay_triangles(points)
-        return draw_mesh(image_bgr, points, triangles)
+        canvas = draw_mesh(image_bgr, points, triangles)
+        if crop:
+            h, w = image_bgr.shape[:2]
+            x, y, fw, fh = face
+            mx = int(fw * 0.7)
+            my_top = int(fh * 0.5)
+            my_bottom = int(fh * 0.7)
+            x0 = max(0, x - mx)
+            y0 = max(0, y - my_top)
+            x1 = min(w, x + fw + mx)
+            y1 = min(h, y + fh + my_bottom)
+            canvas = canvas[y0:y1, x0:x1]
+        return canvas
