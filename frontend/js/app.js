@@ -279,6 +279,15 @@ const liveStyles = document.getElementById("live-styles");
 const liveStrength = document.getElementById("live-strength");
 const liveModeDye = document.getElementById("live-mode-dye");
 const liveModeBeard = document.getElementById("live-mode-beard");
+const liveModeMesh = document.getElementById("live-mode-mesh");
+
+function setLiveMode(mode, activeBtn) {
+  liveMode = mode;
+  [liveModeDye, liveModeBeard, liveModeMesh].forEach((b) => b.classList.remove("active"));
+  activeBtn.classList.add("active");
+  liveSwatches.hidden = mode !== "dye";
+  liveStyles.hidden = mode !== "beard";
+}
 
 let liveRunning = false;
 let liveStream = null;
@@ -300,21 +309,9 @@ PRESETS.forEach((preset) => {
   liveSwatches.appendChild(button);
 });
 
-liveModeDye.addEventListener("click", () => {
-  liveMode = "dye";
-  liveModeDye.classList.add("active");
-  liveModeBeard.classList.remove("active");
-  liveSwatches.hidden = false;
-  liveStyles.hidden = true;
-});
-
-liveModeBeard.addEventListener("click", () => {
-  liveMode = "beard";
-  liveModeBeard.classList.add("active");
-  liveModeDye.classList.remove("active");
-  liveSwatches.hidden = true;
-  liveStyles.hidden = false;
-});
+liveModeDye.addEventListener("click", () => setLiveMode("dye", liveModeDye));
+liveModeBeard.addEventListener("click", () => setLiveMode("beard", liveModeBeard));
+liveModeMesh.addEventListener("click", () => setLiveMode("mesh", liveModeMesh));
 
 document.querySelectorAll("[data-live-style]").forEach((button) => {
   button.addEventListener("click", () => {
