@@ -5,6 +5,7 @@ from fastapi.responses import Response
 
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+from app.core.compositing.haircut import DISABLED_STYLES as HAIRCUT_DISABLED
 from app.core.pipeline import StylePipeline
 
 router = APIRouter(prefix="/api")
@@ -76,10 +77,18 @@ async def haircut(
     style: str = Form("low-fade"),
     strength: float = Form(0.9),
 ):
+    if style in HAIRCUT_DISABLED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Style '{style}' is temporarily disabled during low-fade validation",
+        )
     if style not in HAIRCUT_STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown haircut style: {style}")
     image_bgr = decode_image(await image.read())
-    result = pipeline.apply_haircut(image_bgr, style, strength)
+    try:
+        result = pipeline.apply_haircut(image_bgr, style, strength)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
     return encode_png(result)

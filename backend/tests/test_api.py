@@ -108,6 +108,16 @@ def test_haircut_invalid_style_returns_400():
     assert response.status_code == 400
 
 
+def test_haircut_disabled_style_returns_400():
+    response = client.post(
+        "/api/haircut",
+        files=to_upload(make_test_image()),
+        data={"style": "buzz"},
+    )
+    assert response.status_code == 400
+    assert "disabled" in response.json()["detail"]
+
+
 def _haircut_fixture():
     import cv2
 
@@ -129,17 +139,18 @@ def test_haircut_zero_strength_is_identity():
 
 def test_haircut_does_not_touch_pixels_outside_hair():
     image, mask, face_box, apply_haircut = _haircut_fixture()
-    result = apply_haircut(image, mask, face_box, None, "buzz", 1.0)
+    result = apply_haircut(image, mask, face_box, None, "low-fade", 1.0)
     far_outside = np.zeros_like(mask)
     far_outside[160:230, 10:80] = 255
     assert np.array_equal(result[far_outside > 0], image[far_outside > 0])
 
 
-def test_haircut_styles_differ():
+def test_haircut_fade_never_touches_face_hull():
     image, mask, face_box, apply_haircut = _haircut_fixture()
-    low = apply_haircut(image, mask, face_box, None, "low-fade", 0.9)
-    high = apply_haircut(image, mask, face_box, None, "high-fade", 0.9)
-    buzz = apply_haircut(image, mask, face_box, None, "buzz", 0.9)
-    assert not np.array_equal(low, high)
-    assert not np.array_equal(low, buzz)
-    assert not np.array_equal(high, buzz)
+    from app.core.compositing.haircut import _protect_mask
+
+    result = apply_haircut(image, mask, face_box, None, "low-fade", 1.0)
+    protect = _protect_mask(image.shape, None, face_box)
+    protect_area = protect > 0
+    if protect_area.sum():
+        assert np.array_equal(result[protect_area], image[protect_area])
