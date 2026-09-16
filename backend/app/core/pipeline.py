@@ -1,3 +1,6 @@
+import cv2
+import numpy as np
+
 from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import apply_real_beard, load_templates

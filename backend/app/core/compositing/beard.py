@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 
 from app.core.compositing.alpha import inside_feather, organic_feather
-from app.core.geometry.delaunay import delaunay_triangles
+#from app.core.geometry.delaunay import delaunay_triangles
+from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.warp import warp_template
 
 try:
@@ -176,7 +177,7 @@ def _bezier(p0, p1, p2, samples=6):
     return points.astype(np.int32)
 
 
-def _strand_layer(rng, mask, dx, dy, style, face_w, density, band):
+def _strand_layer(rng, mask, dx, dy, style, face_w, density, band, tint=None):
     h, w = mask.shape
     ys, xs = np.where(mask > 0)
     if len(xs) == 0:
@@ -203,7 +204,11 @@ def _strand_layer(rng, mask, dx, dy, style, face_w, density, band):
             [curl * length * 0.7, -abs(ux) * length * 0.12]
         )
 
-        color = PALETTE[int(rng.integers(0, len(PALETTE)))]
+        if tint is None:
+            color = PALETTE[int(rng.integers(0, len(PALETTE)))]
+        else:
+            jitter = float(rng.uniform(0.72, 1.08))
+            color = (float(tint[0]) * jitter, float(tint[1]) * jitter, float(tint[2]) * jitter)
         alpha = int(rng.integers(150, 235))
         thickness = 1 if style == "stubble" else int(rng.choice([1, 1, 2], p=[0.5, 0.32, 0.18]))
         cv2.polylines(
@@ -285,6 +290,37 @@ def _match_chroma(region_bgr, alpha, template_skin, target_skin):
     return out
 
 
+def _recolor_beard(region_bgr, alpha, target_ycrcb, y_scale=0.88):
+    """Recolour the warped beard to the person's own hair tone.
+
+    The templates are dark-bearded photos, so a blond subject would get a black
+    beard. We shift the whole beard cloud onto a target tone derived from the
+    hair (luminance *and* chroma). A constant shift keeps the beard's internal
+    variation, so the strand detail survives. Returns the recoloured region and
+    the resulting mean beard colour (BGR) for the base/strand layers.
+    """
+    visible = alpha > 0.05
+    if not visible.any():
+        return region_bgr, None
+
+    ycrcb = cv2.cvtColor(
+        np.clip(region_bgr, 0, 255).astype(np.uint8), cv2.COLOR_BGR2YCrCb
+    ).astype(np.float32)
+
+    current_mean = ycrcb[visible].mean(axis=0)
+    target = np.array(target_ycrcb, np.float32).copy()
+    target[0] *= y_scale  # a beard reads slightly darker than scalp hair
+
+    shift = target - current_mean
+    ycrcb += shift
+
+    corrected = cv2.cvtColor(np.clip(ycrcb, 0, 255).astype(np.uint8), cv2.COLOR_YCrCb2BGR)
+    out = region_bgr.copy()
+    out[visible] = corrected[visible].astype(np.float32)
+    beard_color = out[visible].mean(axis=0)
+    return out, beard_color
+
+
 def _extended_points(pts):
     """68 landmarks + 15 virtual points below the jaw so the warp mesh covers
     the under-jaw beard band (the convex hull of the 68 ends at the jaw line)."""
@@ -303,9 +339,26 @@ def _multiply_layer(base, layer_rgb, alpha, floor=0.45):
     return base * (1.0 - alpha[..., None]) + darkened * alpha[..., None]
 
 
+def _gradient_detail(texture_rgb, face_w):
+    """High-frequency content of the real beard texture = the individual hairs.
+
+    Gradient-domain transfer: we keep only the detail (texture minus its own
+    low-pass) so the crisp hair strands can be re-injected onto the face,
+    without dragging along the template's flat colour/brightness.
+    """
+    sigma = max(1.0, face_w / 70.0)
+    low = cv2.GaussianBlur(texture_rgb, (0, 0), sigma)
+    return texture_rgb - low
+
+
+def _inject_detail(out, texture_rgb, weight, face_w, gain):
+    detail = _gradient_detail(texture_rgb, face_w)
+    return out + detail * weight[..., None] * gain
+
+
 def apply_real_beard(
     image_bgr, points, style, strength, templates,
-    base_strength=0.18, texture_strength=1.0, hair_yccrb=None,
+    base_strength=0.26, texture_strength=1.0, hair_yccrb=None,
 ):
     h, w = image_bgr.shape[:2]
     pts = np.asarray(points, np.float32)
@@ -333,82 +386,56 @@ def apply_real_beard(
     warped_rgb = warped[..., :3]
     warped_alpha = warped[..., 3] / 255.0
 
+    hair_tint = None
     if hair_yccrb is not None:
-        warped_rgb = _match_chroma(warped_rgb, warped_alpha, best["skin_ycrcb"], hair_yccrb)
+        warped_rgb, hair_tint = _recolor_beard(warped_rgb, warped_alpha, hair_yccrb)
 
     face_w = np.linalg.norm(pts[16] - pts[0])
     feather = max(6.0, min(30.0, face_w / 14.0))
-    clamp_alpha = organic_feather(clamp, feather, noise_scale=1.0)
     density = float(np.clip(strength, 0.0, 1.0))
+    rng = np.random.default_rng(5)
 
-    if style == "goatee":
-        warped_alpha = np.power(np.clip(warped_alpha, 0.0, 1.0), 2.0)
+    # Coverage comes from the anatomical beard region for THIS style (even and
+    # symmetric), not from the template's own patchy alpha. The warped template
+    # is used only for bonus texture/detail further below. This is what removes
+    # the holes, the left/right asymmetry and the stubble "clumps".
+    region = beard_mask((h, w), pts, style)
+    region_alpha = organic_feather(region, feather, noise_scale=0.6)
 
-    clump = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), face_w / 18.0)
-    clump = (clump - clump.min()) / (np.ptp(clump) + 1e-6)
-    clump = np.clip((clump - 0.25) * 1.6, 0.0, 1.0)
-    if style == "goatee":
-        amp = 0.45
-    elif style == "full":
-        amp = 0.25
-    else:
-        amp = 0.0
-    warped_alpha = warped_alpha * (1.0 - amp + amp * clump)
-
-    texture_visible = warped_alpha > 0.5
-    if texture_visible.any():
-        beard_color = warped_rgb[texture_visible].mean(axis=0)
+    tex_visible = warped_alpha > 0.3
+    if tex_visible.any():
+        beard_color = warped_rgb[tex_visible].mean(axis=0)
+    elif hair_tint is not None:
+        beard_color = np.asarray(hair_tint, np.float32)
     else:
         beard_color = np.array([45.0, 37.0, 30.0], np.float32)
 
-    shape_mask = ((warped_alpha > 0.08).astype(np.uint8)) * 255
-    close_size = max(15, int(face_w / 12) | 1)
-    shape_mask = cv2.morphologyEx(
-        shape_mask, cv2.MORPH_CLOSE, np.ones((close_size, close_size), np.uint8)
-    )
-    shape_alpha = organic_feather(shape_mask, feather * 0.8, noise_scale=0.5, seed=7)
-
-    rng = np.random.default_rng(5)
     dx, dy, _ = _direction_maps(pts, h, w)
     streak = _streak_texture(rng, h, w, dx, dy, max(5.0, face_w / 45.0))
     grain = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), 1.5)
     grain = (grain - grain.min()) / (np.ptp(grain) + 1e-6)
 
-    base_density = (base_strength if style != "stubble" else base_strength * 0.7) * density
-    base_alpha = shape_alpha * (0.35 + 0.65 * streak) * base_density
-    base_rgb = np.empty((h, w, 3), np.float32)
+    # 1) Even body: uniform darkening across the whole region, only mild
+    #    streak/grain variation so the density reads the same everywhere.
+    body_strength = {"full": 0.55, "goatee": 0.55, "mustache": 0.50, "stubble": 0.26}[style]
+    body_alpha = region_alpha * (0.78 + 0.22 * streak) * body_strength * density
+    body_rgb = np.empty((h, w, 3), np.float32)
     for channel in range(3):
-        base_rgb[..., channel] = beard_color[channel] * (0.85 + 0.3 * grain)
+        body_rgb[..., channel] = beard_color[channel] * (0.90 + 0.20 * grain)
+    out = _multiply_layer(image_bgr.astype(np.float32), body_rgb, body_alpha, floor=0.35)
 
-    img_float = image_bgr.astype(np.float32)
-    out = _multiply_layer(img_float, base_rgb, base_alpha, floor=0.55)
-
-    texture_alpha = warped_alpha * clamp_alpha * density * (
-        0.55 if style == "stubble" else (0.8 if style == "goatee" else texture_strength)
+    # 2) Drawn strands over the whole region -> crisp, evenly distributed hair.
+    strand_rgb, strand_alpha = _strand_layer(
+        rng, region, dx, dy, style, face_w, density, None, tint=beard_color,
     )
-    texture_alpha = texture_alpha * (0.60 + 0.40 * streak)
-    if style in ("mustache", "goatee"):
-        seam_x = int(pts[33][0])
-        x0 = max(0, seam_x - 8)
-        seam_band = texture_alpha[:, x0:seam_x + 8]
-        texture_alpha[:, x0:seam_x + 8] = cv2.GaussianBlur(seam_band, (21, 1), 4.0)
-    if style == "mustache":
-        band = _mustache_band((h, w), pts)
-        band_alpha = inside_feather((band > 60).astype(np.uint8) * 255, feather)
-        texture_alpha = texture_alpha * band_alpha
-        out = _multiply_layer(out, warped_rgb, texture_alpha, floor=0.4)
-        strand_rgb, strand_alpha = _strand_layer(
-            rng, (band > 60).astype(np.uint8) * 255, dx, dy, style, face_w, density * 0.9, None
-        )
-        strand_alpha = strand_alpha * band_alpha * 0.5
-        return np.clip(_multiply_layer(out, strand_rgb, strand_alpha, floor=0.5), 0, 255).astype(np.uint8)
-    out = _multiply_layer(out, warped_rgb, texture_alpha, floor=0.4)
-    if style in ("full", "goatee"):
-        strand_rgb, strand_alpha = _strand_layer(
-            rng, clamp, dx, dy, style, face_w, density * 0.9, None
-        )
-        strand_alpha = strand_alpha * clamp_alpha * 0.5
-        out = _multiply_layer(out, strand_rgb, strand_alpha, floor=0.5)
+    strand_alpha = strand_alpha * region_alpha * (0.55 if style != "stubble" else 0.45)
+    out = out * (1.0 - strand_alpha[..., None]) + strand_rgb * strand_alpha[..., None]
+
+    # 3) Bonus real-hair detail where the warped template actually provides it.
+    detail_w = region_alpha * np.clip(warped_alpha, 0.0, 1.0) * density
+    detail_gain = 1.0 if style == "stubble" else 1.3
+    out = _inject_detail(out, warped_rgb, detail_w, face_w, detail_gain)
+
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
