@@ -13,17 +13,16 @@ def provisional_hair_mask(image_bgr, face_box):
     x, y, fw, fh = [int(v) for v in face_box]
 
     dome = np.zeros((h, w), np.uint8)
-    center = (x + fw // 2, max(0, y - int(fh * 0.15)))
-    axis_x = max(1, int(fw * 0.85))
-    axis_y = max(1, int(fh * 0.65))
+    center = (x + fw // 2, max(0, y + int(fh * 0.35)))
+    axis_x = max(1, int(fw * 1.15))
+    axis_y = max(1, int(fh * 1.75))
     cv2.ellipse(dome, center, (axis_x, axis_y), 0, 0, 360, 255, -1)
-    dome[y + int(fh * 0.1):, :] = 0
 
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    x0 = max(0, x - fw // 2)
-    x1 = min(w, x + fw + fw // 2)
+    x0 = max(0, x - fw)
+    x1 = min(w, x + 2 * fw)
     y0 = max(0, y - int(fh * 0.85))
-    y1 = min(h, y + int(fh * 0.15))
+    y1 = min(h, y + int(fh * 2.2))
     crop = gray[y0:y1, x0:x1]
     threshold, _ = cv2.threshold(crop, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 

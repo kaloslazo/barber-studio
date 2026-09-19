@@ -24,6 +24,7 @@
         <button class="menu-item" data-panel="beard">Beard</button>
         <button class="menu-item" data-panel="haircut">Haircut</button>
         <button class="menu-item" data-panel="live">Live</button>
+        <button class="menu-item" data-panel="transfer">Transfering hair</button>
       </nav>
       <div class="card tips">
         <h3>Photo tips</h3>
@@ -154,6 +155,101 @@
 
         <video id="live-video" hidden autoplay playsinline muted></video>
         <canvas id="live-canvas" hidden></canvas>
+      </section>
+
+      <section class="panel" id="panel-transfer">
+        <header class="page-head transfer-head">
+          <div>
+            <p class="eyebrow">3D hair scanning &amp; virtual try-on</p>
+            <h1>Transfering hair</h1>
+            <p>Capture your complete hairstyle, then place it on another person in real time.</p>
+          </div>
+          <div class="transfer-steps" role="tablist" aria-label="Transfering hair steps">
+            <button class="transfer-step active" data-transfer-view="scan" role="tab">1. Scan Hair</button>
+            <button class="transfer-step" data-transfer-view="library" role="tab">2. Peluca Library</button>
+            <button class="transfer-step" data-transfer-view="tryon" role="tab">3. Try-On Studio</button>
+          </div>
+        </header>
+
+        <div class="transfer-view active" id="transfer-scan">
+          <div class="transfer-grid">
+            <div class="card scanner-card">
+              <div class="scanner-stage" id="scan-stage">
+                <img id="scan-result" alt="Hair scan with selected hair and face mesh" hidden>
+                <div class="scan-guide" aria-hidden="true">
+                  <span class="guide-front">FRONT</span>
+                  <span class="guide-left">↶ LEFT</span>
+                  <span class="guide-right">RIGHT ↷</span>
+                  <span class="guide-arc">180°</span>
+                </div>
+                <div class="scan-empty" id="scan-empty">Camera preview will appear here</div>
+              </div>
+              <div class="scan-progress-row">
+                <span id="scan-progress-label">Ready to scan</span>
+                <strong id="scan-progress-value">0%</strong>
+              </div>
+              <div class="scan-progress"><span id="scan-progress-bar"></span></div>
+              <div class="scan-actions">
+                <button id="scan-start">Start Scan</button>
+                <button id="scan-capture" disabled>Capture Front</button>
+                <button id="scan-stop" disabled>Cancel Scan</button>
+                <button id="scan-save" disabled>Save as Peluca</button>
+              </div>
+              <p class="scan-note">Turn naturally through 180°. The computer detects each angle and captures it automatically. Green is selected hair; the face mesh is visible when the face is facing forward.</p>
+            </div>
+            <aside class="card scan-instructions">
+              <span class="step-label">CAPTURE GUIDE</span>
+              <h2>Scan all your length</h2>
+              <ol>
+                <li>Turn naturally from full left profile through full right profile; the computer selects the seven best angles.</li>
+                <li>Stay centered and keep the same distance from the camera while the scan advances.</li>
+                <li>Keep long hair over your shoulders and inside the frame for all seven captures.</li>
+              </ol>
+              <div class="scan-key"><i></i> Green = selected hair</div>
+              <div class="scan-key mesh-key"><i></i> Lines = face mesh</div>
+            </aside>
+          </div>
+          <div class="banner" id="scan-error" hidden></div>
+          <video id="scan-video" hidden autoplay playsinline muted></video>
+          <canvas id="scan-canvas" hidden></canvas>
+        </div>
+
+        <div class="transfer-view" id="transfer-library">
+          <div class="library-heading">
+            <div><h2>Your Peluca Library</h2><p>Saved hair scans are ready to try on.</p></div>
+            <button class="quiet-button" data-transfer-view="scan">+ New scan</button>
+          </div>
+          <div class="peluca-grid" id="peluca-grid"></div>
+          <div class="library-empty" id="library-empty">No pelucas yet. Complete a scan to save your first hair asset.</div>
+        </div>
+
+        <div class="transfer-view" id="transfer-tryon">
+          <div class="tryon-layout">
+            <div class="card tryon-card">
+              <div class="tryon-stage" id="tryon-stage">
+                <video id="tryon-video" autoplay playsinline muted></video>
+                <div class="tryon-placeholder" id="tryon-placeholder">Start the camera to meet Person B</div>
+                <canvas class="tryon-mesh" id="tryon-mesh" aria-label="Volumetric 3D hair mesh"></canvas>
+                <div class="rotation-badge" id="rotation-badge">0°</div>
+                <div class="pose-badge" id="pose-badge">Waiting for camera</div>
+              </div>
+              <p class="drag-hint">Drag the view to rotate the peluca synchronously.</p>
+              <div class="tryon-actions">
+                <button id="tryon-camera">Start Person B camera</button>
+                <button id="rotate-left">↶ Rotate Left</button>
+                <button id="rotate-right">Rotate Right ↷</button>
+                <button id="switch-peluca">Switch Peluca</button>
+              </div>
+            </div>
+            <aside class="card tryon-summary">
+              <span class="step-label">SELECTED ASSET</span>
+              <img id="selected-peluca-preview" alt="Selected peluca preview">
+              <h2 id="selected-peluca-name">Choose a peluca</h2>
+              <p id="selected-peluca-date">Return to the library to select a saved scan.</p>
+            </aside>
+          </div>
+          <div class="banner" id="tryon-error" hidden></div>
+        </div>
       </section>
 
       <section class="panel" id="panel-beard">

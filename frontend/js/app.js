@@ -476,3 +476,415 @@ hcBtn.addEventListener("click", async () => {
     hcBtn.textContent = "Apply cut";
   }
 });
+
+const transferSteps = document.querySelectorAll(".transfer-step");
+const transferViews = document.querySelectorAll(".transfer-view");
+const scanStart = document.getElementById("scan-start");
+const scanCapture = document.getElementById("scan-capture");
+const scanStop = document.getElementById("scan-stop");
+const scanSave = document.getElementById("scan-save");
+const scanVideo = document.getElementById("scan-video");
+const scanCanvas = document.getElementById("scan-canvas");
+const scanResult = document.getElementById("scan-result");
+const scanEmpty = document.getElementById("scan-empty");
+const scanProgressBar = document.getElementById("scan-progress-bar");
+const scanProgressLabel = document.getElementById("scan-progress-label");
+const scanProgressValue = document.getElementById("scan-progress-value");
+const scanError = document.getElementById("scan-error");
+const pelucaGrid = document.getElementById("peluca-grid");
+const libraryEmpty = document.getElementById("library-empty");
+const tryonVideo = document.getElementById("tryon-video");
+const tryonMesh = document.getElementById("tryon-mesh");
+const tryonPlaceholder = document.getElementById("tryon-placeholder");
+const tryonCamera = document.getElementById("tryon-camera");
+const tryonError = document.getElementById("tryon-error");
+const selectedPelucaPreview = document.getElementById("selected-peluca-preview");
+const selectedPelucaName = document.getElementById("selected-peluca-name");
+const selectedPelucaDate = document.getElementById("selected-peluca-date");
+const rotationBadge = document.getElementById("rotation-badge");
+const poseBadge = document.getElementById("pose-badge");
+const tryonStage = document.getElementById("tryon-stage");
+
+let scanStream = null;
+let scanRunning = false;
+let scanBusy = false;
+let scanProgress = 0;
+let scanViews = {};
+let scanFrames = {};
+let scanViewIndex = 0;
+let scanAutoCaptureBusy = false;
+let pelucas = [];
+let selectedPeluca = null;
+let tryonStream = null;
+let tryonRotation = 0;
+let tryonManualRotation = 0;
+let tryonDetectedRotation = 0;
+let tryonPoseBusy = false;
+let tryonAnchor = { x: 0.5, y: 0.32, scale: 0.25 };
+let dragStartX = null;
+const scanStages = [
+  { key: "left90", angle: -90, label: "Turn fully LEFT (90°), then capture", button: "Capture Left 90°" },
+  { key: "left60", angle: -60, label: "Turn 60° LEFT, then capture", button: "Capture Left 60°" },
+  { key: "left30", angle: -30, label: "Turn 30° LEFT, then capture", button: "Capture Left 30°" },
+  { key: "front", angle: 0, label: "Face forward (0°), then capture", button: "Capture Front" },
+  { key: "right30", angle: 30, label: "Turn 30° RIGHT, then capture", button: "Capture Right 30°" },
+  { key: "right60", angle: 60, label: "Turn 60° RIGHT, then capture", button: "Capture Right 60°" },
+  { key: "right90", angle: 90, label: "Turn fully RIGHT (90°), then capture", button: "Capture Right 90°" },
+];
+
+function openTransferView(view) {
+  transferSteps.forEach((button) => button.classList.toggle("active", button.dataset.transferView === view));
+  transferViews.forEach((panel) => panel.classList.toggle("active", panel.id === `transfer-${view}`));
+}
+
+transferSteps.forEach((button) => button.addEventListener("click", () => openTransferView(button.dataset.transferView)));
+document.querySelectorAll("[data-transfer-view]").forEach((button) => {
+  if (!button.classList.contains("transfer-step")) {
+    button.addEventListener("click", () => openTransferView(button.dataset.transferView));
+  }
+});
+
+function setScanProgress(value, label) {
+  scanProgress = Math.min(100, value);
+  scanProgressBar.style.width = `${scanProgress}%`;
+  scanProgressValue.textContent = `${Math.round(scanProgress)}%`;
+  scanProgressLabel.textContent = label;
+}
+
+async function scanLoop() {
+  if (!scanRunning) return;
+  if (!scanBusy && scanVideo.videoWidth > 0) {
+    scanBusy = true;
+    try {
+      const targetWidth = 720;
+      scanCanvas.width = targetWidth;
+      scanCanvas.height = Math.round(scanVideo.videoHeight * (targetWidth / scanVideo.videoWidth));
+      const context = scanCanvas.getContext("2d");
+      context.save();
+      context.translate(scanCanvas.width, 0);
+      context.scale(-1, 1);
+      context.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+      context.restore();
+      const frame = await new Promise((resolve) => scanCanvas.toBlob(resolve, "image/jpeg", 0.88));
+      const formData = new FormData();
+      formData.append("image", frame, "scan-frame.jpg");
+      const response = await fetch(`${API}/transfer/scan`, { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Could not identify hair. Keep your full head visible and try again.");
+      const detectedYaw = Number(response.headers.get("X-Head-Yaw"));
+      scanResult.src = URL.createObjectURL(await response.blob());
+      scanResult.hidden = false;
+      scanEmpty.hidden = true;
+      const stage = scanStages[scanViewIndex];
+      const yawReady = Number.isFinite(detectedYaw) && Math.abs(detectedYaw - stage.angle) <= 12;
+      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `Angle ${Math.round(detectedYaw)}° detected — capturing` : `Turn until the guide reaches ${stage.angle}°`);
+      if (yawReady && !scanAutoCaptureBusy) {
+        scanAutoCaptureBusy = true;
+        scanCapture.click();
+        setTimeout(() => { scanAutoCaptureBusy = false; }, 1200);
+      }
+    } catch (error) {
+      scanError.textContent = error.message;
+      scanError.hidden = false;
+    } finally {
+      scanBusy = false;
+    }
+  }
+  setTimeout(scanLoop, 180);
+}
+
+scanStart.addEventListener("click", async () => {
+  scanError.hidden = true;
+  if (!scanStream) {
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, facingMode: "user" }, audio: false });
+      scanVideo.srcObject = scanStream;
+      await scanVideo.play();
+    } catch (error) {
+      scanError.textContent = `Camera unavailable: ${error.message}`;
+      scanError.hidden = false;
+      return;
+    }
+  }
+  scanRunning = true;
+  scanViews = {};
+  scanFrames = {};
+  scanViewIndex = 0;
+  scanAutoCaptureBusy = false;
+  scanSave.disabled = true;
+  scanStart.disabled = true;
+  scanCapture.disabled = false;
+  scanStop.disabled = false;
+  scanCapture.textContent = scanStages[0].button;
+  setScanProgress(0, scanStages[0].label);
+  scanLoop();
+});
+
+scanStop.addEventListener("click", () => {
+  scanRunning = false;
+  scanStart.disabled = false;
+  scanCapture.disabled = true;
+  scanStop.disabled = true;
+  scanSave.disabled = Object.keys(scanViews).length !== scanStages.length;
+  setScanProgress((Object.keys(scanViews).length / scanStages.length) * 100, "Scan cancelled");
+});
+
+scanCapture.addEventListener("click", async () => {
+  if (!scanRunning || scanViewIndex >= scanStages.length || scanVideo.videoWidth === 0) return;
+  const stage = scanStages[scanViewIndex];
+  scanCapture.disabled = true;
+  scanCapture.textContent = "Saving view...";
+  try {
+    const captureCanvas = document.createElement("canvas");
+    captureCanvas.width = 720;
+    captureCanvas.height = Math.round(scanVideo.videoHeight * (720 / scanVideo.videoWidth));
+    const context = captureCanvas.getContext("2d");
+    context.save();
+    context.translate(captureCanvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(scanVideo, 0, 0, captureCanvas.width, captureCanvas.height);
+    context.restore();
+    const frame = await new Promise((resolve) => captureCanvas.toBlob(resolve, "image/jpeg", 0.92));
+    scanFrames[stage.key] = frame;
+    const formData = new FormData();
+    formData.append("image", frame, `${stage.key}-hair.jpg`);
+    const response = await fetch(`${API}/transfer/asset`, { method: "POST", body: formData });
+    if (!response.ok) throw new Error("The hair profile could not be captured. Keep your full hair in frame and try again.");
+    scanViews[stage.key] = URL.createObjectURL(await response.blob());
+    scanViewIndex += 1;
+    setScanProgress((scanViewIndex / scanStages.length) * 100, scanViewIndex === scanStages.length ? "180° scan complete — ready to reconstruct" : scanStages[scanViewIndex].label);
+    if (scanViewIndex === scanStages.length) {
+      scanRunning = false;
+      scanStart.disabled = false;
+      scanStop.disabled = true;
+      scanCapture.disabled = true;
+      scanSave.disabled = false;
+    } else {
+      scanCapture.disabled = false;
+      scanCapture.textContent = scanStages[scanViewIndex].button;
+    }
+  } catch (error) {
+    scanError.textContent = error.message;
+    scanError.hidden = false;
+    scanCapture.disabled = false;
+    scanCapture.textContent = stage.button;
+  }
+});
+
+function renderLibrary() {
+  pelucaGrid.innerHTML = "";
+  libraryEmpty.hidden = pelucas.length > 0;
+  pelucas.forEach((peluca) => {
+    const card = document.createElement("article");
+    card.className = "card peluca-card";
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><button>Apply to Try-On</button>`;
+    card.querySelector("button").addEventListener("click", () => selectPeluca(peluca));
+    pelucaGrid.appendChild(card);
+  });
+}
+
+function selectPeluca(peluca) {
+  selectedPeluca = peluca;
+  selectedPelucaPreview.src = peluca.previewUrl;
+  selectedPelucaName.textContent = peluca.name;
+  selectedPelucaDate.textContent = `Captured ${peluca.date}`;
+  tryonManualRotation = 0;
+  tryonDetectedRotation = 0;
+  openTransferView("tryon");
+  updateTryonRotation();
+}
+
+scanSave.addEventListener("click", async () => {
+  if (Object.keys(scanViews).length !== scanStages.length) return;
+  scanSave.disabled = true;
+  scanSave.textContent = "Saving...";
+  try {
+    const formData = new FormData();
+    scanStages.forEach((stage) => formData.append("frames", scanFrames[stage.key], `${stage.key}.jpg`));
+    formData.append("angles", scanStages.map((stage) => stage.angle).join(","));
+    const response = await fetch(`${API}/transfer/reconstruct`, { method: "POST", body: formData });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Could not reconstruct the 3D hair mesh");
+    }
+    const mesh = await response.json();
+    const now = new Date();
+    const peluca = { mesh, previewUrl: scanViews.front || scanViews.left30, name: `180° Hair Mesh ${pelucas.length + 1}`, date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) };
+    pelucas.unshift(peluca);
+    renderLibrary();
+    selectPeluca(peluca);
+  } catch (error) {
+    scanError.textContent = error.message;
+    scanError.hidden = false;
+  } finally {
+    scanSave.textContent = "Save as Peluca";
+    scanSave.disabled = false;
+  }
+});
+
+async function toggleTryonCamera() {
+  tryonError.hidden = true;
+  if (tryonStream) {
+    tryonStream.getTracks().forEach((track) => track.stop());
+    tryonStream = null;
+    tryonVideo.srcObject = null;
+    tryonCamera.textContent = "Start Person B camera";
+    tryonPlaceholder.hidden = false;
+    return;
+  }
+  try {
+    tryonStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, facingMode: "user" }, audio: false });
+    tryonVideo.srcObject = tryonStream;
+    await tryonVideo.play();
+    tryonPlaceholder.hidden = true;
+    tryonCamera.textContent = "Stop Person B camera";
+    tryonPoseLoop();
+  } catch (error) {
+    tryonError.textContent = `Camera unavailable: ${error.message}`;
+    tryonError.hidden = false;
+  }
+}
+
+function updateTryonRotation() {
+  tryonRotation = tryonDetectedRotation + tryonManualRotation;
+  const normalized = ((tryonRotation % 360) + 360) % 360;
+  rotationBadge.textContent = `${Math.round(normalized)}°`;
+  renderTryonMesh();
+}
+
+function renderTryonMesh() {
+  const context = tryonMesh.getContext("2d");
+  const width = tryonMesh.clientWidth;
+  const height = tryonMesh.clientHeight;
+  if (!width || !height) return;
+  const ratio = window.devicePixelRatio || 1;
+  if (tryonMesh.width !== Math.round(width * ratio) || tryonMesh.height !== Math.round(height * ratio)) {
+    tryonMesh.width = Math.round(width * ratio);
+    tryonMesh.height = Math.round(height * ratio);
+  }
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+  if (!selectedPeluca || !selectedPeluca.mesh) return;
+  const { vertices, faces, color, vertexColors, views } = selectedPeluca.mesh;
+  if (views && views.length) {
+    renderTexturedPeluca(context, width, height, views);
+    return;
+  }
+  const radians = tryonRotation * Math.PI / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  const scale = Math.min(width, height) * tryonAnchor.scale;
+  const centerX = width * tryonAnchor.x;
+  const centerY = height * tryonAnchor.y;
+  const projected = vertices.map(([x, y, z]) => {
+    const rx = x * cosine + z * sine;
+    const rz = -x * sine + z * cosine;
+    const perspective = 1 / (1 + rz * 0.32);
+    return [centerX + rx * scale * perspective, centerY + y * scale * perspective, rz];
+  });
+  const triangles = faces.map((face) => ({ face, depth: (projected[face[0]][2] + projected[face[1]][2] + projected[face[2]][2]) / 3 }));
+  triangles.sort((a, b) => a.depth - b.depth);
+  context.globalAlpha = 0.9;
+  triangles.forEach(({ face, depth }) => {
+    const a = projected[face[0]];
+    const b = projected[face[1]];
+    const c = projected[face[2]];
+    const light = Math.max(0.42, Math.min(1, 0.78 + depth * 0.16));
+    const samples = vertexColors ? face.map((index) => vertexColors[index]) : [color, color, color];
+    const rgb = samples.reduce((total, sample) => total.map((value, index) => value + sample[index]), [0, 0, 0]).map((value) => value / samples.length);
+    context.fillStyle = `rgb(${Math.round(rgb[0] * light)}, ${Math.round(rgb[1] * light)}, ${Math.round(rgb[2] * light)})`;
+    context.beginPath();
+    context.moveTo(a[0], a[1]);
+    context.lineTo(b[0], b[1]);
+    context.lineTo(c[0], c[1]);
+    context.closePath();
+    context.fill();
+  });
+  context.globalAlpha = 1;
+}
+
+const pelucaImages = new Map();
+
+function renderTexturedPeluca(context, width, height, views) {
+  const targetYaw = ((tryonRotation + 180) % 360 + 360) % 360 - 180;
+  const view = views.reduce((best, candidate) => (
+    Math.abs(candidate.angle - targetYaw) < Math.abs(best.angle - targetYaw) ? candidate : best
+  ));
+  let image = pelucaImages.get(view.image);
+  if (!image) {
+    image = new Image();
+    image.onload = () => renderTryonMesh();
+    image.src = view.image;
+    pelucaImages.set(view.image, image);
+  }
+  if (!image.complete || !image.naturalWidth) return;
+
+  const faceWidth = (tryonAnchor.faceWidth || 0.22) * width;
+  const faceHeight = (tryonAnchor.faceHeight || 0.32) * height;
+  const drawWidth = faceWidth * view.faceSize[0];
+  const drawHeight = faceHeight * view.faceSize[1];
+  const drawX = tryonAnchor.faceCenterX * width - faceWidth * view.faceCenter[0];
+  const drawY = tryonAnchor.faceCenterY * height - faceHeight * view.faceCenter[1];
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.globalAlpha = 0.98;
+  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  context.globalAlpha = 1;
+}
+
+async function tryonPoseLoop() {
+  if (!tryonStream) return;
+  if (!tryonPoseBusy && tryonVideo.videoWidth > 0) {
+    tryonPoseBusy = true;
+    try {
+      const poseCanvas = document.createElement("canvas");
+      poseCanvas.width = 480;
+      poseCanvas.height = Math.round(tryonVideo.videoHeight * (480 / tryonVideo.videoWidth));
+      poseCanvas.getContext("2d").drawImage(tryonVideo, 0, 0, poseCanvas.width, poseCanvas.height);
+      const frame = await new Promise((resolve) => poseCanvas.toBlob(resolve, "image/jpeg", 0.82));
+      const formData = new FormData();
+      formData.append("image", frame, "tryon-pose.jpg");
+      const response = await fetch(`${API}/transfer/pose`, { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Could not read head position");
+      const data = await response.json();
+      const angles = { front: 0, left: -82, right: 82 };
+      if (data.pose in angles) {
+        tryonDetectedRotation = Number.isFinite(data.yaw) ? data.yaw : angles[data.pose];
+        poseBadge.textContent = `${data.pose[0].toUpperCase()}${data.pose.slice(1)} view tracked`;
+        if (data.face) {
+          const [x, y, width, height] = data.face;
+          tryonAnchor = {
+            x: (x + width / 2) / poseCanvas.width,
+            y: (y + height * 0.25) / poseCanvas.height,
+            scale: Math.min(0.32, Math.max(0.12, (height / poseCanvas.height) / 2.3)),
+            faceCenterX: (x + width / 2) / poseCanvas.width,
+            faceCenterY: (y + height / 2) / poseCanvas.height,
+            faceWidth: width / poseCanvas.width,
+            faceHeight: height / poseCanvas.height,
+          };
+        }
+        updateTryonRotation();
+      } else {
+        poseBadge.textContent = "Keep your profile in frame";
+      }
+    } catch (error) {
+      poseBadge.textContent = "Head tracking unavailable";
+    } finally {
+      tryonPoseBusy = false;
+    }
+  }
+  setTimeout(tryonPoseLoop, 450);
+}
+
+tryonCamera.addEventListener("click", toggleTryonCamera);
+document.getElementById("rotate-left").addEventListener("click", () => { tryonManualRotation -= 20; updateTryonRotation(); });
+document.getElementById("rotate-right").addEventListener("click", () => { tryonManualRotation += 20; updateTryonRotation(); });
+document.getElementById("switch-peluca").addEventListener("click", () => openTransferView("library"));
+tryonStage.addEventListener("pointerdown", (event) => { dragStartX = event.clientX; tryonStage.setPointerCapture(event.pointerId); });
+tryonStage.addEventListener("pointermove", (event) => {
+  if (dragStartX === null) return;
+  tryonManualRotation += (event.clientX - dragStartX) * 0.7;
+  dragStartX = event.clientX;
+  updateTryonRotation();
+});
+tryonStage.addEventListener("pointerup", () => { dragStartX = null; });
+tryonStage.addEventListener("pointercancel", () => { dragStartX = null; });

@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
+from typing import List
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
@@ -103,6 +105,48 @@ async def mesh(image: UploadFile = File(...)):
             status_code=422, detail="No face detected or landmark model missing"
         )
     return encode_png(result)
+
+
+@router.post("/transfer/scan")
+async def transfer_scan(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    result, pose, yaw = pipeline.transfer_scan(image_bgr)
+    response = encode_png(result)
+    response.headers["X-Head-Pose"] = pose
+    response.headers["X-Head-Yaw"] = str(yaw)
+    return response
+
+
+@router.post("/transfer/asset")
+async def transfer_asset(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    result = pipeline.transfer_asset(image_bgr)
+    if result is None:
+        raise HTTPException(status_code=422, detail="No hair or face detected in the image")
+    return encode_png(result)
+
+
+@router.post("/transfer/pose")
+async def transfer_pose(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    pose, face, yaw = pipeline.transfer_pose(image_bgr)
+    return JSONResponse({"pose": pose, "face": face, "yaw": yaw})
+
+
+@router.post("/transfer/reconstruct")
+async def transfer_reconstruct(
+    frames: List[UploadFile] = File(...),
+    angles: str = Form(...),
+):
+    angle_values = [float(value) for value in angles.split(",") if value.strip()]
+    if len(frames) != len(angle_values) or len(frames) < 3:
+        raise HTTPException(status_code=400, detail="Frames and scan angles must match")
+    images = [decode_image(await frame.read()) for frame in frames]
+    try:
+        mesh = pipeline.reconstruct_transfer_mesh(images, angle_values)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return JSONResponse(mesh)
 
 
 @router.post("/live")
