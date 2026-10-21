@@ -179,11 +179,6 @@ async def transfer_splat(
     if len(frames) != len(angle_values):
         raise HTTPException(status_code=400, detail="Frames and scan angles must match")
     images = [decode_image(await frame.read()) for frame in frames]
-    import pathlib
-    debug_dir = pathlib.Path("/tmp/claude-1000/-home-sofia-Desktop-cp/62918eb3-876c-470f-9236-5df30cc27633/scratchpad/realscan")
-    debug_dir.mkdir(parents=True, exist_ok=True)
-    for index, (debug_image, debug_angle) in enumerate(zip(images, angle_values)):
-        cv2.imwrite(str(debug_dir / f"{index}_{int(debug_angle)}.jpg"), debug_image)
     try:
         rows, meta = await run_in_threadpool(pipeline.hair3d, images, angle_values, mannequin != "false")
     except ValueError as error:

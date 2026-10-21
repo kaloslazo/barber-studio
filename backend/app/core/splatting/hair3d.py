@@ -379,6 +379,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     best = np.full(count, -1.0)
     best_hair = np.zeros(count)
     face_votes = np.zeros(count)
+    skin_votes = np.zeros(count)
     hair_votes = np.zeros(count)
     tangent = np.tile([[0.0, 1.0, 0.0]], (count, 1))
     for view, (center_x, eye_y, _), yaw in zip(views, placements, yaws):
@@ -396,6 +397,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
         best[better] = facing[better]
         frontal = seen & (facing > 0.45)
         face_votes += frontal & (face | (view.alpha[np.clip(v, 0, h - 1).astype(int), np.clip(u, 0, w - 1).astype(int)] < 0.1))
+        skin_votes += frontal & face
         hair_votes += frontal & hair
         best_hair = np.maximum(best_hair, np.where(hair, facing, 0.0))
         weight = np.where(hair, facing ** 6, 0.0)
@@ -415,7 +417,8 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     textured = weight_sum > 1e-6
     color[textured] /= weight_sum[textured, None]
     alpha[textured] /= weight_sum[textured]
-    not_hair = (face_votes > 0) & (face_votes >= hair_votes)
+    front = pos[:, 2] >= 0.0
+    not_hair = np.where(front, (face_votes > 0) & (face_votes >= hair_votes), (skin_votes > 0) & (skin_votes >= hair_votes))
     keep = textured & ~not_hair
     behind = (pos[:, 2] < 0.2) & ~not_hair
     synthetic, found = _synthesize_back(pos, views, placements, scale, rng)
