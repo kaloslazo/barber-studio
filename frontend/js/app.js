@@ -527,8 +527,11 @@ let tryonStream = null;
 let tryonRotation = 0;
 let tryonManualRotation = 0;
 let tryonDetectedRotation = 0;
-let tryonPoseBusy = false;
-let tryonAnchor = { x: 0.5, y: 0.32, scale: 0.25 };
+let tryonBusy = false;
+let tryonReset = true;
+let tryonFrame = null;
+let tryonAnchor = null;
+let tryonMisses = 0;
 let dragStartX = null;
 const scanStages = [
   { key: "left90", angle: -90, label: "Turn fully LEFT (90°), then capture", button: "Capture Left 90°" },
@@ -735,8 +738,12 @@ async function toggleTryonCamera() {
     tryonStream.getTracks().forEach((track) => track.stop());
     tryonStream = null;
     tryonVideo.srcObject = null;
+    tryonFrame = null;
+    tryonAnchor = null;
     tryonCamera.textContent = "Start Person B camera";
     tryonPlaceholder.hidden = false;
+    poseBadge.textContent = "Waiting for camera";
+    renderTryonMesh();
     return;
   }
   try {
@@ -745,7 +752,9 @@ async function toggleTryonCamera() {
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
     tryonCamera.textContent = "Stop Person B camera";
-    tryonPoseLoop();
+    poseBadge.textContent = "Preparing bald preview...";
+    tryonReset = true;
+    tryonLoop();
   } catch (error) {
     tryonError.textContent = `Camera unavailable: ${error.message}`;
     tryonError.hidden = false;
@@ -771,18 +780,28 @@ function renderTryonMesh() {
   }
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, width, height);
-  if (!selectedPeluca || !selectedPeluca.mesh) return;
-  const { vertices, faces, color, vertexColors, views } = selectedPeluca.mesh;
+  if (!tryonFrame) return;
+  const cover = Math.max(width / tryonFrame.width, height / tryonFrame.height);
+  context.translate((width - tryonFrame.width * cover) / 2, (height - tryonFrame.height * cover) / 2);
+  context.scale(cover, cover);
+  context.drawImage(tryonFrame.bitmap, 0, 0);
+  if (!selectedPeluca || !selectedPeluca.mesh || !tryonAnchor) return;
+  const { views } = selectedPeluca.mesh;
   if (views && views.length) {
-    renderTexturedPeluca(context, width, height, views);
-    return;
+    renderTexturedPeluca(context, views);
+  } else {
+    renderMeshPeluca(context);
   }
+}
+
+function renderMeshPeluca(context) {
+  const { vertices, faces, color, vertexColors } = selectedPeluca.mesh;
   const radians = tryonRotation * Math.PI / 180;
   const cosine = Math.cos(radians);
   const sine = Math.sin(radians);
-  const scale = Math.min(width, height) * tryonAnchor.scale;
-  const centerX = width * tryonAnchor.x;
-  const centerY = height * tryonAnchor.y;
+  const scale = tryonAnchor.faceWidth * 1.1;
+  const centerX = tryonAnchor.center[0];
+  const centerY = tryonAnchor.center[1] - tryonAnchor.faceWidth * 0.45;
   const projected = vertices.map(([x, y, z]) => {
     const rx = x * cosine + z * sine;
     const rz = -x * sine + z * cosine;
@@ -812,11 +831,7 @@ function renderTryonMesh() {
 
 const pelucaImages = new Map();
 
-function renderTexturedPeluca(context, width, height, views) {
-  const targetYaw = ((tryonRotation + 180) % 360 + 360) % 360 - 180;
-  const view = views.reduce((best, candidate) => (
-    Math.abs(candidate.angle - targetYaw) < Math.abs(best.angle - targetYaw) ? candidate : best
-  ));
+function pelucaImage(view) {
   let image = pelucaImages.get(view.image);
   if (!image) {
     image = new Image();
@@ -824,63 +839,97 @@ function renderTexturedPeluca(context, width, height, views) {
     image.src = view.image;
     pelucaImages.set(view.image, image);
   }
-  if (!image.complete || !image.naturalWidth) return;
-
-  const faceWidth = (tryonAnchor.faceWidth || 0.22) * width;
-  const faceHeight = (tryonAnchor.faceHeight || 0.32) * height;
-  const drawWidth = faceWidth * view.faceSize[0];
-  const drawHeight = faceHeight * view.faceSize[1];
-  const drawX = tryonAnchor.faceCenterX * width - faceWidth * view.faceCenter[0];
-  const drawY = tryonAnchor.faceCenterY * height - faceHeight * view.faceCenter[1];
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.globalAlpha = 0.98;
-  context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-  context.globalAlpha = 1;
+  return image.complete && image.naturalWidth ? image : null;
 }
 
-async function tryonPoseLoop() {
+function drawPelucaView(context, view, alpha) {
+  const image = pelucaImage(view);
+  if (!image || alpha <= 0.01) return;
+  const faceWidth = tryonAnchor.faceWidth;
+  const [centerX, centerY] = tryonAnchor.center;
+  context.save();
+  context.translate(centerX, centerY);
+  context.rotate(((tryonAnchor.roll || 0) - (view.roll || 0)) * Math.PI / 180);
+  context.globalAlpha = alpha;
+  context.drawImage(
+    image,
+    -faceWidth * view.faceCenter[0],
+    -faceWidth * view.faceCenter[1],
+    faceWidth * view.faceSize[0],
+    faceWidth * view.faceSize[1],
+  );
+  context.restore();
+}
+
+function renderTexturedPeluca(context, views) {
+  const targetYaw = ((tryonRotation + 180) % 360 + 360) % 360 - 180;
+  const sorted = [...views].sort((a, b) => a.angle - b.angle);
+  let lower = sorted[0];
+  let upper = sorted[sorted.length - 1];
+  for (let index = 0; index < sorted.length - 1; index += 1) {
+    if (targetYaw >= sorted[index].angle && targetYaw <= sorted[index + 1].angle) {
+      lower = sorted[index];
+      upper = sorted[index + 1];
+      break;
+    }
+  }
+  if (targetYaw <= sorted[0].angle) upper = lower;
+  if (targetYaw >= sorted[sorted.length - 1].angle) lower = upper;
+  const span = upper.angle - lower.angle;
+  const t = span > 0 ? (targetYaw - lower.angle) / span : 0;
+  const blend = Math.min(1, Math.max(0, (t - 0.3) / 0.4));
+  const weight = blend * blend * (3 - 2 * blend);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  drawPelucaView(context, lower, 1);
+  if (upper !== lower) drawPelucaView(context, upper, weight);
+}
+
+function tryonFrameBlob() {
+  const frameCanvas = document.createElement("canvas");
+  frameCanvas.width = 640;
+  frameCanvas.height = Math.round(tryonVideo.videoHeight * (640 / tryonVideo.videoWidth));
+  const context = frameCanvas.getContext("2d");
+  context.translate(frameCanvas.width, 0);
+  context.scale(-1, 1);
+  context.drawImage(tryonVideo, 0, 0, frameCanvas.width, frameCanvas.height);
+  return new Promise((resolve) => frameCanvas.toBlob(resolve, "image/jpeg", 0.85));
+}
+
+async function tryonLoop() {
   if (!tryonStream) return;
-  if (!tryonPoseBusy && tryonVideo.videoWidth > 0) {
-    tryonPoseBusy = true;
+  if (!tryonBusy && tryonVideo.videoWidth > 0) {
+    tryonBusy = true;
     try {
-      const poseCanvas = document.createElement("canvas");
-      poseCanvas.width = 480;
-      poseCanvas.height = Math.round(tryonVideo.videoHeight * (480 / tryonVideo.videoWidth));
-      poseCanvas.getContext("2d").drawImage(tryonVideo, 0, 0, poseCanvas.width, poseCanvas.height);
-      const frame = await new Promise((resolve) => poseCanvas.toBlob(resolve, "image/jpeg", 0.82));
       const formData = new FormData();
-      formData.append("image", frame, "tryon-pose.jpg");
-      const response = await fetch(`${API}/transfer/pose`, { method: "POST", body: formData });
-      if (!response.ok) throw new Error("Could not read head position");
-      const data = await response.json();
-      const angles = { front: 0, left: -82, right: 82 };
-      if (data.pose in angles) {
-        tryonDetectedRotation = Number.isFinite(data.yaw) ? data.yaw : angles[data.pose];
-        poseBadge.textContent = `${data.pose[0].toUpperCase()}${data.pose.slice(1)} view tracked`;
-        if (data.face) {
-          const [x, y, width, height] = data.face;
-          tryonAnchor = {
-            x: (x + width / 2) / poseCanvas.width,
-            y: (y + height * 0.25) / poseCanvas.height,
-            scale: Math.min(0.32, Math.max(0.12, (height / poseCanvas.height) / 2.3)),
-            faceCenterX: (x + width / 2) / poseCanvas.width,
-            faceCenterY: (y + height / 2) / poseCanvas.height,
-            faceWidth: width / poseCanvas.width,
-            faceHeight: height / poseCanvas.height,
-          };
-        }
-        updateTryonRotation();
+      formData.append("image", await tryonFrameBlob(), "tryon-frame.jpg");
+      formData.append("reset", tryonReset ? "true" : "false");
+      tryonReset = false;
+      const response = await fetch(`${API}/transfer/tryon`, { method: "POST", body: formData });
+      if (!response.ok) throw new Error("Could not process the Person B frame");
+      const anchor = JSON.parse(response.headers.get("X-Tryon-Anchor") || "{}");
+      const bitmap = await createImageBitmap(await response.blob());
+      if (!tryonStream) return;
+      if (tryonFrame) tryonFrame.bitmap.close();
+      tryonFrame = { bitmap, width: bitmap.width, height: bitmap.height };
+      if (anchor.center) {
+        tryonMisses = 0;
+        tryonAnchor = anchor;
+        tryonDetectedRotation = anchor.yaw;
+        poseBadge.textContent = `${anchor.pose[0].toUpperCase()}${anchor.pose.slice(1)} view tracked`;
       } else {
-        poseBadge.textContent = "Keep your profile in frame";
+        tryonMisses += 1;
+        if (tryonMisses > 4) tryonAnchor = null;
+        poseBadge.textContent = "Keep your face in frame";
       }
+      updateTryonRotation();
     } catch (error) {
       poseBadge.textContent = "Head tracking unavailable";
     } finally {
-      tryonPoseBusy = false;
+      tryonBusy = false;
     }
   }
-  setTimeout(tryonPoseLoop, 450);
+  requestAnimationFrame(tryonLoop);
 }
 
 tryonCamera.addEventListener("click", toggleTryonCamera);

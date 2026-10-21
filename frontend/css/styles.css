@@ -625,7 +625,7 @@ button.loading {
 .library-empty { padding: 42px 16px; text-align: center; border: 1px dashed var(--border); color: var(--muted); border-radius: 6px; }
 .tryon-stage { cursor: grab; min-height: 470px; }
 .tryon-stage:active { cursor: grabbing; }
-.tryon-stage video { position: absolute; inset: 0; object-fit: cover; }
+.tryon-stage video { position: absolute; inset: 0; object-fit: cover; opacity: 0; }
 .tryon-mesh { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .rotation-badge { position: absolute; z-index: 3; right: 12px; top: 12px; border-radius: 99px; padding: 5px 9px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; }
 .pose-badge { position: absolute; z-index: 3; left: 12px; top: 12px; border-radius: 99px; padding: 5px 9px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; }

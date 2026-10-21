@@ -1,4 +1,5 @@
 import base64
+import json
 
 import cv2
 import numpy as np
@@ -140,11 +141,15 @@ async def transfer_asset(image: UploadFile = File(...)):
     return encode_png(result)
 
 
-@router.post("/transfer/pose")
-async def transfer_pose(image: UploadFile = File(...)):
+@router.post("/transfer/tryon")
+async def transfer_tryon(image: UploadFile = File(...), reset: bool = Form(False)):
     image_bgr = decode_image(await image.read())
-    pose, face, yaw = pipeline.transfer_pose(image_bgr)
-    return JSONResponse({"pose": pose, "face": face, "yaw": yaw})
+    if reset:
+        pipeline.reset_tryon()
+    result, anchor = await run_in_threadpool(pipeline.transfer_tryon, image_bgr)
+    response = encode_jpeg(result, 85)
+    response.headers["X-Tryon-Anchor"] = json.dumps(anchor)
+    return response
 
 
 @router.post("/transfer/reconstruct")

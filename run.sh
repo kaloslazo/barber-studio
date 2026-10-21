@@ -29,5 +29,11 @@ if [ ! -f venv/.deps-installed ] || [ requirements.txt -nt venv/.deps-installed 
   touch venv/.deps-installed
 fi
 
+SEGMENTER=models/selfie_multiclass_256x256.tflite
+if [ ! -f "$SEGMENTER" ]; then
+  echo ">> downloading MediaPipe hair segmentation model"
+  curl -sSfL -o "$SEGMENTER" https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite || rm -f "$SEGMENTER"
+fi
+
 echo ">> BarberStudio running at http://localhost:$PORT"
 exec venv/bin/uvicorn app.main:app --reload --port "$PORT"
