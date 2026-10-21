@@ -1,11 +1,15 @@
 import base64
+import time
 
 import cv2
 import numpy as np
 
 from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.beard import apply_beard as render_beard
-from app.core.compositing.beard import apply_real_beard, load_templates
+from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
+from app.core.compositing.beard_physics import BeardPhysics
+from app.core.detection.hands import FingerTracker, draw_hand
+from app.core.game.speedrun import SpeedrunGame
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.compositing.haircut import apply_haircut
 from app.core.detection.face_detector import FaceDetector
@@ -13,6 +17,8 @@ from app.core.detection.landmarks import LandmarkDetector
 from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
 from app.core.segmentation.hair_region import provisional_hair_mask
 from app.core.segmentation.mask_refiner import refine_hair_mask
+from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
+from app.core.splatting.head3d import build_head_splats
 
 try:
     from app.core.segmentation.yolo_segmenter import HairSegmenter
@@ -25,6 +31,16 @@ class StylePipeline:
         self.detector = FaceDetector()
         self.segmenter = self._load_segmenter()
         self.landmark_detector = None
+        self.live_landmark_detector = None
+        self._live_hair_color = None
+        self._live_anchor = None
+        self._physics = None
+        self._live_last_points = None
+        self._live_misses = 0
+        self._live_last_gray = None
+        self.game = None
+        self.finger_tracker = FingerTracker()
+        self._physics_clock = None
         self.beard_templates = load_templates()
         self._live_crop = None
         self._transfer_face = None
@@ -38,7 +54,14 @@ class StylePipeline:
         except FileNotFoundError:
             return None
 
-    def _landmarks(self, image_bgr, face):
+    def _landmarks(self, image_bgr, face, live=False):
+        if live:
+            if self.live_landmark_detector is None:
+                try:
+                    self.live_landmark_detector = LandmarkDetector(live=True)
+                except FileNotFoundError:
+                    return None
+            return self.live_landmark_detector.landmarks(image_bgr, face)
         if self.landmark_detector is None:
             try:
                 self.landmark_detector = LandmarkDetector()
@@ -80,13 +103,73 @@ class StylePipeline:
             image_bgr, hair_mask, face, points, style, strength,
         )
 
-    def apply_beard(self, image_bgr, style="full", strength=0.9):
-        face = self.detector.largest_face(image_bgr)
-        if face is None:
-            return None
-        points = self._landmarks(image_bgr, face)
-        if points is None:
-            return None
+    def _live_points(self, image_bgr):
+        points = self._landmarks(image_bgr, None, live=True)
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+        if points is None and self._live_last_points is not None and self._live_misses < 3:
+            self._live_misses += 1
+            points = self._live_last_points + self._face_shift(self._live_last_gray, gray, self._live_last_points)
+            self._live_last_points = points
+        elif points is not None:
+            self._live_misses = 0
+            self._live_last_points = points
+        else:
+            self._live_last_points = None
+        self._live_last_gray = gray
+        return points
+
+    @staticmethod
+    def _face_shift(previous, current, points):
+        if previous is None or previous.shape != current.shape:
+            return np.zeros(2, np.float32)
+        h, w = current.shape
+        x0, y0 = np.floor(points.min(axis=0)).astype(int)
+        x1, y1 = np.ceil(points.max(axis=0)).astype(int)
+        pad_x, pad_y = (x1 - x0) // 2, (y1 - y0) // 2
+        x0, y0 = max(0, x0 - pad_x), max(0, y0 - pad_y)
+        x1, y1 = min(w, x1 + pad_x), min(h, y1 + pad_y)
+        if x1 - x0 < 16 or y1 - y0 < 16:
+            return np.zeros(2, np.float32)
+        window = cv2.createHanningWindow((x1 - x0, y1 - y0), cv2.CV_32F)
+        (dx, dy), response = cv2.phaseCorrelate(previous[y0:y1, x0:x1], current[y0:y1, x0:x1], window)
+        if response < 0.05:
+            return np.zeros(2, np.float32)
+        return np.array([dx, dy], np.float32)
+
+    @staticmethod
+    def _box_from_landmarks(points):
+        x0, x1 = float(points[:, 0].min()), float(points[:, 0].max())
+        brow = float(points[17:27, 1].min())
+        chin = float(points[8, 1])
+        top = brow - 0.2 * (chin - brow)
+        return int(x0), int(top), max(1, int(x1 - x0)), max(1, int(chin - top))
+
+    def apply_beard(self, image_bgr, style="full", strength=0.9, live=False, detail=True):
+        if live:
+            points = self._live_points(image_bgr)
+            if points is None:
+                self._live_anchor = None
+                return None
+            face = self._box_from_landmarks(points)
+        else:
+            face = self.detector.largest_face(image_bgr)
+            if face is None:
+                return None
+            points = self._landmarks(image_bgr, face)
+            if points is None:
+                return None
+        anchor = None
+        if live:
+            current = self._live_anchor
+            if (
+                current is None
+                or current.stale
+                or current.style != style
+                or current.shape != image_bgr.shape[:2]
+            ):
+                current = LiveAnchor(points, image_bgr.shape[:2], style)
+                self._live_anchor = current
+            anchor = current
         hair_yccrb = None
         if self.beard_templates:
             try:
@@ -97,13 +180,216 @@ class StylePipeline:
                     hair_yccrb = cv2.cvtColor(
                         hair_bgr.reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2YCrCb
                     )[0, 0].astype(np.float32)
+                    hair_yccrb[1] = max(hair_yccrb[1], 136.0)
+                    hair_yccrb[2] = min(hair_yccrb[2], 121.0)
+                if live and hair_yccrb is not None:
+                    if self._live_hair_color is not None:
+                        hair_yccrb = 0.9 * self._live_hair_color + 0.1 * hair_yccrb
+                    self._live_hair_color = hair_yccrb
                 return apply_real_beard(
                     image_bgr, points, style, strength, self.beard_templates,
-                    hair_yccrb=hair_yccrb,
+                    hair_yccrb=hair_yccrb, anchor=anchor, live_detail=detail,
                 )
             except Exception:
                 pass
         return render_beard(image_bgr, points, style, strength)
+
+    def _live_tint(self):
+        if self._live_hair_color is None:
+            return np.array([45, 37, 30], np.float32)
+        ycc = self._live_hair_color.copy()
+        ycc[0] *= 0.8
+        bgr = cv2.cvtColor(np.clip(ycc, 0, 255).astype(np.uint8).reshape(1, 1, 3), cv2.COLOR_YCrCb2BGR)
+        return bgr[0, 0].astype(np.float32)
+
+    def start_game(self, target):
+        self.game = SpeedrunGame(target)
+
+    def game_frame(self, image_bgr, pointer=None, use_hand=True, now=None, pointer_down=True):
+        if self.game is None:
+            self.game = SpeedrunGame()
+        now = time.monotonic() if now is None else now
+        points = self._live_points(image_bgr)
+        if points is not None and self._live_hair_color is None:
+            face = self._box_from_landmarks(points)
+            hair_mask = self.hair_mask(image_bgr, face)
+            pixels = image_bgr[hair_mask > 0]
+            if len(pixels) > 200:
+                ycc = cv2.cvtColor(np.median(pixels, axis=0).reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2YCrCb)[0, 0]
+                ycc = ycc.astype(np.float32)
+                ycc[1] = max(ycc[1], 136.0)
+                ycc[2] = min(ycc[2], 121.0)
+                self._live_hair_color = ycc
+        tool, tool_on, source = None, False, "none"
+        if use_hand:
+            tip = self.finger_tracker.fingertip(image_bgr)
+            if tip is not None:
+                tool, tool_on, source = tip[0], tip[1], "hand"
+        if tool is None and pointer is not None:
+            tool, tool_on, source = np.asarray(pointer, np.float32), bool(pointer_down), "pointer"
+        bearded = None
+        if points is not None and self.beard_templates:
+            hair = self._live_hair_estimate(image_bgr, self._box_from_landmarks(points))
+            anchor = getattr(self, "_game_anchor", None)
+            if anchor is None or anchor.stale or anchor.shape != image_bgr.shape[:2] or self.game.physics is None:
+                anchor = LiveAnchor(points, image_bgr.shape[:2], "full")
+                self._game_anchor = anchor
+            try:
+                bearded = apply_real_beard(
+                    image_bgr, points, "full", 0.9, self.beard_templates,
+                    hair_yccrb=hair, anchor=anchor,
+                )
+            except Exception:
+                bearded = None
+        out, found = self.game.frame(image_bgr, points, tool, tool_on, now, self._live_tint(), bearded=bearded)
+        if source == "hand" and self.finger_tracker.last_hand is not None:
+            draw_hand(out, self.finger_tracker.last_hand, tool_on)
+        stats = self.game.stats()
+        stats["face"] = bool(found)
+        stats["tool"] = source
+        stats["target"] = self.game.target
+        return out, stats
+
+    def _live_hair_estimate(self, image_bgr, face):
+        hair_mask = self.hair_mask(image_bgr, face)
+        pixels = image_bgr[hair_mask > 0]
+        if len(pixels) > 200:
+            ycc = cv2.cvtColor(
+                np.median(pixels, axis=0).reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2YCrCb,
+            )[0, 0].astype(np.float32)
+            ycc[1] = max(ycc[1], 136.0)
+            ycc[2] = min(ycc[2], 121.0)
+            if self._live_hair_color is not None:
+                ycc = 0.9 * self._live_hair_color + 0.1 * ycc
+            self._live_hair_color = ycc
+        return self._live_hair_color
+
+    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640):
+        """Live beard rendered at the camera's full resolution, but only inside
+        a fixed-size crop around the face. Landmarks run on a small copy (fast);
+        the beard is painted on the high-resolution crop (sharp hair, like photo
+        mode). The crop keeps a constant size so the face-anchored textures
+        (no jitter) survive while the crop window follows the face."""
+        h, w = image_bgr.shape[:2]
+        scale = min(1.0, work_width / w)
+        small = cv2.resize(image_bgr, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1 else image_bgr
+        points = self._live_points(small)
+        if points is None:
+            self._live_anchor = None
+            return None
+        hair = self._live_hair_estimate(small, self._box_from_landmarks(points))
+        pts = points / scale
+        face_w = float(np.linalg.norm(pts[16] - pts[0]))
+        wanted = (int(min(w, face_w * 1.45)) // 8 * 8, int(min(h, face_w * 1.35)) // 8 * 8)
+        size = getattr(self, "_hd_size", None)
+        if size is None or abs(wanted[0] - size[0]) > 0.25 * size[0] or size[0] > w or size[1] > h:
+            size = wanted
+            self._hd_size = size
+            self._live_anchor = None
+        cw, ch = size
+        cx = float(0.5 * (pts[0, 0] + pts[16, 0]))
+        top = float(min(pts[0, 1], pts[16, 1], pts[29, 1])) - 0.08 * face_w
+        x0 = int(np.clip(cx - cw / 2, 0, w - cw))
+        y0 = int(np.clip(top, 0, h - ch))
+        crop = image_bgr[y0:y0 + ch, x0:x0 + cw]
+        local = (pts - np.array([x0, y0], np.float32)).astype(np.float32)
+        current = self._live_anchor
+        if current is None or current.stale or current.style != style or current.shape != (ch, cw):
+            current = LiveAnchor(local, (ch, cw), style)
+            self._live_anchor = current
+        try:
+            painted = apply_real_beard(
+                crop, local, style, strength, self.beard_templates,
+                hair_yccrb=hair, anchor=current,
+            )
+        except Exception:
+            painted = None
+        if painted is None:
+            painted = render_beard(crop, local, style, strength)
+        result = image_bgr.copy()
+        result[y0:y0 + ch, x0:x0 + cw] = painted
+        return result
+
+    def apply_beard_physics(self, image_bgr, strength=0.9, now=None, length=1.0):
+        base = self.apply_beard(image_bgr, "full", strength, live=True, detail=False)
+        anchor = self._live_anchor
+        if base is None or anchor is None or getattr(anchor, "cur_ext", None) is None:
+            self._physics = None
+            return base
+        points = anchor.cur_ext[:68]
+        face_w = float(np.linalg.norm(points[16] - points[0]))
+        now = time.monotonic() if now is None else now
+        physics = self._physics
+        if physics is None or physics[0] is not anchor or abs(physics[1].length_scale - length) > 1e-3:
+            region = beard_mask(image_bgr.shape, points, "full")
+            hull = np.zeros(region.shape, np.uint8)
+            cv2.fillConvexPoly(hull, cv2.convexHull(points).astype(np.int32), 255)
+            region = cv2.bitwise_and(region, hull)
+            if not (region > 0).any():
+                return base
+            self._physics = (anchor, BeardPhysics(anchor, region, points, face_w, length_scale=length))
+            self._physics_clock = now
+        simulation = self._physics[1]
+        dt = now - (self._physics_clock if self._physics_clock is not None else now)
+        self._physics_clock = now
+        simulation.step(anchor, dt)
+        tint = self._live_tint()
+        strand_rgb, strand_alpha = simulation.render(image_bgr.shape[:2], tint, strength)
+        out = base.astype(np.float32)
+        alpha = strand_alpha[..., None] * 0.85
+        out = out * (1.0 - alpha) + strand_rgb * alpha
+        return np.clip(out, 0, 255).astype(np.uint8)
+
+    def head3d(self, image_bgr, beard_style=None):
+        h, w = image_bgr.shape[:2]
+        if w > 1024:
+            image_bgr = cv2.resize(image_bgr, (1024, int(round(h * 1024 / w))), interpolation=cv2.INTER_AREA)
+        if self.landmark_detector is None:
+            self.landmark_detector = LandmarkDetector()
+        mesh = self.landmark_detector.mesh3d(image_bgr)
+        if mesh is None:
+            return None, None
+        textured, region, tint = image_bgr, None, (0.16, 0.13, 0.11)
+        if beard_style:
+            bearded = self.apply_beard(image_bgr, beard_style, 0.9)
+            points = self.landmark_detector.landmarks(image_bgr)
+            if bearded is not None and points is not None:
+                textured = bearded
+                region = beard_mask(image_bgr.shape, points, beard_style)
+                pixels = bearded[region > 0]
+                if len(pixels) > 50:
+                    tint = tuple(float(v) for v in np.median(pixels, axis=0)[::-1] / 255.0 * 0.8)
+        return build_head_splats(textured, mesh, region, beard_style, tint)
+
+    def _face_crop(self, image_bgr):
+        face = self.detector.largest_face(image_bgr)
+        if face is None:
+            return image_bgr
+        h, w = image_bgr.shape[:2]
+        x, y, fw, fh = face
+        side = int(max(fw, fh) * 1.9)
+        cx, cy = x + fw / 2, y + fh * 0.58
+        x0 = int(np.clip(cx - side / 2, 0, max(0, w - side)))
+        y0 = int(np.clip(cy - side / 2, 0, max(0, h - side)))
+        return image_bgr[y0:y0 + side, x0:x0 + side]
+
+    def gaussian_portrait(self, image_bgr, count, face_crop=True, beard_style=None, out_width=480):
+        source = image_bgr
+        if beard_style:
+            bearded = self.apply_beard(source, beard_style, 0.9)
+            if bearded is not None:
+                source = bearded
+        if face_crop:
+            source = self._face_crop(source)
+        params = fit_gaussians(source, count)
+        return {
+            "render": render_gaussians(params, out_width),
+            "ellipses": draw_ellipses(params, out_width),
+            "target": cv2.resize(source, (out_width, int(round(out_width * source.shape[0] / source.shape[1])))),
+            "psnr": params["psnr"],
+            "seconds": params["seconds"],
+            "iterations": params["iterations"],
+        }
 
     def face_mesh(self, image_bgr, crop=False):
         face = self.detector.largest_face(image_bgr)

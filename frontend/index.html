@@ -25,6 +25,10 @@
         <button class="menu-item" data-panel="haircut">Haircut</button>
         <button class="menu-item" data-panel="live">Live</button>
         <button class="menu-item" data-panel="transfer">Transfering hair</button>
+        <button class="menu-item" data-panel="splats">Gaussian Splatting</button>
+        <button class="menu-item" data-panel="speedrun">Barber Speedrun</button>
+        <button class="menu-item" data-panel="mirror">3D Mirror</button>
+        <button class="menu-item" data-panel="lab">3D Lab (beta)</button>
       </nav>
       <div class="card tips">
         <h3>Photo tips</h3>
@@ -128,6 +132,7 @@
             <button class="style-btn active" id="live-mode-dye">Hair dye</button>
             <button class="style-btn" id="live-mode-beard">Beard</button>
             <button class="style-btn" id="live-mode-mesh">Face mesh</button>
+            <button class="style-btn" id="live-mode-physics">Beard physics</button>
           </div>
           <div class="swatches" id="live-swatches"></div>
           <div class="style-group" id="live-styles" hidden>
@@ -140,8 +145,13 @@
             <span>Intensity</span>
             <input type="range" id="live-strength" min="20" max="100" value="75">
           </label>
+          <label class="slider" id="live-length-field" hidden>
+            <span>Beard length</span>
+            <input type="range" id="live-length" min="40" max="200" value="100">
+          </label>
           <button id="live-btn">Start camera</button>
         </div>
+        <p class="hint" id="live-physics-hint" hidden>Long beard simulated with Verlet physics: turn your head quickly and watch the strands swing.</p>
 
         <div class="banner" id="live-error" hidden></div>
 
@@ -299,8 +309,198 @@
           </div>
         </div>
       </section>
+      <section class="panel" id="panel-splats">
+        <header class="page-head">
+          <h1>How many Gaussians are you?</h1>
+          <p>Your photo rebuilt from 2D Gaussian splats, fitted from scratch with gradient descent. Watch the face emerge.</p>
+        </header>
+
+        <div class="card drop-zone" id="splat-drop" tabindex="0">
+          <p class="dz-title">Drop your photo here</p>
+          <p class="dz-sub">or click to browse (JPG / PNG)</p>
+          <input type="file" id="splat-input" accept="image/*" hidden>
+        </div>
+
+        <div class="card controls">
+          <div class="style-group">
+            <button class="style-btn active" data-splat-view="render">Smooth</button>
+            <button class="style-btn" data-splat-view="ellipses">Ellipses</button>
+          </div>
+          <div class="style-group">
+            <button class="style-btn active" data-splat-beard="none">No beard</button>
+            <button class="style-btn" data-splat-beard="full">Full</button>
+            <button class="style-btn" data-splat-beard="goatee">Goatee</button>
+            <button class="style-btn" data-splat-beard="stubble">Stubble</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="splat-crop" checked>
+            <span>Crop to face</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="splat-guess">
+            <span>Guess mode</span>
+          </label>
+          <button id="splat-btn" disabled>Start</button>
+        </div>
+
+        <div class="card guess-bar" id="splat-guess-bar" hidden>
+          <span id="splat-guess-text">Press the button as soon as you recognize the face. Fewer Gaussians, more points.</span>
+          <button id="splat-guess-btn" disabled>I recognize it!</button>
+          <strong id="splat-score"></strong>
+        </div>
+
+        <div class="banner" id="splat-error" hidden></div>
+
+        <div class="splat-grid" id="splat-grid"></div>
+      </section>
+      <section class="panel" id="panel-speedrun">
+        <header class="page-head">
+          <h1>Barber Speedrun</h1>
+          <p>You get a full beard. Shave it down to the target style in 30 seconds. Point with your index finger to cut, open your hand to move without cutting (or hold the mouse button on the image).</p>
+        </header>
+
+        <div class="card controls">
+          <div class="style-group">
+            <button class="style-btn active" data-game-target="goatee">Goatee</button>
+            <button class="style-btn" data-game-target="mustache">Mustache</button>
+            <button class="style-btn" data-game-target="chinstrap">Chinstrap</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="game-hand" checked>
+            <span>Use my hand</span>
+          </label>
+          <label class="name-field">
+            <span>Barber</span>
+            <input type="text" id="game-name" maxlength="16" placeholder="your name">
+          </label>
+          <button id="game-camera">Start camera</button>
+          <button id="game-start" disabled>Start round</button>
+        </div>
+
+        <div class="banner" id="game-error" hidden></div>
+
+        <div class="game-layout">
+          <div class="card game-stage" id="game-stage" hidden>
+            <div class="game-hud">
+              <span>Time <strong id="game-time">30.0</strong></span>
+              <span>Score <strong id="game-score">0</strong></span>
+              <span>Shaved <strong id="game-clean">0%</strong></span>
+              <span>Target kept <strong id="game-keep">100%</strong></span>
+              <span id="game-tool" class="live-status" hidden>No clipper detected</span>
+            </div>
+            <div class="game-view">
+              <img id="game-result" alt="Barber Speedrun game view" draggable="false">
+              <div class="game-overlay" id="game-overlay" hidden></div>
+            </div>
+            <p class="game-final" id="game-final" hidden></p>
+          </div>
+          <aside class="card leaderboard">
+            <h3>Leaderboard</h3>
+            <ol id="game-board"></ol>
+            <p class="hint">How the score works: shaved (off-target hair removed) x kept (target hair untouched) x 1000.</p>
+          </aside>
+        </div>
+
+        <video id="game-video" hidden autoplay playsinline muted></video>
+        <canvas id="game-canvas" hidden></canvas>
+      </section>
+      <section class="panel" id="panel-mirror">
+        <header class="page-head">
+          <h1>3D Mirror</h1>
+          <p>Your head as tens of thousands of 3D Gaussians, built from one photo and the 3D face mesh, rendered with our own WebGL Gaussian Splatting viewer. Drag to rotate, scroll to zoom.</p>
+        </header>
+
+        <div class="card drop-zone" id="mirror-drop" tabindex="0">
+          <p class="dz-title">Drop your photo here</p>
+          <p class="dz-sub">or click to browse (JPG / PNG)</p>
+          <input type="file" id="mirror-input" accept="image/*" hidden>
+        </div>
+
+        <div class="card controls">
+          <div class="style-group">
+            <button class="style-btn active" data-mirror-beard="none">No beard</button>
+            <button class="style-btn" data-mirror-beard="full">Full</button>
+            <button class="style-btn" data-mirror-beard="goatee">Goatee</button>
+            <button class="style-btn" data-mirror-beard="stubble">Stubble</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="mirror-auto" checked>
+            <span>Auto rotate</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="mirror-splats">
+            <span>Show individual splats</span>
+          </label>
+          <button class="quiet-button" id="mirror-reset">Reset view</button>
+          <button id="mirror-btn" disabled>Build 3D head</button>
+          <button class="quiet-button" id="mirror-ply" disabled>Download .ply</button>
+        </div>
+
+        <div class="banner" id="mirror-error" hidden></div>
+
+        <div class="card mirror-stage" id="mirror-stage" hidden>
+          <canvas id="mirror-canvas" aria-label="3D Gaussian head viewer"></canvas>
+          <div class="live-meta">
+            <span id="mirror-stats">--</span>
+            <span id="mirror-fps"></span>
+          </div>
+        </div>
+      </section>
+      <section class="panel" id="panel-lab">
+        <header class="page-head">
+          <h1>3D Lab (beta)</h1>
+          <p>Experimental. Scan your head from several angles with the webcam, then watch a live 3D Gaussian avatar that follows your face. Drag the 3D view to look at yourself from the side.</p>
+        </header>
+
+        <div class="card controls">
+          <button id="lab-camera">Start camera</button>
+          <button id="lab-scan" disabled>Scan (7 s)</button>
+          <label class="quiet-button lab-upload">
+            Or upload photos
+            <input type="file" id="lab-files" accept="image/*" multiple hidden>
+          </label>
+          <div class="style-group">
+            <button class="style-btn active" data-lab-beard="none">No beard</button>
+            <button class="style-btn" data-lab-beard="full">Full</button>
+            <button class="style-btn" data-lab-beard="goatee">Goatee</button>
+            <button class="style-btn" data-lab-beard="stubble">Stubble</button>
+          </div>
+          <button id="lab-build" disabled>Build head</button>
+          <button id="lab-live" disabled>Live avatar</button>
+        </div>
+
+        <div class="banner" id="lab-error" hidden></div>
+
+        <div class="lab-layout">
+          <div class="card lab-side">
+            <div class="lab-preview">
+              <video id="lab-video" autoplay playsinline muted></video>
+              <div class="lab-prompt" id="lab-prompt" hidden></div>
+            </div>
+            <p class="hint" id="lab-frames">No scan yet.</p>
+            <table class="lab-metrics" id="lab-metrics" hidden>
+              <thead><tr><th>PSNR (dB)</th><th>Training views</th><th>Held-out view</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="card lab-stage">
+            <canvas id="lab-canvas" aria-label="Live 3D Gaussian avatar"></canvas>
+            <div class="live-meta">
+              <div class="style-group">
+                <button class="style-btn active" data-lab-view="0">Front</button>
+                <button class="style-btn" data-lab-view="0.6">3/4</button>
+                <button class="style-btn" data-lab-view="1.15">Side</button>
+              </div>
+              <span id="lab-stats">--</span>
+            </div>
+          </div>
+        </div>
+        <canvas id="lab-capture" hidden></canvas>
+      </section>
     </main>
   </div>
+  <script src="js/splat3d.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/lab.js"></script>
 </body>
 </html>

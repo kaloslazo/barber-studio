@@ -253,6 +253,90 @@ def refinar_con_canny(img_gray, mascara):
 
 ---
 
+## Fase 5 — Calibración en Tiempo Real (Estabilización Temporal)
+> Temas: `6.1.3` `6.1.4` · aplicación en video (webcam)
+
+**Problema:** En modo foto la barba se coloca una sola vez. En modo cámara (webcam), la
+detección se repite en cada frame y aparece **jitter**: aunque la cabeza esté casi
+quieta, cada detección devuelve los landmarks con un ruido de ±1-2 px, y ese ruido se
+propaga a la máscara → la barba **tiembla**.
+
+**Causa raíz:** hoy MediaPipe corre en `RunningMode.IMAGE`, que trata cada frame como
+una foto aislada (re-detecta desde cero, sin memoria del frame anterior).
+
+**Output:** Máscara de barba estable frame a frame, sin retraso al mover la cabeza.
+
+### 5.1 — Modo VIDEO (tracking en vez de re-detección)
+En lugar de detectar desde cero, MediaPipe usa el frame anterior como semilla y
+*rastrea* la cara. Elimina la mayor parte del ruido y además es más rápido.
+
+```python
+options = vision.FaceLandmarkerOptions(
+    base_options=mp_python.BaseOptions(model_asset_path=str(model_path)),
+    running_mode=vision.RunningMode.VIDEO,   # antes: IMAGE
+    num_faces=1,
+    min_face_detection_confidence=0.5,
+    min_tracking_confidence=0.5,
+)
+# Requiere timestamp monotónico creciente por frame:
+result = self._mp_mesh.detect_for_video(mp_image, timestamp_ms)
+```
+
+### 5.2 — Filtro One-Euro (suavizado adaptativo sobre los landmarks)
+El temblor residual se elimina filtrando cada coordenada de landmark **en el tiempo**.
+Un promedio fijo (EMA) no sirve: si suaviza poco sigue temblando, si suaviza mucho la
+barba va con retraso al mover la cabeza. El **One-Euro filter** adapta su suavizado a la
+velocidad del punto:
+
+- Cabeza quieta → baja velocidad → suaviza fuerte → **cero temblor**.
+- Cabeza en movimiento → alta velocidad → suaviza poco → **cero retraso**.
+
+Es interpolación temporal adaptativa (relación con `6.1.4`): mezcla el punto medido
+con el estado anterior mediante un factor `alpha` que depende de la derivada estimada.
+
+```python
+class OneEuroFilter:
+    def __init__(self, min_cutoff=1.0, beta=0.007):
+        self.min_cutoff, self.beta = min_cutoff, beta
+        self.x_prev = self.dx_prev = self.t_prev = None
+
+    @staticmethod
+    def _alpha(cutoff, dt):
+        tau = 1.0 / (2 * np.pi * cutoff)
+        return 1.0 / (1.0 + tau / dt)
+
+    def __call__(self, x, t):          # x: array (68, 2) de landmarks
+        if self.x_prev is None:
+            self.x_prev, self.dx_prev, self.t_prev = x, np.zeros_like(x), t
+            return x
+        dt = max(1e-3, t - self.t_prev)
+        dx = (x - self.x_prev) / dt
+        a_d = self._alpha(1.0, dt)
+        dx_hat = a_d * dx + (1 - a_d) * self.dx_prev          # velocidad suavizada
+        cutoff = self.min_cutoff + self.beta * np.abs(dx_hat) # cutoff adaptativo
+        a = self._alpha(cutoff, dt)
+        x_hat = a * x + (1 - a) * self.x_prev                 # posición suavizada
+        self.x_prev, self.dx_prev, self.t_prev = x_hat, dx_hat, t
+        return x_hat
+```
+
+### 5.3 — Gating por confianza
+Si la confianza de detección cae por debajo del umbral (giro fuerte, oclusión), se
+descarta el frame y se reutiliza la última máscara válida en vez de renderizar una
+barba mal colocada.
+
+**Nota de arquitectura:** los modos VIDEO/LIVE_STREAM asumen frames en orden con
+timestamp creciente, por lo que el detector y el filtro deben mantener **estado por
+sesión** (no compartir una sola instancia global entre requests concurrentes).
+
+| Estrategia | Resultado |
+|---|---|
+| `IMAGE` + sin filtro (base) | Tiembla quieto y al mover ❌ |
+| `VIDEO` + sin filtro | Temblor mínimo residual |
+| `VIDEO` + One-Euro (objetivo) | Estable quieto y pegado al mover ✅ |
+
+---
+
 ## Pipeline Completo
 
 ```python
@@ -312,6 +396,7 @@ proyecto_barberia/
 | 2 | Quadtree → máscara espacial | **6.2.4** ⭐ |
 | 3 | Overlay con interpolación | 6.1.2, 6.1.4 |
 | 4 | Suavizado y detección de bordes | 6.1.3, 6.4.2 |
+| 5 | Calibración en tiempo real (estabilización temporal) | 6.1.3, 6.1.4 |
 
 ---
 

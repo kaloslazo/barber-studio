@@ -281,13 +281,19 @@ const liveStrength = document.getElementById("live-strength");
 const liveModeDye = document.getElementById("live-mode-dye");
 const liveModeBeard = document.getElementById("live-mode-beard");
 const liveModeMesh = document.getElementById("live-mode-mesh");
+const liveModePhysics = document.getElementById("live-mode-physics");
+const livePhysicsHint = document.getElementById("live-physics-hint");
+const liveLengthField = document.getElementById("live-length-field");
+const liveLength = document.getElementById("live-length");
 
 function setLiveMode(mode, activeBtn) {
   liveMode = mode;
-  [liveModeDye, liveModeBeard, liveModeMesh].forEach((b) => b.classList.remove("active"));
+  [liveModeDye, liveModeBeard, liveModeMesh, liveModePhysics].forEach((b) => b.classList.remove("active"));
   activeBtn.classList.add("active");
   liveSwatches.hidden = mode !== "dye";
   liveStyles.hidden = mode !== "beard";
+  livePhysicsHint.hidden = mode !== "physics";
+  liveLengthField.hidden = mode !== "physics";
 }
 
 let liveRunning = false;
@@ -313,6 +319,7 @@ PRESETS.forEach((preset) => {
 liveModeDye.addEventListener("click", () => setLiveMode("dye", liveModeDye));
 liveModeBeard.addEventListener("click", () => setLiveMode("beard", liveModeBeard));
 liveModeMesh.addEventListener("click", () => setLiveMode("mesh", liveModeMesh));
+liveModePhysics.addEventListener("click", () => setLiveMode("physics", liveModePhysics));
 
 document.querySelectorAll("[data-live-style]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -328,7 +335,7 @@ async function liveLoop() {
     liveBusy = true;
     const started = performance.now();
     try {
-      const targetW = 640;
+      const targetW = liveMode === "beard" ? Math.min(1280, liveVideo.videoWidth) : 640;
       const scale = targetW / liveVideo.videoWidth;
       liveCanvas.width = targetW;
       liveCanvas.height = Math.round(liveVideo.videoHeight * scale);
@@ -338,13 +345,14 @@ async function liveLoop() {
       ctx.scale(-1, 1);
       ctx.drawImage(liveVideo, 0, 0, liveCanvas.width, liveCanvas.height);
       ctx.restore();
-      const blob = await new Promise((resolve) => liveCanvas.toBlob(resolve, "image/jpeg", 0.85));
+      const blob = await new Promise((resolve) => liveCanvas.toBlob(resolve, "image/jpeg", liveMode === "beard" ? 0.92 : 0.85));
       const formData = new FormData();
       formData.append("image", blob, "frame.jpg");
       formData.append("mode", liveMode);
       formData.append("color", liveColor);
       formData.append("style", liveStyle);
       formData.append("strength", (liveStrength.value / 100).toString());
+      formData.append("length", (liveLength.value / 100).toString());
       const response = await fetch(`${API}/live`, { method: "POST", body: formData });
       if (response.ok) {
         liveResult.src = URL.createObjectURL(await response.blob());
@@ -359,7 +367,7 @@ async function liveLoop() {
       liveBusy = false;
     }
   }
-  setTimeout(liveLoop, 100);
+  setTimeout(liveLoop, 0);
 }
 
 liveBtn.addEventListener("click", async () => {
@@ -888,3 +896,532 @@ tryonStage.addEventListener("pointermove", (event) => {
 });
 tryonStage.addEventListener("pointerup", () => { dragStartX = null; });
 tryonStage.addEventListener("pointercancel", () => { dragStartX = null; });
+
+const splatDrop = document.getElementById("splat-drop");
+const splatInput = document.getElementById("splat-input");
+const splatBtn = document.getElementById("splat-btn");
+const splatError = document.getElementById("splat-error");
+const splatGrid = document.getElementById("splat-grid");
+const splatCrop = document.getElementById("splat-crop");
+const splatGuess = document.getElementById("splat-guess");
+const splatGuessBar = document.getElementById("splat-guess-bar");
+const splatGuessBtn = document.getElementById("splat-guess-btn");
+const splatGuessText = document.getElementById("splat-guess-text");
+const splatScore = document.getElementById("splat-score");
+const SPLAT_STAGES = [20, 60, 200, 600, 2000];
+let splatFile = null;
+let splatView = "render";
+let splatBeard = "none";
+let splatShown = 0;
+let splatRunning = false;
+let splatTarget = null;
+
+document.querySelectorAll("[data-splat-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-splat-view]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    splatView = button.dataset.splatView;
+    splatGrid.querySelectorAll("img[data-render]").forEach((img) => {
+      img.src = img.dataset[splatView];
+    });
+  });
+});
+
+document.querySelectorAll("[data-splat-beard]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-splat-beard]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    splatBeard = button.dataset.splatBeard;
+  });
+});
+
+function setSplatFile(file) {
+  splatFile = file;
+  splatError.hidden = true;
+  splatGrid.innerHTML = "";
+  splatBtn.disabled = false;
+  splatDrop.querySelector(".dz-title").textContent = file.name;
+  splatDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+}
+
+splatDrop.addEventListener("click", () => splatInput.click());
+splatDrop.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    splatInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((type) => {
+  splatDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    splatDrop.classList.add("dragging");
+  });
+});
+["dragleave", "drop"].forEach((type) => {
+  splatDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    splatDrop.classList.remove("dragging");
+  });
+});
+splatDrop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) setSplatFile(file);
+});
+splatInput.addEventListener("change", () => {
+  if (splatInput.files.length > 0) setSplatFile(splatInput.files[0]);
+});
+
+function splatCard(title) {
+  const card = document.createElement("div");
+  card.className = "card splat-card pending";
+  card.innerHTML = `<h3>${title}</h3><img alt="${title}"><p class="meta">fitting...</p>`;
+  splatGrid.appendChild(card);
+  return card;
+}
+
+function revealSplatTarget() {
+  if (!splatTarget || splatGrid.querySelector(".splat-original")) return;
+  const card = splatCard("Original");
+  card.classList.add("splat-original");
+  card.classList.remove("pending");
+  card.querySelector("img").src = splatTarget;
+  card.querySelector(".meta").textContent = "the photo the Gaussians are fitting";
+}
+
+splatGuessBtn.addEventListener("click", () => {
+  if (splatShown === 0) return;
+  const points = Math.max(50, Math.round(1000 * (1 - Math.log(splatShown) / Math.log(SPLAT_STAGES[SPLAT_STAGES.length - 1] * 1.5))));
+  splatScore.textContent = `${points} pts`;
+  splatGuessText.textContent = `You recognized it with ${splatShown} Gaussians!`;
+  splatGuessBtn.disabled = true;
+  revealSplatTarget();
+});
+
+splatBtn.addEventListener("click", async () => {
+  if (!splatFile || splatRunning) return;
+  splatRunning = true;
+  splatGrid.innerHTML = "";
+  splatError.hidden = true;
+  splatShown = 0;
+  splatTarget = null;
+  splatScore.textContent = "";
+  splatGuessText.textContent = "Press the button as soon as you recognize the face. Fewer Gaussians, more points.";
+  splatGuessBar.hidden = !splatGuess.checked;
+  splatGuessBtn.disabled = !splatGuess.checked;
+  splatBtn.disabled = true;
+  splatBtn.classList.add("loading");
+  try {
+    for (const count of SPLAT_STAGES) {
+      const card = splatCard(`${count} Gaussians`);
+      splatBtn.textContent = `Fitting ${count}...`;
+      const formData = new FormData();
+      formData.append("image", splatFile);
+      formData.append("count", count.toString());
+      formData.append("face_crop", splatCrop.checked ? "true" : "false");
+      formData.append("beard", splatBeard);
+      const response = await fetch(`${API}/gaussians`, { method: "POST", body: formData });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        card.remove();
+        throw new Error(error.detail || `Request failed: ${response.status}`);
+      }
+      const data = await response.json();
+      const img = card.querySelector("img");
+      img.dataset.render = data.render;
+      img.dataset.ellipses = data.ellipses;
+      img.src = data[splatView];
+      card.classList.remove("pending");
+      card.querySelector(".meta").textContent = `PSNR ${data.psnr} dB · ${data.iterations} steps · ${data.seconds}s`;
+      splatTarget = data.target;
+      splatShown = count;
+    }
+    if (!splatGuess.checked || splatGuessBtn.disabled) revealSplatTarget();
+    if (splatGuess.checked && !splatGuessBtn.disabled) {
+      splatGuessText.textContent = "Last stage reached. Do you recognize it now?";
+    }
+  } catch (error) {
+    splatError.textContent = error.message;
+    splatError.hidden = false;
+  } finally {
+    splatRunning = false;
+    splatBtn.disabled = false;
+    splatBtn.classList.remove("loading");
+    splatBtn.textContent = "Start";
+  }
+});
+
+const gameCameraBtn = document.getElementById("game-camera");
+const gameStartBtn = document.getElementById("game-start");
+const gameError = document.getElementById("game-error");
+const gameStage = document.getElementById("game-stage");
+const gameResult = document.getElementById("game-result");
+const gameVideo = document.getElementById("game-video");
+const gameCanvas = document.getElementById("game-canvas");
+const gameHand = document.getElementById("game-hand");
+const gameName = document.getElementById("game-name");
+const gameTime = document.getElementById("game-time");
+const gameScore = document.getElementById("game-score");
+const gameClean = document.getElementById("game-clean");
+const gameKeep = document.getElementById("game-keep");
+const gameTool = document.getElementById("game-tool");
+const gameFinal = document.getElementById("game-final");
+const gameBoard = document.getElementById("game-board");
+const gameOverlay = document.getElementById("game-overlay");
+const GAME_SECONDS = 30;
+const BOARD_KEY = "barberstudio-speedrun-board";
+let gameTarget = "goatee";
+let gameStream = null;
+let gameRunning = false;
+let gameBusy = false;
+let gameDeadline = 0;
+let gameInRound = false;
+let gameLast = null;
+const gamePointer = { x: -1, y: -1, down: false };
+
+function readBoard() {
+  try {
+    return JSON.parse(localStorage.getItem(BOARD_KEY) || "[]");
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeBoard(board) {
+  try {
+    localStorage.setItem(BOARD_KEY, JSON.stringify(board));
+  } catch (error) {
+    return;
+  }
+}
+
+function renderBoard() {
+  const board = readBoard();
+  gameBoard.innerHTML = "";
+  if (board.length === 0) {
+    const empty = document.createElement("li");
+    empty.textContent = "No rounds yet";
+    gameBoard.appendChild(empty);
+    return;
+  }
+  board.forEach((entry) => {
+    const item = document.createElement("li");
+    item.textContent = `${entry.name} · ${entry.score} (${entry.target})`;
+    gameBoard.appendChild(item);
+  });
+}
+
+function rankFor(score) {
+  if (score >= 900) return "Master barber!";
+  if (score >= 750) return "Pro barber";
+  if (score >= 500) return "Apprentice";
+  return "Keep practicing";
+}
+
+document.querySelectorAll("[data-game-target]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    if (gameInRound) return;
+    document.querySelectorAll("[data-game-target]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    gameTarget = button.dataset.gameTarget;
+    if (gameRunning) await startGameSession();
+  });
+});
+
+async function startGameSession() {
+  const formData = new FormData();
+  formData.append("target", gameTarget);
+  const response = await fetch(`${API}/game/start`, { method: "POST", body: formData });
+  if (!response.ok) throw new Error(`Could not start the game (${response.status})`);
+}
+
+function updatePointer(event) {
+  const rect = gameResult.getBoundingClientRect();
+  gamePointer.x = (event.clientX - rect.left) / rect.width;
+  gamePointer.y = (event.clientY - rect.top) / rect.height;
+}
+
+gameResult.addEventListener("pointerdown", (event) => {
+  gamePointer.down = true;
+  updatePointer(event);
+  gameResult.setPointerCapture(event.pointerId);
+});
+gameResult.addEventListener("pointermove", updatePointer);
+["pointerup", "pointercancel"].forEach((type) => {
+  gameResult.addEventListener(type, () => {
+    gamePointer.down = false;
+  });
+});
+gameResult.addEventListener("pointerleave", () => {
+  if (!gamePointer.down) {
+    gamePointer.x = -1;
+    gamePointer.y = -1;
+  }
+});
+
+function flashOverlay(text, ms) {
+  gameOverlay.textContent = text;
+  gameOverlay.hidden = false;
+  return new Promise((resolve) => setTimeout(() => {
+    gameOverlay.hidden = true;
+    resolve();
+  }, ms));
+}
+
+function finishRound() {
+  gameInRound = false;
+  flashOverlay("TIME!", 1400);
+  gameStartBtn.disabled = false;
+  gameStartBtn.textContent = "Start round";
+  const score = gameLast ? gameLast.score : 0;
+  gameFinal.textContent = `Final score: ${score} · ${rankFor(score)}`;
+  gameFinal.hidden = false;
+  const name = (gameName.value || "Barber").trim().slice(0, 16) || "Barber";
+  const board = readBoard();
+  board.push({ name, score, target: gameTarget });
+  board.sort((a, b) => b.score - a.score);
+  writeBoard(board.slice(0, 5));
+  renderBoard();
+}
+
+async function gameLoop() {
+  if (!gameRunning) return;
+  if (gameInRound) {
+    const left = Math.max(0, (gameDeadline - performance.now()) / 1000);
+    gameTime.textContent = left.toFixed(1);
+    if (left <= 0) finishRound();
+  }
+  if (!gameBusy && gameVideo.videoWidth > 0) {
+    gameBusy = true;
+    try {
+      const targetW = 640;
+      gameCanvas.width = targetW;
+      gameCanvas.height = Math.round(gameVideo.videoHeight * (targetW / gameVideo.videoWidth));
+      const ctx = gameCanvas.getContext("2d");
+      ctx.save();
+      ctx.translate(gameCanvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(gameVideo, 0, 0, gameCanvas.width, gameCanvas.height);
+      ctx.restore();
+      const blob = await new Promise((resolve) => gameCanvas.toBlob(resolve, "image/jpeg", 0.85));
+      const formData = new FormData();
+      formData.append("image", blob, "frame.jpg");
+      formData.append("pointer_x", gamePointer.x.toString());
+      formData.append("pointer_y", gamePointer.y.toString());
+      formData.append("pointer_down", gameInRound && gamePointer.down ? "true" : "false");
+      formData.append("use_hand", gameInRound && gameHand.checked ? "true" : "false");
+      const response = await fetch(`${API}/game/frame`, { method: "POST", body: formData });
+      if (response.ok) {
+        const data = await response.json();
+        gameResult.src = data.image;
+        if (gameInRound) {
+          gameLast = data;
+          gameScore.textContent = data.score;
+          gameClean.textContent = `${Math.round(data.clean * 100)}%`;
+          gameKeep.textContent = `${Math.round(data.keep * 100)}%`;
+        }
+        gameTool.hidden = !(gameInRound && data.tool === "none");
+      }
+    } catch (error) {
+      gameError.textContent = error.message;
+      gameError.hidden = false;
+    } finally {
+      gameBusy = false;
+    }
+  }
+  setTimeout(gameLoop, 0);
+}
+
+gameCameraBtn.addEventListener("click", async () => {
+  gameError.hidden = true;
+  if (gameRunning) {
+    gameRunning = false;
+    gameInRound = false;
+    gameStream.getTracks().forEach((track) => track.stop());
+    gameCameraBtn.textContent = "Start camera";
+    gameStartBtn.disabled = true;
+    return;
+  }
+  try {
+    gameStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, facingMode: "user" },
+      audio: false,
+    });
+    gameVideo.srcObject = gameStream;
+    await gameVideo.play();
+    await startGameSession();
+    gameStage.hidden = false;
+    gameRunning = true;
+    gameCameraBtn.textContent = "Stop camera";
+    gameStartBtn.disabled = false;
+    gameLoop();
+  } catch (error) {
+    gameError.textContent = `Camera unavailable: ${error.message}`;
+    gameError.hidden = false;
+  }
+});
+
+gameStartBtn.addEventListener("click", async () => {
+  if (!gameRunning || gameInRound) return;
+  try {
+    await startGameSession();
+  } catch (error) {
+    gameError.textContent = error.message;
+    gameError.hidden = false;
+    return;
+  }
+  gameLast = null;
+  gameFinal.hidden = true;
+  gameScore.textContent = "0";
+  gameClean.textContent = "0%";
+  gameKeep.textContent = "100%";
+  gameTime.textContent = GAME_SECONDS.toFixed(1);
+  gameStartBtn.disabled = true;
+  gameStartBtn.textContent = "Get ready...";
+  for (const step of ["3", "2", "1"]) await flashOverlay(step, 700);
+  flashOverlay("GO!", 500);
+  gameDeadline = performance.now() + GAME_SECONDS * 1000;
+  gameInRound = true;
+  gameStartBtn.textContent = "Shaving...";
+});
+
+renderBoard();
+
+const mirrorDrop = document.getElementById("mirror-drop");
+const mirrorInput = document.getElementById("mirror-input");
+const mirrorBtn = document.getElementById("mirror-btn");
+const mirrorError = document.getElementById("mirror-error");
+const mirrorStage = document.getElementById("mirror-stage");
+const mirrorCanvas = document.getElementById("mirror-canvas");
+const mirrorStats = document.getElementById("mirror-stats");
+const mirrorFps = document.getElementById("mirror-fps");
+const mirrorAuto = document.getElementById("mirror-auto");
+const mirrorReset = document.getElementById("mirror-reset");
+const mirrorSplats = document.getElementById("mirror-splats");
+const mirrorPly = document.getElementById("mirror-ply");
+let mirrorFile = null;
+let mirrorBeard = "none";
+let mirrorViewer = null;
+
+document.querySelectorAll("[data-mirror-beard]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("[data-mirror-beard]").forEach((b) => b.classList.remove("active"));
+    button.classList.add("active");
+    mirrorBeard = button.dataset.mirrorBeard;
+  });
+});
+
+function setMirrorFile(file) {
+  mirrorFile = file;
+  mirrorError.hidden = true;
+  mirrorBtn.disabled = false;
+  mirrorPly.disabled = false;
+  mirrorDrop.querySelector(".dz-title").textContent = file.name;
+  mirrorDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+}
+
+mirrorDrop.addEventListener("click", () => mirrorInput.click());
+mirrorDrop.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    mirrorInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((type) => {
+  mirrorDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    mirrorDrop.classList.add("dragging");
+  });
+});
+["dragleave", "drop"].forEach((type) => {
+  mirrorDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    mirrorDrop.classList.remove("dragging");
+  });
+});
+mirrorDrop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) setMirrorFile(file);
+});
+mirrorInput.addEventListener("change", () => {
+  if (mirrorInput.files.length > 0) setMirrorFile(mirrorInput.files[0]);
+});
+
+mirrorAuto.addEventListener("change", () => {
+  if (mirrorViewer) mirrorViewer.autoRotate = mirrorAuto.checked;
+});
+
+mirrorPly.addEventListener("click", async () => {
+  if (!mirrorFile) return;
+  mirrorPly.disabled = true;
+  mirrorPly.textContent = "Exporting...";
+  try {
+    const formData = new FormData();
+    formData.append("image", mirrorFile);
+    formData.append("beard", mirrorBeard);
+    formData.append("format", "ply");
+    const response = await fetch(`${API}/head3d`, { method: "POST", body: formData });
+    if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "barberstudio_head.ply";
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    mirrorError.textContent = error.message;
+    mirrorError.hidden = false;
+  } finally {
+    mirrorPly.disabled = false;
+    mirrorPly.textContent = "Download .ply";
+  }
+});
+
+mirrorSplats.addEventListener("change", () => {
+  if (mirrorViewer) mirrorViewer.setSplatScale(mirrorSplats.checked ? 0.32 : 1);
+});
+
+mirrorReset.addEventListener("click", () => {
+  if (mirrorViewer) mirrorViewer.setView(0, 0, 1.9);
+});
+
+mirrorBtn.addEventListener("click", async () => {
+  if (!mirrorFile) return;
+  mirrorError.hidden = true;
+  mirrorBtn.disabled = true;
+  mirrorBtn.classList.add("loading");
+  mirrorBtn.textContent = "Building...";
+  const started = performance.now();
+  try {
+    const formData = new FormData();
+    formData.append("image", mirrorFile);
+    formData.append("beard", mirrorBeard);
+    const response = await fetch(`${API}/head3d`, { method: "POST", body: formData });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Request failed: ${response.status}`);
+    }
+    const buffer = await response.arrayBuffer();
+    mirrorStage.hidden = false;
+    if (!mirrorViewer) {
+      mirrorViewer = new SplatViewer(mirrorCanvas);
+      window.splatViewer = mirrorViewer;
+      setInterval(() => {
+        mirrorFps.textContent = mirrorViewer.autoRotate ? `${mirrorViewer.fps.toFixed(0)} fps` : "";
+      }, 1000);
+    }
+    mirrorViewer.load(buffer);
+    mirrorViewer.autoRotate = mirrorAuto.checked;
+    mirrorViewer.setSplatScale(mirrorSplats.checked ? 0.32 : 1);
+    const count = Number(response.headers.get("X-Splat-Count"));
+    const beard = Number(response.headers.get("X-Splat-Beard"));
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    mirrorStats.textContent = `${count.toLocaleString()} Gaussians (${beard.toLocaleString()} beard) · built in ${seconds}s`;
+  } catch (error) {
+    mirrorError.textContent = error.message;
+    mirrorError.hidden = false;
+  } finally {
+    mirrorBtn.disabled = false;
+    mirrorBtn.classList.remove("loading");
+    mirrorBtn.textContent = "Build 3D head";
+  }
+});

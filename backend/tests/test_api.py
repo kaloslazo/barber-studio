@@ -78,7 +78,7 @@ def test_live_returns_image_even_without_face():
         data={"mode": "dye", "color": "#7a3ba8", "strength": "0.75"},
     )
     assert response.status_code == 200
-    assert response.headers["content-type"] == "image/png"
+    assert response.headers["content-type"] == "image/jpeg"
 
 
 def test_live_invalid_mode_returns_400():
@@ -162,3 +162,64 @@ def test_haircut_buzz_disabled_raises():
 
     with pytest.raises(ValueError):
         apply_haircut(image, mask, face_box, None, "buzz", 1.0)
+
+
+def test_live_physics_returns_image_even_without_face():
+    response = client.post(
+        "/api/live",
+        files=to_upload(make_test_image()),
+        data={"mode": "physics", "strength": "0.8"},
+    )
+    assert response.status_code == 200
+    assert response.headers["X-Face-Found"] == "0"
+
+
+def test_gaussians_returns_renders():
+    image = cv2.GaussianBlur(make_test_image(), (0, 0), 6)
+    response = client.post(
+        "/api/gaussians",
+        files=to_upload(image),
+        data={"count": "30", "face_crop": "false", "beard": "none"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 30
+    assert data["render"].startswith("data:image/jpeg;base64,")
+    assert data["ellipses"].startswith("data:image/jpeg;base64,")
+    assert data["psnr"] > 0
+
+
+def test_gaussians_rejects_bad_count():
+    response = client.post(
+        "/api/gaussians", files=to_upload(make_test_image()), data={"count": "9"},
+    )
+    assert response.status_code == 400
+
+
+def test_game_rejects_unknown_target():
+    response = client.post("/api/game/start", data={"target": "mohawk"})
+    assert response.status_code == 400
+
+
+def test_game_frame_without_face_returns_state():
+    client.post("/api/game/start", data={"target": "goatee"})
+    response = client.post(
+        "/api/game/frame",
+        files=to_upload(make_test_image()),
+        data={"pointer_x": "0.5", "pointer_y": "0.5", "pointer_down": "true", "use_hand": "false"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["face"] is False
+    assert data["image"].startswith("data:image/jpeg;base64,")
+    assert data["target"] == "goatee"
+
+
+def test_head3d_without_face_returns_422():
+    response = client.post("/api/head3d", files=to_upload(make_test_image()), data={"beard": "none"})
+    assert response.status_code == 422
+
+
+def test_head3d_rejects_unknown_beard():
+    response = client.post("/api/head3d", files=to_upload(make_test_image()), data={"beard": "viking"})
+    assert response.status_code == 400

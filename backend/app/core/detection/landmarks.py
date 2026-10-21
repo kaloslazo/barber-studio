@@ -1,7 +1,10 @@
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+from app.core.detection.one_euro import OneEuroFilter
 
 MODELS_DIR = Path(__file__).resolve().parents[3] / "models"
 
@@ -41,7 +44,10 @@ class LandmarkDetector:
     detections with a similarity transform.
     """
 
-    def __init__(self, lbf_model="lbfmodel.yaml", yunet_model="yunet.onnx"):
+    def __init__(self, lbf_model="lbfmodel.yaml", yunet_model="yunet.onnx", live=False):
+        self.live = live
+        self._last_ms = 0
+        self._filter = OneEuroFilter(min_cutoff=3.0, beta=0.3)
         self._mp_mesh = None
         self._mp_failed = False
         self._lbf = None
@@ -66,14 +72,24 @@ class LandmarkDetector:
         if self._mp_mesh is None:
             options = vision.FaceLandmarkerOptions(
                 base_options=mp_python.BaseOptions(model_asset_path=str(model_path)),
-                running_mode=vision.RunningMode.IMAGE,
+                running_mode=(
+                    vision.RunningMode.VIDEO if self.live else vision.RunningMode.IMAGE
+                ),
                 num_faces=1,
+                min_face_detection_confidence=0.5,
+                min_tracking_confidence=0.5,
             )
             self._mp_mesh = vision.FaceLandmarker.create_from_options(options)
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = self._mp_mesh.detect(mp_image)
+        if self.live:
+            now_ms = max(self._last_ms + 1, int(time.monotonic() * 1000))
+            self._last_ms = now_ms
+            result = self._mp_mesh.detect_for_video(mp_image, now_ms)
+        else:
+            result = self._mp_mesh.detect(mp_image)
         if not result.face_landmarks:
+            self._filter.reset()
             return None
         mesh = result.face_landmarks[0]
         h, w = image_bgr.shape[:2]
@@ -82,7 +98,24 @@ class LandmarkDetector:
         )
         jaw = _resample_polyline(all_points[MP_JAW_ARC], 17)
         rest = all_points[MP_TO_68]
-        return np.vstack([jaw, rest])
+        points = np.vstack([jaw, rest])
+        if self.live:
+            points = self._filter(points, self._last_ms / 1000.0)
+        return points
+
+    def mesh3d(self, image_bgr):
+        """Full MediaPipe mesh as (478, 3) pixels: x, y and depth z (same
+        scale as x; smaller z is closer to the camera)."""
+        if self.live or self._mediapipe_landmarks(image_bgr) is None:
+            return None
+        import mediapipe as mp
+
+        rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        result = self._mp_mesh.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
+        if not result.face_landmarks:
+            return None
+        h, w = image_bgr.shape[:2]
+        return np.array([[lm.x * w, lm.y * h, lm.z * w] for lm in result.face_landmarks[0]], np.float32)
 
     def _lbf_landmarks(self, image_bgr):
         if self._lbf is None:
@@ -92,6 +125,8 @@ class LandmarkDetector:
             self._lbf.loadModel(str(self._lbf_path))
 
         if self._yunet is None:
+            if not Path(self._yunet_template).exists():
+                return None, None
             h, w = image_bgr.shape[:2]
             self._yunet = cv2.FaceDetectorYN.create(
                 self._yunet_template, "", (w, h), score_threshold=0.6
