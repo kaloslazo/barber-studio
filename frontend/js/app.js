@@ -588,8 +588,9 @@ async function scanLoop() {
       const stage = scanStages[scanViewIndex];
       const profileReached = Math.abs(stage.angle) === 90 && Math.sign(detectedYaw) === Math.sign(stage.angle) && Math.abs(detectedYaw) >= 72;
       const yawReady = Number.isFinite(detectedYaw) && (Math.abs(detectedYaw - stage.angle) <= 10 || profileReached);
-      const turnHint = Number.isFinite(detectedYaw) ? ` (now ${Math.round(detectedYaw)}°)` : "";
-      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `Angle ${Math.round(detectedYaw)}° detected — capturing` : `${stage.label}${turnHint}`);
+      const turnSide = detectedYaw < 0 ? "left" : "right";
+      const turnHint = Number.isFinite(detectedYaw) ? ` — now ${Math.abs(Math.round(detectedYaw))}°${Math.round(detectedYaw) === 0 ? "" : ` ${turnSide}`}` : "";
+      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `${Math.abs(Math.round(detectedYaw))}° ${turnSide} detected — capturing` : `${stage.label}${turnHint}`);
       if (yawReady && !scanAutoCaptureBusy) {
         scanAutoCaptureBusy = true;
         scanCapture.click();

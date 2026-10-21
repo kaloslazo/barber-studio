@@ -1,6 +1,5 @@
 import base64
 import time
-from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
@@ -19,8 +18,9 @@ from app.core.detection.landmarks import LandmarkDetector
 from app.core.detection.one_euro import OneEuroFilter
 from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
 from app.core.segmentation.hair_region import provisional_hair_mask
+from app.core.segmentation.following import FollowingSegmenter
 from app.core.segmentation.mask_refiner import refine_hair_mask
-from app.core.segmentation.transfer_mask import follow_head, head_geometry, head_window, transfer_mask
+from app.core.segmentation.transfer_mask import head_geometry, head_window, transfer_mask
 from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
 from app.core.splatting.hair3d import HairView, build_hair_splats
 from app.core.splatting.head3d import build_head_splats
@@ -58,10 +58,8 @@ class StylePipeline:
         self._part_segmenter_failed = False
         self._bald = BaldRenderer()
         self._tryon_filters = None
-        self._tryon_key = None
-        self._tryon_job = None
-        self._tryon_generation = 0
-        self._tryon_worker = ThreadPoolExecutor(max_workers=1)
+        self._tryon_segmenter = FollowingSegmenter(self._part_probabilities, on_key=self._bald.learn)
+        self._scan_segmenter = FollowingSegmenter(self._part_probabilities)
 
     @staticmethod
     def _load_segmenter():
@@ -106,8 +104,9 @@ class StylePipeline:
         box = head_window(image_bgr.shape[:2], geometry) if geometry is not None else None
         return self.part_segmenter.probabilities(image_bgr, box)
 
-    def transfer_hair_mask(self, image_bgr, face, points=None, probabilities=None, soft=False):
+    def transfer_hair_mask(self, image_bgr, face, points=None, probabilities=None, soft=False, face_visible=True):
         geometry = head_geometry(points, face)
+        geometry["face_visible"] = face_visible
         if probabilities is None:
             probabilities = self._part_probabilities(image_bgr, geometry)
         fallback = None if probabilities is not None else self.hair_mask(image_bgr, face)
@@ -467,6 +466,7 @@ class StylePipeline:
         if points is not None:
             face = self._box_from_landmarks(points)
             pose = "front" if pose == "unknown" else pose
+        visible = face is not None
         if face is not None:
             self._transfer_face = face
         elif self._transfer_face is not None:
@@ -475,7 +475,21 @@ class StylePipeline:
             h, w = image_bgr.shape[:2]
             size = int(min(w, h) * 0.32)
             face = (w // 2 - size // 2, h // 2 - size // 2, size, size)
-        return pose, face, points
+        return pose, face, points, visible
+
+    def _scan_yaw(self, points, pose):
+        """Like _yaw, but once the face disappears after a clear turn (the
+        back of the head is towards the camera) the turn is taken as a full
+        profile on the same side instead of dropping back to 0."""
+        now = time.monotonic()
+        yaw = self._yaw(points, pose)
+        if points is not None or pose in ("left", "right"):
+            self._scan_turn = (yaw, now)
+            return pose, yaw
+        last = getattr(self, "_scan_turn", None)
+        if last is not None and abs(last[0]) >= 40 and now - last[1] < 3.0:
+            return ("left" if last[0] < 0 else "right"), float(np.sign(last[0]) * 90.0)
+        return pose, yaw
 
     def _yaw(self, points, pose, live=False):
         """Head yaw in real degrees from MediaPipe's head pose (negative when
@@ -487,8 +501,10 @@ class StylePipeline:
         return {"left": -82.0, "right": 82.0, "front": 0.0}.get(pose, 0.0)
 
     def transfer_scan(self, image_bgr):
-        pose, face, points = self._transfer_head(image_bgr)
-        hair_mask = self.transfer_hair_mask(image_bgr, face, points)
+        pose, face, points, visible = self._transfer_head(image_bgr)
+        geometry = head_geometry(points, face)
+        probabilities = self._live_probabilities(self._scan_segmenter, image_bgr, geometry, self._yaw(points, pose))
+        hair_mask = self.transfer_hair_mask(image_bgr, face, points, probabilities, face_visible=visible)
         canvas = image_bgr.copy()
         selected = hair_mask > 0
         green = np.full_like(canvas, (78, 205, 68))
@@ -496,11 +512,12 @@ class StylePipeline:
         if points is not None and pose == "front":
             triangles = delaunay_triangles(points)
             canvas = draw_mesh(canvas, points, triangles, color=(80, 220, 255))
-        return canvas, pose, self._yaw(points, pose)
+        pose, yaw = self._scan_yaw(points, pose)
+        return canvas, pose, yaw
 
     def transfer_asset(self, image_bgr):
-        _, face, points = self._transfer_head(image_bgr)
-        mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True)
+        _, face, points, visible = self._transfer_head(image_bgr)
+        mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True, face_visible=visible)
         rows, cols = np.where(mask > 0)
         if len(rows) == 0:
             return None
@@ -529,56 +546,12 @@ class StylePipeline:
     def reset_tryon(self):
         self._bald.reset()
         self._tryon_filters = None
-        self._tryon_key = None
-        self._tryon_job = None
-        self._tryon_generation += 1
+        self._tryon_segmenter.reset()
 
-    def _segment_key(self, image_bgr, geometry, yaw, generation):
-        probabilities = self._part_probabilities(image_bgr, geometry)
-        if probabilities is None:
-            return None
-        return {
-            "frame": image_bgr, "geometry": geometry, "yaw": yaw, "probabilities": probabilities,
-            "age": 0, "generation": generation,
-        }
-
-    def _adopt_key(self, key, shape):
-        if key is None or key["generation"] != self._tryon_generation or key["frame"].shape[:2] != shape:
-            return
-        self._tryon_key = key
-        self._bald.learn(key["frame"], key["probabilities"])
-
-    def _tryon_probabilities(self, image_bgr, geometry, yaw):
-        """Segmentation is slow on CPU, so it runs on a worker thread; every
-        frame reuses the latest result carried along with the head motion."""
+    def _live_probabilities(self, segmenter, image_bgr, geometry, yaw):
         if self._part_segmenter_failed or MultiClassSegmenter is None:
             return None
-        job = self._tryon_job
-        if job is not None and job.done():
-            self._tryon_job = None
-            try:
-                self._adopt_key(job.result(), image_bgr.shape[:2])
-            except Exception:
-                pass
-        key = self._tryon_key
-        if key is not None and key["frame"].shape[:2] != image_bgr.shape[:2]:
-            key = self._tryon_key = None
-        stale = key is None or key["age"] >= 3
-        if key is not None and not stale:
-            moved = np.hypot(*np.subtract(geometry["center"], key["geometry"]["center"])) / geometry["face_w"]
-            stale = moved > 0.1 or abs(yaw - key["yaw"]) > 8
-        if stale and self._tryon_job is None:
-            self._tryon_job = self._tryon_worker.submit(
-                self._segment_key, image_bgr.copy(), geometry, yaw, self._tryon_generation,
-            )
-        if key is None:
-            job, self._tryon_job = self._tryon_job, None
-            self._adopt_key(job.result(), image_bgr.shape[:2])
-            key = self._tryon_key
-            if key is None:
-                return None
-        key["age"] += 1
-        return follow_head(key["probabilities"], key["geometry"], geometry)
+        return segmenter(image_bgr, geometry, yaw)
 
     def transfer_tryon(self, image_bgr, now=None):
         """Person B without their own hair, plus a smoothed head anchor for
@@ -595,7 +568,7 @@ class StylePipeline:
             face = self._box_from_landmarks(points)
         geometry = head_geometry(points, face)
         yaw = self._yaw(points, pose, live=True)
-        probabilities = self._tryon_probabilities(image_bgr, geometry, yaw)
+        probabilities = self._live_probabilities(self._tryon_segmenter, image_bgr, geometry, yaw)
         mask = self.transfer_hair_mask(image_bgr, face, points, probabilities)
         bald = self._bald.render(image_bgr, mask, geometry, probabilities)
         center, scale, roll, yaw = self._smooth_tryon(
@@ -617,16 +590,17 @@ class StylePipeline:
             h, w = image_bgr.shape[:2]
             if w > 900:
                 image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
-            pose, face, points = self._transfer_head(image_bgr)
+            pose, face, points, visible = self._transfer_head(image_bgr)
             yaw = self._yaw(points, pose) if points is not None or pose in ("left", "right") else angle
             geometry = head_geometry(points, face)
             probabilities = self._part_probabilities(image_bgr, geometry)
-            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True)
+            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True, face_visible=visible)
             if not mask.any():
                 continue
             face_mask = np.zeros(mask.shape, np.uint8)
-            cv2.fillPoly(face_mask, [geometry["polygon"]], 255)
-            if probabilities is not None:
+            if visible:
+                cv2.fillPoly(face_mask, [geometry["polygon"]], 255)
+            if visible and probabilities is not None:
                 grow = int(geometry["face_w"] * 0.3) | 1
                 near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
                 face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
@@ -643,9 +617,9 @@ class StylePipeline:
         views = []
         valid_angles = []
         for image_bgr, angle in zip(images_bgr, angles):
-            _, face, points = self._transfer_head(image_bgr)
+            _, face, points, visible = self._transfer_head(image_bgr)
             geometry = head_geometry(points, face)
-            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True)
+            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True, face_visible=visible)
             rows, cols = np.where(mask > 0)
             if len(rows) < 100:
                 continue

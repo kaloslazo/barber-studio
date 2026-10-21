@@ -7,6 +7,9 @@ from app.core.splatting.head3d import _covariance, _sample_color
 FIT_RADIUS = 0.62
 SKULL_CENTER = np.array([0.0, 0.0, -0.16])
 SKULL_AXES = np.array([0.47, 0.82, 0.58])
+NECK_CENTER_Z = -0.24
+NECK_AXES = np.array([0.24, 0.27])
+NECK_RANGE = (0.55, 1.2)
 
 
 class HairView:
@@ -230,6 +233,68 @@ def _shape_prior(extent, placement, levels, directions, scale):
     return (-qb + np.sqrt(np.maximum(qb * qb - 4 * qa * qc, 0))) / (2 * qa) * 1.08
 
 
+def _back_edge_colors(view, scale):
+    """Hair color along the back edge of a profile capture, row by row: the
+    last hair the camera saw before the back of the head turned away."""
+    hair = view.alpha > 0.4
+    h, w = hair.shape
+    band = max(3, int(scale * 0.18))
+    columns = np.arange(w)[None, :]
+    if view.yaw < 0:
+        edge = np.where(hair.any(axis=1), w - 1 - hair[:, ::-1].argmax(axis=1), -1)
+        near = (columns <= edge[:, None]) & (columns > edge[:, None] - band)
+    else:
+        edge = np.where(hair.any(axis=1), hair.argmax(axis=1), -1)
+        near = (columns >= edge[:, None]) & (columns < edge[:, None] + band)
+    near &= hair & (edge[:, None] >= 0)
+    weight = near.astype(np.float32)
+    total = weight.sum(axis=1)
+    colors = (view.image.astype(np.float32) * weight[..., None]).sum(axis=1)
+    sigma = max(1.0, scale * 0.05)
+    smooth_total = cv2.GaussianBlur(total.reshape(-1, 1), (1, 0), sigma).ravel()
+    smooth_colors = cv2.GaussianBlur(colors.reshape(-1, 1, 3), (1, 0), sigma).reshape(-1, 3)
+    valid = smooth_total > band * 0.15
+    rgb = (smooth_colors / np.maximum(smooth_total, 1e-6)[:, None])[:, ::-1] / 255.0
+    return rgb, valid
+
+
+def _synthesize_back(pos, views, placements, scale, rng):
+    """Back of the head, which no capture sees: at every height the color
+    runs around the nape from the back edge of one profile to the other,
+    with vertical strand streaks. Returns colors and which points have
+    hair on at least one side at that height."""
+    sides = {}
+    for view, (_, eye_y, _) in zip(views, placements):
+        if abs(view.yaw) < 50:
+            continue
+        key = "plus" if view.yaw < 0 else "minus"
+        if key not in sides or abs(view.yaw) > abs(sides[key][0].yaw):
+            sides[key] = (view, eye_y, _back_edge_colors(view, scale))
+    if not sides:
+        return None, None
+    count = len(pos)
+    radius = np.linalg.norm(pos[:, [0, 2]], axis=1) + 1e-6
+    toward_plus = np.clip((1 + pos[:, 0] / radius) / 2, 0, 1)
+    color = np.zeros((count, 3))
+    weight = np.zeros(count)
+    for key, (view, eye_y, (rgb, valid)) in sides.items():
+        rows = np.clip(np.round(eye_y + scale * pos[:, 1]).astype(int), 0, len(valid) - 1)
+        share = toward_plus if key == "plus" else 1 - toward_plus
+        share = np.where(valid[rows], share + 1e-3, 0.0)
+        color += rgb[rows] * share[:, None]
+        weight += share
+    found = weight > 0
+    color[found] /= weight[found, None]
+    angle = np.arctan2(pos[:, 2], pos[:, 0])
+    noise = rng.normal(0.0, 1.0, (512, 360)).astype(np.float32)
+    streaks = cv2.GaussianBlur(noise, (0, 0), sigmaX=1.0, sigmaY=12.0)
+    streaks /= streaks.std() + 1e-6
+    column = ((angle + np.pi) / (2 * np.pi) * 359).astype(int)
+    row = np.clip(((pos[:, 1] + 2.0) / 5.0 * 511).astype(int), 0, 511)
+    color *= (1.0 + 0.14 * streaks[row, column])[:, None] * 0.9
+    return np.clip(color, 0, 1), found
+
+
 def _hull_samples(views, bodies, placements, scale, budget, rng):
     """Multi-view peluca as one closed surface.
 
@@ -312,6 +377,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     color = np.zeros((count, 3))
     alpha = np.zeros(count)
     best = np.full(count, -1.0)
+    best_hair = np.zeros(count)
     face_votes = np.zeros(count)
     hair_votes = np.zeros(count)
     tangent = np.tile([[0.0, 1.0, 0.0]], (count, 1))
@@ -331,6 +397,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
         frontal = seen & (facing > 0.45)
         face_votes += frontal & (face | (view.alpha[np.clip(v, 0, h - 1).astype(int), np.clip(u, 0, w - 1).astype(int)] < 0.1))
         hair_votes += frontal & hair
+        best_hair = np.maximum(best_hair, np.where(hair, facing, 0.0))
         weight = np.where(hair, facing ** 6, 0.0)
         if not hair.any():
             continue
@@ -348,18 +415,35 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     textured = weight_sum > 1e-6
     color[textured] /= weight_sum[textured, None]
     alpha[textured] /= weight_sum[textured]
-    keep = textured & ~((face_votes > 0) & (face_votes >= hair_votes))
-    unseen = best < 0.15
+    not_hair = (face_votes > 0) & (face_votes >= hair_votes)
+    keep = textured & ~not_hair
+    behind = (pos[:, 2] < 0.2) & ~not_hair
+    synthetic, found = _synthesize_back(pos, views, placements, scale, rng)
     ref = views[reference]
     hair_rows = (ref.alpha > 0.4).any(axis=1)
     v_ref = np.clip((ref_eye + scale * pos[:, 1]).astype(int), 0, ref.alpha.shape[0] - 1)
-    back = unseen & hair_rows[v_ref]
-    if back.any():
-        texture = _back_texture(ref, bodies[reference], scale)
-        u_ref = ref_center + scale * pos[back, 0]
-        color[back] = _sample_color(texture, np.stack([u_ref, ref_eye + scale * pos[back, 1]], axis=1)) * 0.8
-        alpha[back] = 0.92
-    keep |= back
+    if synthetic is not None:
+        missing = behind & ~found & hair_rows[v_ref]
+        if missing.any():
+            texture = _back_texture(ref, bodies[reference], scale)
+            u_ref = ref_center + scale * pos[missing, 0]
+            synthetic[missing] = _sample_color(texture, np.stack([u_ref, ref_eye + scale * pos[missing, 1]], axis=1)) * 0.8
+            found = found | missing
+        trust = np.clip(best_hair / 0.35, 0, 1)
+        fill = behind & found & (trust < 1)
+        mix = trust[fill, None]
+        color[fill] = np.where(textured[fill, None], color[fill] * mix + synthetic[fill] * (1 - mix), synthetic[fill])
+        alpha[fill] = np.where(textured[fill], alpha[fill] * trust[fill] + 0.92 * (1 - trust[fill]), 0.92)
+        tangent[fill & ~textured] = [0.0, 1.0, 0.0]
+        keep |= fill
+    else:
+        back = (best < 0.15) & hair_rows[v_ref]
+        if back.any():
+            texture = _back_texture(ref, bodies[reference], scale)
+            u_ref = ref_center + scale * pos[back, 0]
+            color[back] = _sample_color(texture, np.stack([u_ref, ref_eye + scale * pos[back, 1]], axis=1)) * 0.8
+            alpha[back] = 0.92
+        keep |= back
     return {
         "pos": pos[keep],
         "tangent": tangent[keep],
@@ -371,13 +455,19 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
 
 
 def _outside_skull(pos, margin=1.06):
-    """Hair lies on top of the scalp: anything that ended up inside the skull
-    is pushed out radially to just above its surface."""
+    """Hair lies on top of the scalp and around the neck: anything that ended
+    up inside the mannequin is pushed out radially to just above its surface."""
     local = (pos - SKULL_CENTER) / SKULL_AXES
     radius = np.linalg.norm(local, axis=1)
     inside = (radius < margin) & (radius > 1e-6) & (pos[:, 1] < 0.55)
     pos = pos.copy()
     pos[inside] = SKULL_CENTER + local[inside] / radius[inside, None] * margin * SKULL_AXES
+    neck = np.stack([pos[:, 0], pos[:, 2] - NECK_CENTER_Z], axis=1) / NECK_AXES
+    reach = np.linalg.norm(neck, axis=1)
+    around = (pos[:, 1] >= NECK_RANGE[0]) & (pos[:, 1] <= NECK_RANGE[1] + 0.1) & (reach < margin) & (reach > 1e-6)
+    pushed = neck[around] / reach[around, None] * margin * NECK_AXES
+    pos[around, 0] = pushed[:, 0]
+    pos[around, 2] = pushed[:, 1] + NECK_CENTER_Z
     return pos
 
 
@@ -391,9 +481,9 @@ def _mannequin(count, rng):
     head_normal = unit / SKULL_AXES
     neck = count - head
     angle = rng.uniform(0, 2 * np.pi, neck)
-    height = rng.uniform(0.55, 1.2, neck)
+    height = rng.uniform(NECK_RANGE[0], NECK_RANGE[1], neck)
     neck_unit = np.stack([np.cos(angle), np.zeros(neck), np.sin(angle)], axis=1)
-    neck_pos = neck_unit * np.array([0.24, 0.0, 0.27]) + np.stack([np.zeros(neck), height, np.full(neck, -0.24)], axis=1)
+    neck_pos = neck_unit * np.array([NECK_AXES[0], 0.0, NECK_AXES[1]]) + np.stack([np.zeros(neck), height, np.full(neck, NECK_CENTER_Z)], axis=1)
     pos = np.concatenate([head_pos, neck_pos])
     normal = np.concatenate([head_normal, neck_unit])
     tangent = np.cross(normal, np.array([[0.0, 1.0, 0.0]]) + 1e-3)

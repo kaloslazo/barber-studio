@@ -120,9 +120,10 @@ def transfer_mask(image_bgr, geometry, probabilities=None, fallback=None):
     zone = _ellipse(shape, geometry, 0.35, (1.3, 1.85))
     crown = _ellipse(shape, geometry, -0.1, (0.72, 0.95))
     face = np.zeros(shape, np.uint8)
-    cv2.fillPoly(face, [geometry["polygon"]], 255)
-    chin = (int(geometry["chin"][0]), int(geometry["chin"][1]))
-    cv2.ellipse(face, chin, (max(1, int(0.38 * fw)), max(1, int(0.32 * fw))), np.degrees(geometry["roll"]), 0, 360, 255, -1)
+    if geometry.get("face_visible", True):
+        cv2.fillPoly(face, [geometry["polygon"]], 255)
+        chin = (int(geometry["chin"][0]), int(geometry["chin"][1]))
+        cv2.ellipse(face, chin, (max(1, int(0.38 * fw)), max(1, int(0.32 * fw))), np.degrees(geometry["roll"]), 0, 360, 255, -1)
 
     binary = np.where(soft > 0.5, 255, 0).astype(np.uint8)
     binary = cv2.bitwise_and(binary, zone)

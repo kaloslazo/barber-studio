@@ -22,23 +22,26 @@ class FaceDetector:
 
     def pose(self, image_bgr):
         gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        scale = min(1.0, 400.0 / gray.shape[1])
+        if scale < 1.0:
+            gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+
+        def box(found):
+            x, y, w, h = max(found, key=lambda f: float(f[2]) * float(f[3]))
+            return tuple(int(round(value / scale)) for value in (x, y, w, h))
+
         faces = self.cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=5, minSize=(80, 80)
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=(int(80 * scale), int(80 * scale))
         )
         if len(faces):
-            x, y, w, h = max(faces, key=lambda f: float(f[2]) * float(f[3]))
-            return "front", (int(x), int(y), int(w), int(h))
-        profiles = self.profile_cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=4, minSize=(70, 70)
-        )
+            return "front", box(faces)
+        size = (int(70 * scale), int(70 * scale))
+        profiles = self.profile_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=size)
         if len(profiles):
-            x, y, w, h = max(profiles, key=lambda f: float(f[2]) * float(f[3]))
-            return "left", (int(x), int(y), int(w), int(h))
+            return "left", box(profiles)
         flipped = cv2.flip(gray, 1)
-        profiles = self.profile_cascade.detectMultiScale(
-            flipped, scaleFactor=1.1, minNeighbors=4, minSize=(70, 70)
-        )
+        profiles = self.profile_cascade.detectMultiScale(flipped, scaleFactor=1.1, minNeighbors=4, minSize=size)
         if len(profiles):
-            x, y, w, h = max(profiles, key=lambda f: float(f[2]) * float(f[3]))
-            return "right", (int(gray.shape[1] - x - w), int(y), int(w), int(h))
+            x, y, w, h = box(profiles)
+            return "right", (image_bgr.shape[1] - x - w, y, w, h)
         return "unknown", None

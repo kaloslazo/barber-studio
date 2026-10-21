@@ -123,6 +123,8 @@ class LandmarkDetector:
         return np.array([[lm.x * w, lm.y * h, lm.z * w] for lm in result.face_landmarks[0]], np.float32)
 
     def _lbf_landmarks(self, image_bgr):
+        if not Path(self._yunet_template).exists():
+            return None, None
         if self._lbf is None:
             if not self._lbf_path.exists():
                 return None, None
