@@ -178,6 +178,7 @@
             <button class="transfer-step active" data-transfer-view="scan" role="tab">1. Scan Hair</button>
             <button class="transfer-step" data-transfer-view="library" role="tab">2. Peluca Library</button>
             <button class="transfer-step" data-transfer-view="tryon" role="tab">3. Try-On Studio</button>
+            <button class="transfer-step" data-transfer-view="splat" role="tab">4. 3D Peluca</button>
           </div>
         </header>
 
@@ -259,6 +260,49 @@
             </aside>
           </div>
           <div class="banner" id="tryon-error" hidden></div>
+        </div>
+
+        <div class="transfer-view" id="transfer-splat">
+          <div class="splat-sources">
+            <div class="card splat-source">
+              <span class="step-label">FROM YOUR SCAN</span>
+              <h2 id="hair3d-peluca-name">No peluca selected</h2>
+              <p>Every captured angle is lifted into 3D and merged into one Gaussian peluca.</p>
+              <button id="hair3d-scan" disabled>Build from scan</button>
+            </div>
+            <div class="card drop-zone splat-source" id="hair3d-drop" tabindex="0">
+              <p class="dz-title">Or drop a hair photo</p>
+              <p class="dz-sub">One front photo, like the 3D Mirror (JPG / PNG)</p>
+              <input type="file" id="hair3d-input" accept="image/*" hidden>
+            </div>
+          </div>
+
+          <div class="card controls">
+            <label class="check">
+              <input type="checkbox" id="hair3d-mannequin" checked>
+              <span>Mannequin head</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="hair3d-auto" checked>
+              <span>Auto rotate</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="hair3d-splats">
+              <span>Show individual splats</span>
+            </label>
+            <button class="quiet-button" id="hair3d-reset">Reset view</button>
+            <button class="quiet-button" id="hair3d-ply" disabled>Download .ply</button>
+          </div>
+
+          <div class="banner" id="hair3d-error" hidden></div>
+
+          <div class="card mirror-stage" id="hair3d-stage" hidden>
+            <canvas id="hair3d-canvas" aria-label="3D Gaussian peluca viewer"></canvas>
+            <div class="live-meta">
+              <span id="hair3d-stats">--</span>
+              <span id="hair3d-fps"></span>
+            </div>
+          </div>
         </div>
       </section>
 

@@ -41,3 +41,32 @@ def test_bald_renderer_replaces_hair_with_skin():
     bald = BaldRenderer().render(image, mask, geometry, probabilities)
     assert bald[110, 320].mean() > 100
     assert np.array_equal(bald[300, 50], image[300, 50])
+
+
+def test_hair_splats_wrap_the_head_from_one_photo():
+    from app.core.splatting.hair3d import HairView, build_hair_splats
+
+    image, probabilities, geometry = scene()
+    _, alpha = transfer_mask(image, geometry, probabilities)
+    face = np.zeros(alpha.shape, np.uint8)
+    cv2.fillPoly(face, [geometry["polygon"]], 255)
+    rows, meta = build_hair_splats([HairView(image, alpha, face, geometry, 0.0)], budget=8000, mannequin=500)
+    hair = rows[:meta["hair"]]
+    assert meta["mannequin"] == 500 and rows.shape[1] == 13
+    assert (hair[:, 2] > 0.05).any() and (hair[:, 2] < -0.05).any()
+    assert np.isfinite(rows).all()
+
+
+def test_hair_splats_from_several_angles_form_one_closed_peluca():
+    from app.core.splatting.hair3d import HairView, build_hair_splats
+
+    image, probabilities, geometry = scene()
+    _, alpha = transfer_mask(image, geometry, probabilities)
+    face = np.zeros(alpha.shape, np.uint8)
+    cv2.fillPoly(face, [geometry["polygon"]], 255)
+    views = [HairView(image, alpha, face, geometry, yaw) for yaw in (-60, -30, 0, 30, 60)]
+    rows, meta = build_hair_splats(views, budget=6000, mannequin=0)
+    hair = rows[:meta["hair"]]
+    assert meta["views"] == 5 and np.isfinite(rows).all()
+    assert (hair[:, 2] > 0.1).any() and (hair[:, 2] < -0.1).any()
+    assert (hair[:, 0] > 0.1).any() and (hair[:, 0] < -0.1).any()

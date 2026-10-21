@@ -687,20 +687,26 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><button>Apply to Try-On</button>`;
-    card.querySelector("button").addEventListener("click", () => selectPeluca(peluca));
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="tryon">Apply to Try-On</button><button class="quiet-button" data-action="splat">View 3D</button></div>`;
+    card.querySelector('[data-action="tryon"]').addEventListener("click", () => selectPeluca(peluca));
+    card.querySelector('[data-action="splat"]').addEventListener("click", () => {
+      selectPeluca(peluca, "splat");
+      buildHair3dFromPeluca();
+    });
     pelucaGrid.appendChild(card);
   });
 }
 
-function selectPeluca(peluca) {
+function selectPeluca(peluca, view = "tryon") {
   selectedPeluca = peluca;
+  hair3dPelucaName.textContent = peluca.name;
+  hair3dScan.disabled = !peluca.frames;
   selectedPelucaPreview.src = peluca.previewUrl;
   selectedPelucaName.textContent = peluca.name;
   selectedPelucaDate.textContent = `Captured ${peluca.date}`;
   tryonManualRotation = 0;
   tryonDetectedRotation = 0;
-  openTransferView("tryon");
+  openTransferView(view);
   updateTryonRotation();
 }
 
@@ -719,7 +725,7 @@ scanSave.addEventListener("click", async () => {
     }
     const mesh = await response.json();
     const now = new Date();
-    const peluca = { mesh, previewUrl: scanViews.front || scanViews.left30, name: `180° Hair Mesh ${pelucas.length + 1}`, date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) };
+    const peluca = { mesh, frames: scanStages.map((stage) => scanFrames[stage.key]), angles: scanStages.map((stage) => stage.angle), previewUrl: scanViews.front || scanViews.left30, name: `180° Hair Mesh ${pelucas.length + 1}`, date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) };
     pelucas.unshift(peluca);
     renderLibrary();
     selectPeluca(peluca);
@@ -933,6 +939,150 @@ async function tryonLoop() {
 }
 
 tryonCamera.addEventListener("click", toggleTryonCamera);
+
+const hair3dPelucaName = document.getElementById("hair3d-peluca-name");
+const hair3dScan = document.getElementById("hair3d-scan");
+const hair3dDrop = document.getElementById("hair3d-drop");
+const hair3dInput = document.getElementById("hair3d-input");
+const hair3dMannequin = document.getElementById("hair3d-mannequin");
+const hair3dAuto = document.getElementById("hair3d-auto");
+const hair3dSplats = document.getElementById("hair3d-splats");
+const hair3dReset = document.getElementById("hair3d-reset");
+const hair3dPly = document.getElementById("hair3d-ply");
+const hair3dError = document.getElementById("hair3d-error");
+const hair3dStage = document.getElementById("hair3d-stage");
+const hair3dCanvas = document.getElementById("hair3d-canvas");
+const hair3dStats = document.getElementById("hair3d-stats");
+const hair3dFps = document.getElementById("hair3d-fps");
+let hair3dViewer = null;
+let hair3dModel = null;
+let hair3dSource = null;
+
+function hair3dForm(source, extra = {}) {
+  const formData = new FormData();
+  source.frames.forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
+  formData.append("angles", source.angles.join(","));
+  Object.entries(extra).forEach(([key, value]) => formData.append(key, value));
+  return formData;
+}
+
+function showHair3d() {
+  if (!hair3dModel) return;
+  const hairBytes = hair3dModel.hair * SPLAT_FLOATS * 4;
+  hair3dViewer.load(hair3dMannequin.checked ? hair3dModel.buffer : hair3dModel.buffer.slice(0, hairBytes));
+  hair3dViewer.autoRotate = hair3dAuto.checked;
+  hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
+}
+
+async function buildHair3d(source, label) {
+  hair3dError.hidden = true;
+  hair3dScan.disabled = true;
+  hair3dPly.disabled = true;
+  hair3dStats.textContent = `Building ${label}...`;
+  hair3dStage.hidden = false;
+  const started = performance.now();
+  try {
+    const response = await fetch(`${API}/transfer/splat`, { method: "POST", body: hair3dForm(source) });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Request failed: ${response.status}`);
+    }
+    hair3dModel = {
+      buffer: await response.arrayBuffer(),
+      hair: Number(response.headers.get("X-Splat-Hair")),
+      views: Number(response.headers.get("X-Splat-Views")),
+    };
+    hair3dSource = source;
+    if (!hair3dViewer) {
+      hair3dViewer = new SplatViewer(hair3dCanvas);
+      hair3dViewer.setView(0, 0.1, 2.1);
+      setInterval(() => {
+        hair3dFps.textContent = hair3dViewer.autoRotate ? `${hair3dViewer.fps.toFixed(0)} fps` : "";
+      }, 1000);
+    }
+    showHair3d();
+    const seconds = ((performance.now() - started) / 1000).toFixed(1);
+    const views = hair3dModel.views === 1 ? "1 photo" : `${hair3dModel.views} angles`;
+    hair3dStats.textContent = `${label} · ${hair3dModel.hair.toLocaleString()} hair Gaussians from ${views} · built in ${seconds}s`;
+    hair3dPly.disabled = false;
+  } catch (error) {
+    hair3dError.textContent = error.message;
+    hair3dError.hidden = false;
+    hair3dStats.textContent = "--";
+  } finally {
+    hair3dScan.disabled = !(selectedPeluca && selectedPeluca.frames);
+  }
+}
+
+function buildHair3dFromPeluca() {
+  if (!selectedPeluca || !selectedPeluca.frames) return;
+  buildHair3d({ frames: selectedPeluca.frames, angles: selectedPeluca.angles }, selectedPeluca.name);
+}
+
+hair3dScan.addEventListener("click", buildHair3dFromPeluca);
+hair3dDrop.addEventListener("click", () => hair3dInput.click());
+hair3dDrop.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    hair3dInput.click();
+  }
+});
+["dragenter", "dragover"].forEach((type) => {
+  hair3dDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    hair3dDrop.classList.add("dragging");
+  });
+});
+["dragleave", "drop"].forEach((type) => {
+  hair3dDrop.addEventListener(type, (event) => {
+    event.preventDefault();
+    hair3dDrop.classList.remove("dragging");
+  });
+});
+function setHair3dFile(file) {
+  hair3dDrop.querySelector(".dz-title").textContent = file.name;
+  hair3dDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  buildHair3d({ frames: [file], angles: [0] }, file.name);
+}
+hair3dDrop.addEventListener("drop", (event) => {
+  const file = event.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) setHair3dFile(file);
+});
+hair3dInput.addEventListener("change", () => {
+  if (hair3dInput.files.length > 0) setHair3dFile(hair3dInput.files[0]);
+});
+hair3dMannequin.addEventListener("change", showHair3d);
+hair3dAuto.addEventListener("change", () => {
+  if (hair3dViewer) hair3dViewer.autoRotate = hair3dAuto.checked;
+});
+hair3dSplats.addEventListener("change", () => {
+  if (hair3dViewer) hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
+});
+hair3dReset.addEventListener("click", () => {
+  if (hair3dViewer) hair3dViewer.setView(0, 0.1, 2.1);
+});
+hair3dPly.addEventListener("click", async () => {
+  if (!hair3dSource) return;
+  hair3dPly.disabled = true;
+  hair3dPly.textContent = "Exporting...";
+  try {
+    const form = hair3dForm(hair3dSource, { format: "ply", mannequin: hair3dMannequin.checked ? "true" : "false" });
+    const response = await fetch(`${API}/transfer/splat`, { method: "POST", body: form });
+    if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "barberstudio_peluca.ply";
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    hair3dError.textContent = error.message;
+    hair3dError.hidden = false;
+  } finally {
+    hair3dPly.disabled = false;
+    hair3dPly.textContent = "Download .ply";
+  }
+});
 document.getElementById("rotate-left").addEventListener("click", () => { tryonManualRotation -= 20; updateTryonRotation(); });
 document.getElementById("rotate-right").addEventListener("click", () => { tryonManualRotation += 20; updateTryonRotation(); });
 document.getElementById("switch-peluca").addEventListener("click", () => openTransferView("library"));

@@ -168,6 +168,36 @@ async def transfer_reconstruct(
     return JSONResponse(mesh)
 
 
+@router.post("/transfer/splat")
+async def transfer_splat(
+    frames: List[UploadFile] = File(...),
+    angles: str = Form("0"),
+    mannequin: str = Form("true"),
+    format: str = Form("raw"),
+):
+    angle_values = [float(value) for value in angles.split(",") if value.strip()]
+    if len(frames) != len(angle_values):
+        raise HTTPException(status_code=400, detail="Frames and scan angles must match")
+    images = [decode_image(await frame.read()) for frame in frames]
+    try:
+        rows, meta = await run_in_threadpool(pipeline.hair3d, images, angle_values, mannequin != "false")
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    if rows is None:
+        raise HTTPException(status_code=422, detail="No hair detected in the captures")
+    if format == "ply":
+        return Response(
+            content=to_ply(rows),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": "attachment; filename=barberstudio_peluca.ply"},
+        )
+    return Response(
+        content=rows.tobytes(),
+        media_type="application/octet-stream",
+        headers={"X-Splat-Count": str(meta["count"]), "X-Splat-Hair": str(meta["hair"]), "X-Splat-Views": str(meta["views"])},
+    )
+
+
 def to_data_url(image, quality=90):
     success, encoded = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not success:

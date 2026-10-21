@@ -22,6 +22,7 @@ from app.core.segmentation.hair_region import provisional_hair_mask
 from app.core.segmentation.mask_refiner import refine_hair_mask
 from app.core.segmentation.transfer_mask import follow_head, head_geometry, head_window, transfer_mask
 from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
+from app.core.splatting.hair3d import HairView, build_hair_splats
 from app.core.splatting.head3d import build_head_splats
 
 try:
@@ -30,7 +31,7 @@ except ImportError:
     HairSegmenter = None
 
 try:
-    from app.core.segmentation.mp_segmenter import MultiClassSegmenter
+    from app.core.segmentation.mp_segmenter import FACE_SKIN, MultiClassSegmenter
 except ImportError:
     MultiClassSegmenter = None
 
@@ -613,6 +614,46 @@ class StylePipeline:
             "center": [float(center[0]), float(center[1])],
             "faceWidth": scale,
         }
+
+    def _measured_yaw(self, image_bgr):
+        """Head yaw in degrees from the MediaPipe 3D mesh (cheek to cheek
+        vector), the same sign as the scan angles. None without a face."""
+        if self.landmark_detector is None:
+            try:
+                self.landmark_detector = LandmarkDetector()
+            except FileNotFoundError:
+                return None
+        mesh = self.landmark_detector.mesh3d(image_bgr)
+        if mesh is None:
+            return None
+        right, left = mesh[234], mesh[454]
+        return float(np.degrees(np.arctan2(left[2] - right[2], left[0] - right[0])))
+
+    def hair3d(self, images_bgr, angles, mannequin=True):
+        views = []
+        for image_bgr, angle in zip(images_bgr, angles):
+            h, w = image_bgr.shape[:2]
+            if w > 900:
+                image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
+            _, face, points = self._transfer_head(image_bgr)
+            geometry = head_geometry(points, face)
+            probabilities = self._part_probabilities(image_bgr, geometry)
+            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True)
+            if not mask.any():
+                continue
+            face_mask = np.zeros(mask.shape, np.uint8)
+            cv2.fillPoly(face_mask, [geometry["polygon"]], 255)
+            if probabilities is not None:
+                grow = int(geometry["face_w"] * 0.3) | 1
+                near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
+                face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
+            face_mask[mask > 0] = 0
+            measured = self._measured_yaw(image_bgr)
+            yaw = measured if measured is not None else angle
+            views.append(HairView(image_bgr, alpha, face_mask, geometry, yaw, tracked=points is not None))
+        if not views:
+            return None, None
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0)
 
     def reconstruct_transfer_mesh(self, images_bgr, angles):
         masks = []
