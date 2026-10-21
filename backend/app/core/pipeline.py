@@ -477,17 +477,13 @@ class StylePipeline:
             face = (w // 2 - size // 2, h // 2 - size // 2, size, size)
         return pose, face, points
 
-    @staticmethod
-    def _yaw(points, pose):
-        if points is not None and len(points) >= 48:
-            left_eye = points[36:42].mean(axis=0)
-            right_eye = points[42:48].mean(axis=0)
-            nose = points[30]
-            left_distance = np.linalg.norm(nose - left_eye)
-            right_distance = np.linalg.norm(nose - right_eye)
-            total = left_distance + right_distance
-            if total > 1:
-                return float(np.clip((left_distance - right_distance) / total * 115, -75, 75))
+    def _yaw(self, points, pose, live=False):
+        """Head yaw in real degrees from MediaPipe's head pose (negative when
+        the face turns to the image left); full profiles, where the face mesh
+        is lost, fall back to the profile cascade."""
+        detector = self.live_landmark_detector if live else self.landmark_detector
+        if points is not None and detector is not None and detector.last_yaw is not None:
+            return detector.last_yaw
         return {"left": -82.0, "right": 82.0, "front": 0.0}.get(pose, 0.0)
 
     def transfer_scan(self, image_bgr):
@@ -598,7 +594,7 @@ class StylePipeline:
         else:
             face = self._box_from_landmarks(points)
         geometry = head_geometry(points, face)
-        yaw = self._yaw(points, pose)
+        yaw = self._yaw(points, pose, live=True)
         probabilities = self._tryon_probabilities(image_bgr, geometry, yaw)
         mask = self.transfer_hair_mask(image_bgr, face, points, probabilities)
         bald = self._bald.render(image_bgr, mask, geometry, probabilities)
@@ -615,27 +611,14 @@ class StylePipeline:
             "faceWidth": scale,
         }
 
-    def _measured_yaw(self, image_bgr):
-        """Head yaw in degrees from the MediaPipe 3D mesh (cheek to cheek
-        vector), the same sign as the scan angles. None without a face."""
-        if self.landmark_detector is None:
-            try:
-                self.landmark_detector = LandmarkDetector()
-            except FileNotFoundError:
-                return None
-        mesh = self.landmark_detector.mesh3d(image_bgr)
-        if mesh is None:
-            return None
-        right, left = mesh[234], mesh[454]
-        return float(np.degrees(np.arctan2(left[2] - right[2], left[0] - right[0])))
-
     def hair3d(self, images_bgr, angles, mannequin=True):
         views = []
         for image_bgr, angle in zip(images_bgr, angles):
             h, w = image_bgr.shape[:2]
             if w > 900:
                 image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
-            _, face, points = self._transfer_head(image_bgr)
+            pose, face, points = self._transfer_head(image_bgr)
+            yaw = self._yaw(points, pose) if points is not None or pose in ("left", "right") else angle
             geometry = head_geometry(points, face)
             probabilities = self._part_probabilities(image_bgr, geometry)
             mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True)
@@ -648,8 +631,6 @@ class StylePipeline:
                 near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
                 face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
             face_mask[mask > 0] = 0
-            measured = self._measured_yaw(image_bgr)
-            yaw = measured if measured is not None else angle
             views.append(HairView(image_bgr, alpha, face_mask, geometry, yaw, tracked=points is not None))
         if not views:
             return None, None

@@ -534,13 +534,13 @@ let tryonAnchor = null;
 let tryonMisses = 0;
 let dragStartX = null;
 const scanStages = [
-  { key: "left90", angle: -90, label: "Turn fully LEFT (90°), then capture", button: "Capture Left 90°" },
+  { key: "left90", angle: -90, label: "Turn fully LEFT, showing your profile (90°)", button: "Capture Left 90°" },
   { key: "left60", angle: -60, label: "Turn 60° LEFT, then capture", button: "Capture Left 60°" },
   { key: "left30", angle: -30, label: "Turn 30° LEFT, then capture", button: "Capture Left 30°" },
   { key: "front", angle: 0, label: "Face forward (0°), then capture", button: "Capture Front" },
   { key: "right30", angle: 30, label: "Turn 30° RIGHT, then capture", button: "Capture Right 30°" },
   { key: "right60", angle: 60, label: "Turn 60° RIGHT, then capture", button: "Capture Right 60°" },
-  { key: "right90", angle: 90, label: "Turn fully RIGHT (90°), then capture", button: "Capture Right 90°" },
+  { key: "right90", angle: 90, label: "Turn fully RIGHT, showing your profile (90°)", button: "Capture Right 90°" },
 ];
 
 function openTransferView(view) {
@@ -586,8 +586,10 @@ async function scanLoop() {
       scanResult.hidden = false;
       scanEmpty.hidden = true;
       const stage = scanStages[scanViewIndex];
-      const yawReady = Number.isFinite(detectedYaw) && Math.abs(detectedYaw - stage.angle) <= 12;
-      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `Angle ${Math.round(detectedYaw)}° detected — capturing` : `Turn until the guide reaches ${stage.angle}°`);
+      const profileReached = Math.abs(stage.angle) === 90 && Math.sign(detectedYaw) === Math.sign(stage.angle) && Math.abs(detectedYaw) >= 72;
+      const yawReady = Number.isFinite(detectedYaw) && (Math.abs(detectedYaw - stage.angle) <= 10 || profileReached);
+      const turnHint = Number.isFinite(detectedYaw) ? ` (now ${Math.round(detectedYaw)}°)` : "";
+      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `Angle ${Math.round(detectedYaw)}° detected — capturing` : `${stage.label}${turnHint}`);
       if (yawReady && !scanAutoCaptureBusy) {
         scanAutoCaptureBusy = true;
         scanCapture.click();

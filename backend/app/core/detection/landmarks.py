@@ -50,6 +50,7 @@ class LandmarkDetector:
         self._filter = OneEuroFilter(min_cutoff=3.0, beta=0.3)
         self._mp_mesh = None
         self._mp_failed = False
+        self.last_yaw = None
         self._lbf = None
         self._yunet = None
         self._yunet_template = str(MODELS_DIR / yunet_model)
@@ -78,6 +79,7 @@ class LandmarkDetector:
                 num_faces=1,
                 min_face_detection_confidence=0.5,
                 min_tracking_confidence=0.5,
+                output_facial_transformation_matrixes=True,
             )
             self._mp_mesh = vision.FaceLandmarker.create_from_options(options)
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
@@ -91,6 +93,9 @@ class LandmarkDetector:
         if not result.face_landmarks:
             self._filter.reset()
             return None
+        if result.facial_transformation_matrixes:
+            rotation = np.asarray(result.facial_transformation_matrixes[0])[:3, :3]
+            self.last_yaw = float(np.degrees(np.arctan2(rotation[0, 2], rotation[2, 2])))
         mesh = result.face_landmarks[0]
         h, w = image_bgr.shape[:2]
         all_points = np.array(
@@ -172,6 +177,7 @@ class LandmarkDetector:
         return points, box
 
     def landmarks(self, image_bgr, face_box=None):
+        self.last_yaw = None
         points = self._mediapipe_landmarks(image_bgr)
         if points is not None:
             return points
