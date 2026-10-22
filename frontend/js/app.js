@@ -488,12 +488,10 @@ hcBtn.addEventListener("click", async () => {
 const transferSteps = document.querySelectorAll(".transfer-step");
 const transferViews = document.querySelectorAll(".transfer-view");
 const scanStart = document.getElementById("scan-start");
-const scanCapture = document.getElementById("scan-capture");
 const scanStop = document.getElementById("scan-stop");
-const scanSave = document.getElementById("scan-save");
 const scanVideo = document.getElementById("scan-video");
 const scanCanvas = document.getElementById("scan-canvas");
-const scanResult = document.getElementById("scan-result");
+const scanLive = document.getElementById("scan-live");
 const scanEmpty = document.getElementById("scan-empty");
 const scanProgressBar = document.getElementById("scan-progress-bar");
 const scanProgressLabel = document.getElementById("scan-progress-label");
@@ -517,10 +515,13 @@ let scanStream = null;
 let scanRunning = false;
 let scanBusy = false;
 let scanProgress = 0;
-let scanViews = {};
-let scanFrames = {};
-let scanViewIndex = 0;
-let scanAutoCaptureBusy = false;
+let scanVideoTime = -1;
+let scanHead = null;
+let scanSmoother = null;
+let scanOverlay = null;
+let scanSweep = null;
+const SCAN_LEFT_MS = 3000;
+const SCAN_SWEEP_MS = 9000;
 let pelucas = [];
 let selectedPeluca = null;
 let tryonStream = null;
@@ -531,18 +532,23 @@ let tryonBusy = false;
 let tryonReset = true;
 let tryonFrame = null;
 let tryonAnchor = null;
-let tryonMisses = 0;
+let tryonVideoTime = -1;
+let tryonSmoother = null;
+let tryonLastSeen = 0;
+let tryonServer = null;
+const tryonSource = document.createElement("canvas");
+const VISION_CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+const LEFT_EYE = [33, 246, 161, 133, 160, 159];
+const RIGHT_EYE = [263, 466, 388, 362, 385, 373];
+const MIRRORED_LANDMARK = new Map([
+  [127, 356], [356, 127],
+  [33, 263], [246, 466], [161, 388], [133, 362], [160, 387], [159, 386],
+  [263, 33], [466, 246], [388, 161], [362, 133], [385, 158], [373, 144],
+]);
+let headTracker = null;
+let headTrackerPromise = null;
+let headTrackerTime = 0;
 let dragStartX = null;
-const scanStages = [
-  { key: "left90", angle: -90, label: "Turn fully LEFT, showing your profile (90°)", button: "Capture Left 90°" },
-  { key: "left60", angle: -60, label: "Turn 60° LEFT, then capture", button: "Capture Left 60°" },
-  { key: "left30", angle: -30, label: "Turn 30° LEFT, then capture", button: "Capture Left 30°" },
-  { key: "front", angle: 0, label: "Face forward (0°), then capture", button: "Capture Front" },
-  { key: "right30", angle: 30, label: "Turn 30° RIGHT, then capture", button: "Capture Right 30°" },
-  { key: "right60", angle: 60, label: "Turn 60° RIGHT, then capture", button: "Capture Right 60°" },
-  { key: "right90", angle: 90, label: "Turn fully RIGHT, showing your profile (90°)", button: "Capture Right 90°" },
-];
-
 function openTransferView(view) {
   transferSteps.forEach((button) => button.classList.toggle("active", button.dataset.transferView === view));
   transferViews.forEach((panel) => panel.classList.toggle("active", panel.id === `transfer-${view}`));
@@ -562,39 +568,254 @@ function setScanProgress(value, label) {
   scanProgressLabel.textContent = label;
 }
 
+function loadHeadTracker() {
+  if (!headTrackerPromise) {
+    headTrackerPromise = (async () => {
+      const { FaceLandmarker, FilesetResolver } = await import(`${VISION_CDN}/vision_bundle.mjs`);
+      const fileset = await FilesetResolver.forVisionTasks(`${VISION_CDN}/wasm`);
+      const options = (delegate) => ({
+        baseOptions: { modelAssetPath: `${API}/models/face_landmarker.task`, delegate },
+        runningMode: "VIDEO",
+        numFaces: 1,
+      });
+      try {
+        headTracker = await FaceLandmarker.createFromOptions(fileset, options("GPU"));
+      } catch (error) {
+        headTracker = await FaceLandmarker.createFromOptions(fileset, options("CPU"));
+      }
+      return headTracker;
+    })().catch(() => null);
+  }
+  return headTrackerPromise;
+}
+
+class OneEuroFilter {
+  constructor(minCutoff, beta, derivativeCutoff = 1) {
+    this.minCutoff = minCutoff;
+    this.beta = beta;
+    this.derivativeCutoff = derivativeCutoff;
+    this.previous = null;
+  }
+
+  static alpha(cutoff, dt) {
+    const tau = 1 / (2 * Math.PI * cutoff);
+    return 1 / (1 + tau / dt);
+  }
+
+  filter(values, time) {
+    if (!this.previous || this.previous.values.length !== values.length) {
+      this.previous = { values, derivative: values.map(() => 0), time };
+      return values;
+    }
+    const dt = Math.max(1e-3, time - this.previous.time);
+    const derivativeAlpha = OneEuroFilter.alpha(this.derivativeCutoff, dt);
+    const derivative = values.map((value, index) => derivativeAlpha * (value - this.previous.values[index]) / dt + (1 - derivativeAlpha) * this.previous.derivative[index]);
+    const smoothed = values.map((value, index) => {
+      const alpha = OneEuroFilter.alpha(this.minCutoff + this.beta * Math.abs(derivative[index]), dt);
+      return alpha * value + (1 - alpha) * this.previous.values[index];
+    });
+    this.previous = { values: smoothed, derivative, time };
+    return smoothed;
+  }
+}
+
+function createHeadSmoother() {
+  const center = new OneEuroFilter(1.5, 0.01);
+  const width = new OneEuroFilter(0.8, 0.005);
+  const angles = new OneEuroFilter(1.0, 0.02);
+  return (head, time) => {
+    const [roll, yaw] = angles.filter([head.roll, head.yaw], time);
+    return { center: center.filter(head.center, time), faceWidth: width.filter([head.faceWidth], time)[0], roll, yaw };
+  };
+}
+
+function mirrorVideo(video, canvas, width) {
+  const height = Math.round(video.videoHeight * (width / video.videoWidth));
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const context = canvas.getContext("2d");
+  context.setTransform(-1, 0, 0, 1, width, 0);
+  context.drawImage(video, 0, 0, width, height);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function measureHead(landmarks, width, height) {
+  const point = (index) => {
+    const landmark = landmarks[MIRRORED_LANDMARK.get(index)];
+    return [(1 - landmark.x) * width, landmark.y * height, landmark.z * width];
+  };
+  const mean = (indices) => indices.map(point).reduce((total, [x, y]) => [total[0] + x / indices.length, total[1] + y / indices.length], [0, 0]);
+  const near = point(127);
+  const far = point(356);
+  const left = mean(LEFT_EYE);
+  const right = mean(RIGHT_EYE);
+  return {
+    center: [(near[0] + far[0]) / 2, (left[1] + right[1]) / 2],
+    faceWidth: Math.hypot(far[0] - near[0], far[1] - near[1], far[2] - near[2]),
+    roll: Math.atan2(right[1] - left[1], right[0] - left[0]) * 180 / Math.PI,
+    yaw: Math.atan2(far[2] - near[2], far[0] - near[0]) * 180 / Math.PI,
+  };
+}
+
+function trackHead(video, canvas) {
+  if (!headTracker) return null;
+  headTrackerTime = Math.max(headTrackerTime + 1, performance.now());
+  try {
+    const result = headTracker.detectForVideo(video, headTrackerTime);
+    return result.faceLandmarks && result.faceLandmarks.length ? measureHead(result.faceLandmarks[0], canvas.width, canvas.height) : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function drawFollowingHead(context, image, x, y, from, to) {
+  const factor = to.faceWidth / from.faceWidth;
+  context.save();
+  context.translate(to.center[0], to.center[1]);
+  context.rotate(((to.roll || 0) - (from.roll || 0)) * Math.PI / 180);
+  context.scale(factor, factor);
+  context.translate(-from.center[0], -from.center[1]);
+  context.drawImage(image, x, y);
+  context.restore();
+}
+
+function scanRender() {
+  if (!scanStream) return;
+  if (scanVideo.videoWidth > 0 && scanVideo.currentTime !== scanVideoTime) {
+    scanVideoTime = scanVideo.currentTime;
+    mirrorVideo(scanVideo, scanCanvas, 720);
+    const now = performance.now();
+    const head = trackHead(scanVideo, scanCanvas);
+    if (!head) scanSmoother = null;
+    else if (!scanSmoother) scanSmoother = createHeadSmoother();
+    scanHead = head ? scanSmoother(head, now / 1000) : null;
+    drawScanView(now);
+    if (scanRunning) updateScanSweep(now);
+  }
+  requestAnimationFrame(scanRender);
+}
+
+function drawScanView(now) {
+  if (scanLive.width !== scanCanvas.width || scanLive.height !== scanCanvas.height) {
+    scanLive.width = scanCanvas.width;
+    scanLive.height = scanCanvas.height;
+  }
+  const context = scanLive.getContext("2d");
+  context.drawImage(scanCanvas, 0, 0);
+  scanLive.hidden = false;
+  scanEmpty.hidden = true;
+  if (!scanRunning || !scanOverlay || now - scanOverlay.time > 1500) return;
+  if (scanHead && scanOverlay.anchor && scanOverlay.anchor.tracked) {
+    drawFollowingHead(context, scanOverlay.bitmap, 0, 0, scanOverlay.anchor, scanHead);
+  } else {
+    context.drawImage(scanOverlay.bitmap, 0, 0);
+  }
+}
+
+function updateScanSweep(now) {
+  const sweep = scanSweep;
+  if (!sweep || sweep.phase === "done") return;
+  const elapsed = now - sweep.start;
+  if (sweep.phase === "left") {
+    if (elapsed < SCAN_LEFT_MS) {
+      setScanProgress(0, `Turn your head fully to the LEFT, showing your profile — ${Math.ceil((SCAN_LEFT_MS - elapsed) / 1000)}…`);
+      return;
+    }
+    sweep.phase = "sweep";
+  }
+  const turning = elapsed - SCAN_LEFT_MS;
+  const last = sweep.captures[sweep.captures.length - 1];
+  const reachedRight = last && last.yaw >= 72 && turning > 5000;
+  if (turning < SCAN_SWEEP_MS && !reachedRight) {
+    setScanProgress((turning / SCAN_SWEEP_MS) * 100, `Now turn SLOWLY to the RIGHT until your right profile — ${sweep.captures.length} views`);
+    return;
+  }
+  sweep.phase = "done";
+  finishScan(sweep.captures);
+}
+
+function sweepAngles(captures) {
+  const tracked = captures.filter((capture) => capture.tracked);
+  if (!tracked.length) return captures.map((capture) => capture.yaw);
+  const first = tracked[0];
+  const last = tracked[tracked.length - 1];
+  return captures.map((capture) => {
+    if (capture.tracked) return capture.yaw;
+    if (capture.time <= first.time) return Math.min(first.yaw, -90);
+    if (capture.time >= last.time) return Math.max(last.yaw, 90);
+    const after = tracked.findIndex((item) => item.time >= capture.time);
+    const before = tracked[after - 1];
+    const next = tracked[after];
+    return before.yaw + (next.yaw - before.yaw) * (capture.time - before.time) / Math.max(next.time - before.time, 1);
+  });
+}
+
+function pickSweepViews(captures) {
+  const angles = sweepAngles(captures);
+  const order = captures.map((capture, index) => ({ frame: capture.frame, angle: angles[index] })).sort((a, b) => a.angle - b.angle);
+  const picked = [];
+  order.forEach((view) => {
+    const previous = picked[picked.length - 1];
+    if (!previous || view.angle - previous.angle >= 4 || Math.abs(view.angle) >= 85) picked.push(view);
+  });
+  return picked.slice(0, 48);
+}
+
+async function finishScan(captures) {
+  scanRunning = false;
+  scanStop.disabled = true;
+  const views = pickSweepViews(captures);
+  if (views.length < 5) {
+    scanStart.disabled = false;
+    setScanProgress(0, "Too few views — keep your head in frame and turn slowly, then try again");
+    return;
+  }
+  setScanProgress(100, `Sweep complete — ${views.length} views, building your peluca...`);
+  try {
+    const front = views.reduce((best, view) => (Math.abs(view.angle) < Math.abs(best.angle) ? view : best));
+    const formData = new FormData();
+    formData.append("image", front.frame, "front-hair.jpg");
+    const response = await fetch(`${API}/transfer/asset`, { method: "POST", body: formData });
+    if (!response.ok) throw new Error("No hair found in the front view. Keep your full hair in frame and try again.");
+    const now = new Date();
+    const peluca = {
+      frames: views.map((view) => view.frame),
+      angles: views.map((view) => Math.round(view.angle)),
+      previewUrl: URL.createObjectURL(await response.blob()),
+      name: `Hair Sweep ${pelucas.length + 1}`,
+      date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    };
+    pelucas.unshift(peluca);
+    renderLibrary();
+    selectPeluca(peluca, "splat");
+    buildHair3dFromPeluca();
+  } catch (error) {
+    scanError.textContent = error.message;
+    scanError.hidden = false;
+  } finally {
+    scanStart.disabled = false;
+  }
+}
+
 async function scanLoop() {
   if (!scanRunning) return;
-  if (!scanBusy && scanVideo.videoWidth > 0) {
+  if (!scanBusy && scanCanvas.width > 0) {
     scanBusy = true;
     try {
-      const targetWidth = 720;
-      scanCanvas.width = targetWidth;
-      scanCanvas.height = Math.round(scanVideo.videoHeight * (targetWidth / scanVideo.videoWidth));
-      const context = scanCanvas.getContext("2d");
-      context.save();
-      context.translate(scanCanvas.width, 0);
-      context.scale(-1, 1);
-      context.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
-      context.restore();
       const frame = await new Promise((resolve) => scanCanvas.toBlob(resolve, "image/jpeg", 0.88));
       const formData = new FormData();
       formData.append("image", frame, "scan-frame.jpg");
       const response = await fetch(`${API}/transfer/scan`, { method: "POST", body: formData });
       if (!response.ok) throw new Error("Could not identify hair. Keep your full head visible and try again.");
       const detectedYaw = Number(response.headers.get("X-Head-Yaw"));
-      scanResult.src = URL.createObjectURL(await response.blob());
-      scanResult.hidden = false;
-      scanEmpty.hidden = true;
-      const stage = scanStages[scanViewIndex];
-      const profileReached = Math.abs(stage.angle) === 90 && Math.sign(detectedYaw) === Math.sign(stage.angle) && Math.abs(detectedYaw) >= 72;
-      const yawReady = Number.isFinite(detectedYaw) && (Math.abs(detectedYaw - stage.angle) <= 10 || profileReached);
-      const turnSide = detectedYaw < 0 ? "left" : "right";
-      const turnHint = Number.isFinite(detectedYaw) ? ` — now ${Math.abs(Math.round(detectedYaw))}°${Math.round(detectedYaw) === 0 ? "" : ` ${turnSide}`}` : "";
-      setScanProgress((scanViewIndex / scanStages.length) * 100, yawReady ? `${Math.abs(Math.round(detectedYaw))}° ${turnSide} detected — capturing` : `${stage.label}${turnHint}`);
-      if (yawReady && !scanAutoCaptureBusy) {
-        scanAutoCaptureBusy = true;
-        scanCapture.click();
-        setTimeout(() => { scanAutoCaptureBusy = false; }, 1200);
+      const anchor = JSON.parse(response.headers.get("X-Head-Anchor") || "null");
+      const bitmap = await createImageBitmap(await response.blob());
+      if (scanOverlay) scanOverlay.bitmap.close();
+      scanOverlay = { bitmap, anchor, time: performance.now() };
+      if (scanRunning && scanSweep && scanSweep.phase !== "done" && Number.isFinite(detectedYaw)) {
+        scanSweep.captures.push({ frame, yaw: detectedYaw, tracked: Boolean(anchor && anchor.tracked), time: performance.now() });
       }
     } catch (error) {
       scanError.textContent = error.message;
@@ -603,7 +824,7 @@ async function scanLoop() {
       scanBusy = false;
     }
   }
-  setTimeout(scanLoop, 180);
+  setTimeout(scanLoop, 60);
 }
 
 scanStart.addEventListener("click", async () => {
@@ -613,6 +834,8 @@ scanStart.addEventListener("click", async () => {
       scanStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, facingMode: "user" }, audio: false });
       scanVideo.srcObject = scanStream;
       await scanVideo.play();
+      loadHeadTracker();
+      requestAnimationFrame(scanRender);
     } catch (error) {
       scanError.textContent = `Camera unavailable: ${error.message}`;
       scanError.hidden = false;
@@ -620,68 +843,18 @@ scanStart.addEventListener("click", async () => {
     }
   }
   scanRunning = true;
-  scanViews = {};
-  scanFrames = {};
-  scanViewIndex = 0;
-  scanAutoCaptureBusy = false;
-  scanSave.disabled = true;
+  scanSweep = { phase: "left", start: performance.now(), captures: [] };
   scanStart.disabled = true;
-  scanCapture.disabled = false;
   scanStop.disabled = false;
-  scanCapture.textContent = scanStages[0].button;
-  setScanProgress(0, scanStages[0].label);
   scanLoop();
 });
 
 scanStop.addEventListener("click", () => {
   scanRunning = false;
+  scanSweep = null;
   scanStart.disabled = false;
-  scanCapture.disabled = true;
   scanStop.disabled = true;
-  scanSave.disabled = Object.keys(scanViews).length !== scanStages.length;
-  setScanProgress((Object.keys(scanViews).length / scanStages.length) * 100, "Scan cancelled");
-});
-
-scanCapture.addEventListener("click", async () => {
-  if (!scanRunning || scanViewIndex >= scanStages.length || scanVideo.videoWidth === 0) return;
-  const stage = scanStages[scanViewIndex];
-  scanCapture.disabled = true;
-  scanCapture.textContent = "Saving view...";
-  try {
-    const captureCanvas = document.createElement("canvas");
-    captureCanvas.width = 720;
-    captureCanvas.height = Math.round(scanVideo.videoHeight * (720 / scanVideo.videoWidth));
-    const context = captureCanvas.getContext("2d");
-    context.save();
-    context.translate(captureCanvas.width, 0);
-    context.scale(-1, 1);
-    context.drawImage(scanVideo, 0, 0, captureCanvas.width, captureCanvas.height);
-    context.restore();
-    const frame = await new Promise((resolve) => captureCanvas.toBlob(resolve, "image/jpeg", 0.92));
-    scanFrames[stage.key] = frame;
-    const formData = new FormData();
-    formData.append("image", frame, `${stage.key}-hair.jpg`);
-    const response = await fetch(`${API}/transfer/asset`, { method: "POST", body: formData });
-    if (!response.ok) throw new Error("The hair profile could not be captured. Keep your full hair in frame and try again.");
-    scanViews[stage.key] = URL.createObjectURL(await response.blob());
-    scanViewIndex += 1;
-    setScanProgress((scanViewIndex / scanStages.length) * 100, scanViewIndex === scanStages.length ? "180° scan complete — ready to reconstruct" : scanStages[scanViewIndex].label);
-    if (scanViewIndex === scanStages.length) {
-      scanRunning = false;
-      scanStart.disabled = false;
-      scanStop.disabled = true;
-      scanCapture.disabled = true;
-      scanSave.disabled = false;
-    } else {
-      scanCapture.disabled = false;
-      scanCapture.textContent = scanStages[scanViewIndex].button;
-    }
-  } catch (error) {
-    scanError.textContent = error.message;
-    scanError.hidden = false;
-    scanCapture.disabled = false;
-    scanCapture.textContent = stage.button;
-  }
+  setScanProgress(0, "Scan cancelled");
 });
 
 function renderLibrary() {
@@ -690,8 +863,7 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="tryon">Apply to Try-On</button><button class="quiet-button" data-action="splat">View 3D</button></div>`;
-    card.querySelector('[data-action="tryon"]').addEventListener("click", () => selectPeluca(peluca));
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">View 3D</button></div>`;
     card.querySelector('[data-action="splat"]').addEventListener("click", () => {
       selectPeluca(peluca, "splat");
       buildHair3dFromPeluca();
@@ -700,10 +872,11 @@ function renderLibrary() {
   });
 }
 
-function selectPeluca(peluca, view = "tryon") {
+function selectPeluca(peluca, view = "splat") {
   selectedPeluca = peluca;
   hair3dPelucaName.textContent = peluca.name;
   hair3dScan.disabled = !peluca.frames;
+  updateScanPhotos();
   selectedPelucaPreview.src = peluca.previewUrl;
   selectedPelucaName.textContent = peluca.name;
   selectedPelucaDate.textContent = `Captured ${peluca.date}`;
@@ -713,34 +886,6 @@ function selectPeluca(peluca, view = "tryon") {
   updateTryonRotation();
 }
 
-scanSave.addEventListener("click", async () => {
-  if (Object.keys(scanViews).length !== scanStages.length) return;
-  scanSave.disabled = true;
-  scanSave.textContent = "Saving...";
-  try {
-    const formData = new FormData();
-    scanStages.forEach((stage) => formData.append("frames", scanFrames[stage.key], `${stage.key}.jpg`));
-    formData.append("angles", scanStages.map((stage) => stage.angle).join(","));
-    const response = await fetch(`${API}/transfer/reconstruct`, { method: "POST", body: formData });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Could not reconstruct the 3D hair mesh");
-    }
-    const mesh = await response.json();
-    const now = new Date();
-    const peluca = { mesh, frames: scanStages.map((stage) => scanFrames[stage.key]), angles: scanStages.map((stage) => stage.angle), previewUrl: scanViews.front || scanViews.left30, name: `180° Hair Mesh ${pelucas.length + 1}`, date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) };
-    pelucas.unshift(peluca);
-    renderLibrary();
-    selectPeluca(peluca);
-  } catch (error) {
-    scanError.textContent = error.message;
-    scanError.hidden = false;
-  } finally {
-    scanSave.textContent = "Save as Peluca";
-    scanSave.disabled = false;
-  }
-});
-
 async function toggleTryonCamera() {
   tryonError.hidden = true;
   if (tryonStream) {
@@ -749,6 +894,7 @@ async function toggleTryonCamera() {
     tryonVideo.srcObject = null;
     tryonFrame = null;
     tryonAnchor = null;
+    tryonServer = null;
     tryonCamera.textContent = "Start Person B camera";
     tryonPlaceholder.hidden = false;
     poseBadge.textContent = "Waiting for camera";
@@ -761,8 +907,12 @@ async function toggleTryonCamera() {
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
     tryonCamera.textContent = "Stop Person B camera";
-    poseBadge.textContent = "Preparing bald preview...";
+    poseBadge.textContent = "Loading head tracker...";
     tryonReset = true;
+    tryonSmoother = null;
+    tryonVideoTime = -1;
+    loadHeadTracker();
+    requestAnimationFrame(tryonRender);
     tryonLoop();
   } catch (error) {
     tryonError.textContent = `Camera unavailable: ${error.message}`;
@@ -793,7 +943,7 @@ function renderTryonMesh() {
   const cover = Math.max(width / tryonFrame.width, height / tryonFrame.height);
   context.translate((width - tryonFrame.width * cover) / 2, (height - tryonFrame.height * cover) / 2);
   context.scale(cover, cover);
-  context.drawImage(tryonFrame.bitmap, 0, 0);
+  context.drawImage(tryonFrame.source, 0, 0);
   if (!selectedPeluca || !selectedPeluca.mesh || !tryonAnchor) return;
   const { views } = selectedPeluca.mesh;
   if (views && views.length) {
@@ -894,51 +1044,54 @@ function renderTexturedPeluca(context, views) {
   if (upper !== lower) drawPelucaView(context, upper, weight);
 }
 
-function tryonFrameBlob() {
-  const frameCanvas = document.createElement("canvas");
-  frameCanvas.width = 640;
-  frameCanvas.height = Math.round(tryonVideo.videoHeight * (640 / tryonVideo.videoWidth));
-  const context = frameCanvas.getContext("2d");
-  context.translate(frameCanvas.width, 0);
-  context.scale(-1, 1);
-  context.drawImage(tryonVideo, 0, 0, frameCanvas.width, frameCanvas.height);
-  return new Promise((resolve) => frameCanvas.toBlob(resolve, "image/jpeg", 0.85));
+function tryonRender() {
+  if (!tryonStream) return;
+  if (tryonVideo.videoWidth > 0 && tryonVideo.currentTime !== tryonVideoTime) {
+    tryonVideoTime = tryonVideo.currentTime;
+    mirrorVideo(tryonVideo, tryonSource, 640);
+    tryonFrame = { source: tryonSource, width: tryonSource.width, height: tryonSource.height };
+    const now = performance.now();
+    const head = trackHead(tryonVideo, tryonSource);
+    const server = tryonServer && now - tryonServer.time < 700 ? tryonServer.anchor : null;
+    if (head) {
+      if (!tryonSmoother || now - tryonLastSeen > 300) tryonSmoother = createHeadSmoother();
+      tryonLastSeen = now;
+      tryonAnchor = { ...tryonSmoother(head, now / 1000), pose: "live" };
+      poseBadge.textContent = "Head tracked live";
+    } else if (server) {
+      tryonAnchor = server;
+      poseBadge.textContent = `${server.pose[0].toUpperCase()}${server.pose.slice(1)} view tracked`;
+    } else if (now - tryonLastSeen > 400) {
+      tryonAnchor = null;
+      poseBadge.textContent = headTracker ? "Keep your face in frame" : "Loading head tracker...";
+    }
+    if (tryonAnchor) tryonDetectedRotation = tryonAnchor.yaw;
+    updateTryonRotation();
+  }
+  requestAnimationFrame(tryonRender);
 }
 
 async function tryonLoop() {
   if (!tryonStream) return;
-  if (!tryonBusy && tryonVideo.videoWidth > 0) {
+  if (!tryonBusy && tryonSource.width > 0) {
     tryonBusy = true;
     try {
       const formData = new FormData();
-      formData.append("image", await tryonFrameBlob(), "tryon-frame.jpg");
+      formData.append("image", await new Promise((resolve) => tryonSource.toBlob(resolve, "image/jpeg", 0.85)), "tryon-frame.jpg");
       formData.append("reset", tryonReset ? "true" : "false");
       tryonReset = false;
       const response = await fetch(`${API}/transfer/tryon`, { method: "POST", body: formData });
       if (!response.ok) throw new Error("Could not process the Person B frame");
-      const anchor = JSON.parse(response.headers.get("X-Tryon-Anchor") || "{}");
-      const bitmap = await createImageBitmap(await response.blob());
+      const anchor = await response.json();
       if (!tryonStream) return;
-      if (tryonFrame) tryonFrame.bitmap.close();
-      tryonFrame = { bitmap, width: bitmap.width, height: bitmap.height };
-      if (anchor.center) {
-        tryonMisses = 0;
-        tryonAnchor = anchor;
-        tryonDetectedRotation = anchor.yaw;
-        poseBadge.textContent = `${anchor.pose[0].toUpperCase()}${anchor.pose.slice(1)} view tracked`;
-      } else {
-        tryonMisses += 1;
-        if (tryonMisses > 4) tryonAnchor = null;
-        poseBadge.textContent = "Keep your face in frame";
-      }
-      updateTryonRotation();
+      tryonServer = anchor.center ? { anchor, time: performance.now() } : null;
     } catch (error) {
-      poseBadge.textContent = "Head tracking unavailable";
+      if (!headTracker) poseBadge.textContent = "Head tracking unavailable";
     } finally {
       tryonBusy = false;
     }
   }
-  requestAnimationFrame(tryonLoop);
+  setTimeout(tryonLoop, 30);
 }
 
 tryonCamera.addEventListener("click", toggleTryonCamera);
@@ -952,19 +1105,40 @@ const hair3dAuto = document.getElementById("hair3d-auto");
 const hair3dSplats = document.getElementById("hair3d-splats");
 const hair3dReset = document.getElementById("hair3d-reset");
 const hair3dPly = document.getElementById("hair3d-ply");
+const hair3dPhotos = document.getElementById("hair3d-photos");
 const hair3dError = document.getElementById("hair3d-error");
 const hair3dStage = document.getElementById("hair3d-stage");
 const hair3dCanvas = document.getElementById("hair3d-canvas");
 const hair3dStats = document.getElementById("hair3d-stats");
 const hair3dFps = document.getElementById("hair3d-fps");
+const hair3dMyFace = document.getElementById("hair3d-myface");
+const face3dScan = document.getElementById("face3d-scan");
+const face3dStage = document.getElementById("face3d-stage");
+const face3dLive = document.getElementById("face3d-live");
+const face3dHint = document.getElementById("face3d-hint");
+const face3dVideo = document.getElementById("face3d-video");
+const face3dStatus = document.getElementById("face3d-status");
+const facePlan = [
+  ["Look straight at the camera", 2],
+  ["Slowly turn your head LEFT", 3],
+  ["Slowly turn your head RIGHT", 3],
+];
 let hair3dViewer = null;
 let hair3dModel = null;
 let hair3dSource = null;
+let hair3dLabel = "";
+let faceScan = null;
+let faceStream = null;
+let faceVideoTime = -1;
 
 function hair3dForm(source, extra = {}) {
   const formData = new FormData();
   source.frames.forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
   formData.append("angles", source.angles.join(","));
+  if (hair3dMyFace.checked && faceScan) {
+    formData.append("head", "face");
+    faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
+  }
   Object.entries(extra).forEach(([key, value]) => formData.append(key, value));
   return formData;
 }
@@ -996,6 +1170,8 @@ async function buildHair3d(source, label) {
       views: Number(response.headers.get("X-Splat-Views")),
     };
     hair3dSource = source;
+    hair3dLabel = label;
+    updateScanPhotos();
     if (!hair3dViewer) {
       hair3dViewer = new SplatViewer(hair3dCanvas);
       hair3dViewer.setView(0, 0.1, 2.1);
@@ -1006,7 +1182,8 @@ async function buildHair3d(source, label) {
     showHair3d();
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     const views = hair3dModel.views === 1 ? "1 photo" : `${hair3dModel.views} angles`;
-    hair3dStats.textContent = `${label} · ${hair3dModel.hair.toLocaleString()} hair Gaussians from ${views} · built in ${seconds}s`;
+    const head = hair3dMyFace.checked ? " on your face" : "";
+    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} hair Gaussians from ${views} · built in ${seconds}s`;
     hair3dPly.disabled = false;
   } catch (error) {
     hair3dError.textContent = error.message;
@@ -1055,37 +1232,126 @@ hair3dInput.addEventListener("change", () => {
   if (hair3dInput.files.length > 0) setHair3dFile(hair3dInput.files[0]);
 });
 hair3dMannequin.addEventListener("change", showHair3d);
-hair3dAuto.addEventListener("change", () => {
-  if (hair3dViewer) hair3dViewer.autoRotate = hair3dAuto.checked;
-});
-hair3dSplats.addEventListener("change", () => {
-  if (hair3dViewer) hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
-});
-hair3dReset.addEventListener("click", () => {
-  if (hair3dViewer) hair3dViewer.setView(0, 0.1, 2.1);
-});
-hair3dPly.addEventListener("click", async () => {
-  if (!hair3dSource) return;
-  hair3dPly.disabled = true;
-  hair3dPly.textContent = "Exporting...";
+
+function scanPhotosSource() {
+  if (hair3dSource) return hair3dSource;
+  return selectedPeluca && selectedPeluca.frames ? { frames: selectedPeluca.frames, angles: selectedPeluca.angles } : null;
+}
+
+function updateScanPhotos() {
+  hair3dPhotos.disabled = !scanPhotosSource() && !faceScan;
+}
+
+hair3dPhotos.addEventListener("click", async () => {
+  const source = scanPhotosSource();
+  hair3dPhotos.disabled = true;
+  hair3dPhotos.textContent = "Packing...";
   try {
-    const form = hair3dForm(hair3dSource, { format: "ply", mannequin: hair3dMannequin.checked ? "true" : "false" });
-    const response = await fetch(`${API}/transfer/splat`, { method: "POST", body: form });
+    const formData = new FormData();
+    (source ? source.frames : []).forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
+    formData.append("angles", source ? source.angles.join(",") : "");
+    if (faceScan) faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
+    const response = await fetch(`${API}/transfer/photos`, { method: "POST", body: formData });
     if (!response.ok) throw new Error(`Export failed: ${response.status}`);
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
-    link.download = "barberstudio_peluca.ply";
+    link.download = "barberstudio_scan_photos.zip";
     link.click();
     URL.revokeObjectURL(url);
   } catch (error) {
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
   } finally {
-    hair3dPly.disabled = false;
-    hair3dPly.textContent = "Download .ply";
+    hair3dPhotos.textContent = "Download scan photos";
+    updateScanPhotos();
   }
 });
+hair3dMyFace.addEventListener("change", () => {
+  if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
+});
+
+function stopFaceCamera() {
+  if (faceStream) faceStream.getTracks().forEach((track) => track.stop());
+  faceStream = null;
+  face3dVideo.srcObject = null;
+  face3dStage.hidden = true;
+  face3dScan.disabled = false;
+  face3dScan.textContent = faceScan ? "Rescan my face (7 s)" : "Scan my face (7 s)";
+}
+
+function faceRender() {
+  if (!faceStream) return;
+  if (face3dVideo.videoWidth > 0 && face3dVideo.currentTime !== faceVideoTime) {
+    faceVideoTime = face3dVideo.currentTime;
+    mirrorVideo(face3dVideo, face3dLive, 480);
+  }
+  requestAnimationFrame(faceRender);
+}
+
+face3dScan.addEventListener("click", async () => {
+  if (faceStream) return;
+  hair3dError.hidden = true;
+  try {
+    faceStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, facingMode: "user" }, audio: false });
+    face3dVideo.srcObject = faceStream;
+    await face3dVideo.play();
+  } catch (error) {
+    faceStream = null;
+    hair3dError.textContent = `Camera unavailable: ${error.message}`;
+    hair3dError.hidden = false;
+    return;
+  }
+  face3dScan.disabled = true;
+  face3dScan.textContent = "Scanning...";
+  face3dStage.hidden = false;
+  faceVideoTime = -1;
+  requestAnimationFrame(faceRender);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const frames = [];
+  const total = facePlan.reduce((sum, [, shots]) => sum + shots, 0);
+  face3dHint.textContent = "Get ready...";
+  await sleep(1000);
+  for (const [text, shots] of facePlan) {
+    face3dHint.textContent = text;
+    for (let shot = 0; shot < shots; shot += 1) {
+      await sleep(780);
+      if (!faceStream) return;
+      const canvas = document.createElement("canvas");
+      mirrorVideo(face3dVideo, canvas, 1024);
+      frames.push(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)));
+      face3dStatus.textContent = `Face scan ${frames.length}/${total}`;
+    }
+  }
+  face3dHint.textContent = "Done!";
+  await sleep(600);
+  faceScan = { frames };
+  updateScanPhotos();
+  stopFaceCamera();
+  face3dScan.disabled = true;
+  face3dStatus.textContent = "Building your Gaussian face...";
+  try {
+    const formData = new FormData();
+    frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
+    const response = await fetch(`${API}/transfer/face`, { method: "POST", body: formData });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || "Your face could not be built. Try the face scan again.");
+    }
+    face3dStatus.textContent = `Your face · ${frames.length} views`;
+    hair3dMyFace.disabled = false;
+    hair3dMyFace.checked = true;
+    if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
+  } catch (error) {
+    faceScan = null;
+    face3dStatus.textContent = "No face scanned yet";
+    hair3dError.textContent = error.message;
+    hair3dError.hidden = false;
+  } finally {
+    face3dScan.disabled = false;
+  }
+});
+
 document.getElementById("rotate-left").addEventListener("click", () => { tryonManualRotation -= 20; updateTryonRotation(); });
 document.getElementById("rotate-right").addEventListener("click", () => { tryonManualRotation += 20; updateTryonRotation(); });
 document.getElementById("switch-peluca").addEventListener("click", () => openTransferView("library"));

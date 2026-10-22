@@ -1,5 +1,8 @@
 import base64
+import hashlib
+import io
 import json
+import zipfile
 
 import cv2
 import numpy as np
@@ -7,10 +10,11 @@ from typing import List
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+from app.core.detection.landmarks import MODELS_DIR
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
 from app.core.compositing.haircut import DISABLED_STYLES as HAIRCUT_DISABLED
 from app.core.lab.session import LabSession
@@ -122,11 +126,21 @@ async def mesh(image: UploadFile = File(...)):
     return encode_png(result)
 
 
+@router.get("/models/face_landmarker.task")
+async def face_landmarker_model():
+    path = MODELS_DIR / "face_landmarker.task"
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Face landmarker model not found")
+    return FileResponse(path, media_type="application/octet-stream")
+
+
 @router.post("/transfer/scan")
 async def transfer_scan(image: UploadFile = File(...)):
-    image_bgr = decode_image(await image.read())
-    result, pose, yaw = await run_in_threadpool(pipeline.transfer_scan, image_bgr)
-    response = encode_jpeg(result, 85)
+    data = await image.read()
+    image_bgr = decode_image(data)
+    result, pose, yaw, anchor = await run_in_threadpool(pipeline.transfer_scan, image_bgr, frame_key(data))
+    response = encode_png(result)
+    response.headers["X-Head-Anchor"] = json.dumps(anchor)
     response.headers["X-Head-Pose"] = pose
     response.headers["X-Head-Yaw"] = str(yaw)
     return response
@@ -146,10 +160,8 @@ async def transfer_tryon(image: UploadFile = File(...), reset: bool = Form(False
     image_bgr = decode_image(await image.read())
     if reset:
         pipeline.reset_tryon()
-    result, anchor = await run_in_threadpool(pipeline.transfer_tryon, image_bgr)
-    response = encode_jpeg(result, 85)
-    response.headers["X-Tryon-Anchor"] = json.dumps(anchor)
-    return response
+    anchor = await run_in_threadpool(pipeline.transfer_tryon, image_bgr)
+    return JSONResponse(anchor)
 
 
 @router.post("/transfer/reconstruct")
@@ -168,19 +180,66 @@ async def transfer_reconstruct(
     return JSONResponse(mesh)
 
 
+def frame_key(data):
+    return hashlib.sha1(data).hexdigest()
+
+
+@router.post("/transfer/face")
+async def transfer_face(face_frames: List[UploadFile] = File(...)):
+    data = [await frame.read() for frame in face_frames]
+    images = [decode_image(item) for item in data]
+    try:
+        await run_in_threadpool(pipeline.face_scan, images, frame_key(b"".join(data)))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return JSONResponse({"views": len(images)})
+
+
+@router.post("/transfer/photos")
+async def transfer_photos(
+    frames: List[UploadFile] = File(...),
+    angles: str = Form(""),
+    face_frames: List[UploadFile] = File(None),
+):
+    angle_values = [value.strip() for value in angles.split(",") if value.strip()]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as archive:
+        for index, frame in enumerate(frames):
+            angle = angle_values[index] if index < len(angle_values) else str(index)
+            archive.writestr(f"hair/hair_{index:02d}_{angle}deg.jpg", await frame.read())
+        for index, frame in enumerate(face_frames or []):
+            archive.writestr(f"face/face_{index:02d}.jpg", await frame.read())
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=barberstudio_scan_photos.zip"},
+    )
+
+
 @router.post("/transfer/splat")
 async def transfer_splat(
     frames: List[UploadFile] = File(...),
     angles: str = Form("0"),
     mannequin: str = Form("true"),
     format: str = Form("raw"),
+    head: str = Form("mannequin"),
+    face_frames: List[UploadFile] = File(None),
 ):
     angle_values = [float(value) for value in angles.split(",") if value.strip()]
     if len(frames) != len(angle_values):
         raise HTTPException(status_code=400, detail="Frames and scan angles must match")
-    images = [decode_image(await frame.read()) for frame in frames]
+    data = [await frame.read() for frame in frames]
+    images = [decode_image(item) for item in data]
+    faces, face_key = None, None
+    if head == "face":
+        if not face_frames:
+            raise HTTPException(status_code=400, detail="Scan your face first in 3D Peluca > Your face")
+        face_data = [await frame.read() for frame in face_frames]
+        faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data))
     try:
-        rows, meta = await run_in_threadpool(pipeline.hair3d, images, angle_values, mannequin != "false")
+        rows, meta = await run_in_threadpool(
+            pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     if rows is None:

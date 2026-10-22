@@ -1,5 +1,7 @@
 import base64
+import threading
 import time
+from collections import OrderedDict
 
 import cv2
 import numpy as np
@@ -7,7 +9,6 @@ import numpy as np
 from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
-from app.core.compositing.bald import BaldRenderer
 from app.core.compositing.beard_physics import BeardPhysics
 from app.core.detection.hands import FingerTracker, draw_hand
 from app.core.game.speedrun import SpeedrunGame
@@ -18,10 +19,10 @@ from app.core.detection.landmarks import LandmarkDetector
 from app.core.detection.one_euro import OneEuroFilter
 from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
 from app.core.segmentation.hair_region import provisional_hair_mask
-from app.core.segmentation.following import FollowingSegmenter
 from app.core.segmentation.mask_refiner import refine_hair_mask
 from app.core.segmentation.transfer_mask import head_geometry, head_window, transfer_mask
 from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
+from app.core.splatting.face3d import FaceView, face_splats, scan_face
 from app.core.splatting.hair3d import HairView, build_hair_splats
 from app.core.splatting.head3d import build_head_splats
 
@@ -31,7 +32,7 @@ except ImportError:
     HairSegmenter = None
 
 try:
-    from app.core.segmentation.mp_segmenter import FACE_SKIN, MultiClassSegmenter
+    from app.core.segmentation.mp_segmenter import FACE_SKIN, HAIR, MultiClassSegmenter
 except ImportError:
     MultiClassSegmenter = None
 
@@ -56,10 +57,11 @@ class StylePipeline:
         self._transfer_face = None
         self.part_segmenter = None
         self._part_segmenter_failed = False
-        self._bald = BaldRenderer()
         self._tryon_filters = None
-        self._tryon_segmenter = FollowingSegmenter(self._part_probabilities, on_key=self._bald.learn)
-        self._scan_segmenter = FollowingSegmenter(self._part_probabilities)
+        self._tryon_width = None
+        self._hair_views = OrderedDict()
+        self._face_scans = OrderedDict()
+        self._vision_lock = threading.RLock()
 
     @staticmethod
     def _load_segmenter():
@@ -104,8 +106,13 @@ class StylePipeline:
         box = head_window(image_bgr.shape[:2], geometry) if geometry is not None else None
         return self.part_segmenter.probabilities(image_bgr, box)
 
-    def transfer_hair_mask(self, image_bgr, face, points=None, probabilities=None, soft=False, face_visible=True):
-        geometry = head_geometry(points, face)
+    def _head_geometry(self, points, face, live=False):
+        detector = self.live_landmark_detector if live else self.landmark_detector
+        width = detector.last_head_width if points is not None and detector is not None else None
+        return head_geometry(points, face, width)
+
+    def transfer_hair_mask(self, image_bgr, face, points=None, probabilities=None, soft=False, face_visible=True, geometry=None):
+        geometry = dict(geometry) if geometry is not None else self._head_geometry(points, face)
         geometry["face_visible"] = face_visible
         if probabilities is None:
             probabilities = self._part_probabilities(image_bgr, geometry)
@@ -500,20 +507,70 @@ class StylePipeline:
             return detector.last_yaw
         return {"left": -82.0, "right": 82.0, "front": 0.0}.get(pose, 0.0)
 
-    def transfer_scan(self, image_bgr):
+    @staticmethod
+    def _remember(cache, key, value, size):
+        cache[key] = value
+        cache.move_to_end(key)
+        while len(cache) > size:
+            cache.popitem(last=False)
+
+    def _hair_view(self, image_bgr, key=None):
+        """Everything the peluca needs from one capture: hair alpha, face
+        mask, head geometry and the measured yaw (None when the face mesh is
+        lost). Live scan frames are analysed once and kept by `key`, so
+        building the peluca afterwards does not segment them again."""
+        with self._vision_lock:
+            return self._analyse_hair(image_bgr, key)
+
+    def _analyse_hair(self, image_bgr, key):
+        if key is not None and key in self._hair_views:
+            self._hair_views.move_to_end(key)
+            return self._hair_views[key]
+        h, w = image_bgr.shape[:2]
+        if w > 900:
+            image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
         pose, face, points, visible = self._transfer_head(image_bgr)
-        geometry = head_geometry(points, face)
-        probabilities = self._live_probabilities(self._scan_segmenter, image_bgr, geometry, self._yaw(points, pose))
-        hair_mask = self.transfer_hair_mask(image_bgr, face, points, probabilities, face_visible=visible)
-        canvas = image_bgr.copy()
-        selected = hair_mask > 0
-        green = np.full_like(canvas, (78, 205, 68))
-        canvas[selected] = cv2.addWeighted(canvas[selected], 0.36, green[selected], 0.64, 0)
+        measured = self._yaw(points, pose) if points is not None else None
+        geometry = self._head_geometry(points, face)
+        probabilities = self._part_probabilities(image_bgr, geometry)
+        mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True, face_visible=visible, geometry=geometry)
+        face_mask = np.zeros(mask.shape, np.uint8)
+        if visible:
+            cv2.fillPoly(face_mask, [geometry["polygon"]], 255)
+        if visible and probabilities is not None:
+            grow = int(geometry["face_w"] * 0.3) | 1
+            near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
+            face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
+        face_mask[mask > 0] = 0
+        result = {
+            "image": image_bgr, "mask": mask, "alpha": alpha, "face_mask": face_mask, "geometry": geometry,
+            "points": points, "pose": pose, "yaw": measured,
+        }
+        if key is not None:
+            self._remember(self._hair_views, key, result, 90)
+        return result
+
+    def transfer_scan(self, image_bgr, key=None):
+        """Transparent overlay for the live scan preview: selected hair in
+        green and, on frontal views, the landmark mesh."""
+        analysed = self._hair_view(image_bgr, key)
+        image_bgr, points, geometry = analysed["image"], analysed["points"], analysed["geometry"]
+        overlay = np.zeros(image_bgr.shape[:2] + (4,), np.uint8)
+        overlay[analysed["mask"] > 0] = (68, 205, 78, 165)
+        pose = analysed["pose"]
         if points is not None and pose == "front":
-            triangles = delaunay_triangles(points)
-            canvas = draw_mesh(canvas, points, triangles, color=(80, 220, 255))
+            lines = draw_mesh(np.zeros_like(image_bgr), points, delaunay_triangles(points), color=(80, 220, 255))
+            drawn = lines.any(axis=2)
+            overlay[drawn, :3] = lines[drawn]
+            overlay[drawn, 3] = 255
         pose, yaw = self._scan_yaw(points, pose)
-        return canvas, pose, yaw
+        anchor = {
+            "center": [float(geometry["center"][0]), float(geometry["center"][1])],
+            "faceWidth": float(geometry["face_w"]),
+            "roll": float(np.degrees(geometry["roll"])),
+            "tracked": points is not None,
+        }
+        return overlay, pose, yaw, anchor
 
     def transfer_asset(self, image_bgr):
         _, face, points, visible = self._transfer_head(image_bgr)
@@ -544,39 +601,34 @@ class StylePipeline:
         )
 
     def reset_tryon(self):
-        self._bald.reset()
         self._tryon_filters = None
-        self._tryon_segmenter.reset()
-
-    def _live_probabilities(self, segmenter, image_bgr, geometry, yaw):
-        if self._part_segmenter_failed or MultiClassSegmenter is None:
-            return None
-        return segmenter(image_bgr, geometry, yaw)
+        self._tryon_width = None
 
     def transfer_tryon(self, image_bgr, now=None):
-        """Person B without their own hair, plus a smoothed head anchor for
-        the peluca measured on this very frame (so overlay and video never
-        drift apart)."""
+        """Smoothed head anchor for the peluca. The browser tracks the head
+        itself and uses this only when its own tracker loses the face (full
+        profiles)."""
         now = time.monotonic() if now is None else now
         points = self._landmarks(image_bgr, None, live=True)
         pose = "front"
         if points is None:
             pose, face = self.detector.pose(image_bgr)
             if face is None:
-                return image_bgr, {"pose": "unknown"}
+                return {"pose": "unknown"}
         else:
             face = self._box_from_landmarks(points)
-        geometry = head_geometry(points, face)
+        geometry = self._head_geometry(points, face, live=True)
+        if points is not None:
+            self._tryon_width = geometry["face_w"]
+        elif self._tryon_width is not None:
+            geometry = head_geometry(None, face, self._tryon_width)
         yaw = self._yaw(points, pose, live=True)
-        probabilities = self._live_probabilities(self._tryon_segmenter, image_bgr, geometry, yaw)
-        mask = self.transfer_hair_mask(image_bgr, face, points, probabilities)
-        bald = self._bald.render(image_bgr, mask, geometry, probabilities)
         center, scale, roll, yaw = self._smooth_tryon(
             (np.asarray(geometry["center"], np.float32), np.float32(geometry["face_w"]),
              np.float32(np.degrees(geometry["roll"])), np.float32(yaw)),
             now,
         )
-        return bald, {
+        return {
             "pose": pose,
             "yaw": yaw,
             "roll": roll,
@@ -584,31 +636,54 @@ class StylePipeline:
             "faceWidth": scale,
         }
 
-    def hair3d(self, images_bgr, angles, mannequin=True):
+    def face3d_views(self, images_bgr):
+        if self.landmark_detector is None:
+            self.landmark_detector = LandmarkDetector()
         views = []
-        for image_bgr, angle in zip(images_bgr, angles):
+        for image_bgr in images_bgr:
             h, w = image_bgr.shape[:2]
-            if w > 900:
-                image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
-            pose, face, points, visible = self._transfer_head(image_bgr)
-            yaw = self._yaw(points, pose) if points is not None or pose in ("left", "right") else angle
-            geometry = head_geometry(points, face)
-            probabilities = self._part_probabilities(image_bgr, geometry)
-            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, probabilities, soft=True, face_visible=visible)
-            if not mask.any():
+            if w > 1024:
+                image_bgr = cv2.resize(image_bgr, (1024, int(round(h * 1024 / w))), interpolation=cv2.INTER_AREA)
+            mesh = self.landmark_detector.mesh3d(image_bgr)
+            if mesh is None:
                 continue
-            face_mask = np.zeros(mask.shape, np.uint8)
-            if visible:
-                cv2.fillPoly(face_mask, [geometry["polygon"]], 255)
-            if visible and probabilities is not None:
-                grow = int(geometry["face_w"] * 0.3) | 1
-                near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
-                face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
-            face_mask[mask > 0] = 0
-            views.append(HairView(image_bgr, alpha, face_mask, geometry, yaw, tracked=points is not None))
+            probabilities = self._part_probabilities(image_bgr)
+            view = FaceView(image_bgr, mesh, None if probabilities is None else probabilities[HAIR])
+            if abs(view.yaw) <= 75:
+                views.append(view)
+        return views
+
+    def face_scan(self, images_bgr, key=None):
+        """The slow part of "Use my face" (the 3D Mirror reconstruction),
+        kept by `key` so it is built once per face scan."""
+        if key is not None and key in self._face_scans:
+            return self._face_scans[key]
+        with self._vision_lock:
+            faces = self.face3d_views(images_bgr)
+        if not faces:
+            raise ValueError("No face found in the face captures")
+        scan = scan_face(faces)
+        if key is not None:
+            self._remember(self._face_scans, key, scan, 4)
+        return scan
+
+    def hair3d(self, images_bgr, angles, mannequin=True, face_images=None, keys=None, face_key=None):
+        head = None
+        if face_images is not None:
+            scan = self.face_scan(face_images, face_key)
+            head = lambda axes: face_splats(scan, axes)
+        views = []
+        keys = keys or [None] * len(images_bgr)
+        for image_bgr, angle, key in zip(images_bgr, angles, keys):
+            analysed = self._hair_view(image_bgr, key)
+            if not analysed["mask"].any():
+                continue
+            yaw = analysed["yaw"] if analysed["yaw"] is not None else angle
+            views.append(HairView(analysed["image"], analysed["alpha"], analysed["face_mask"], analysed["geometry"], yaw,
+                                  tracked=analysed["points"] is not None))
         if not views:
             return None, None
-        return build_hair_splats(views, mannequin=9000 if mannequin else 0)
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
 
     def reconstruct_transfer_mesh(self, images_bgr, angles):
         masks = []
@@ -618,8 +693,8 @@ class StylePipeline:
         valid_angles = []
         for image_bgr, angle in zip(images_bgr, angles):
             _, face, points, visible = self._transfer_head(image_bgr)
-            geometry = head_geometry(points, face)
-            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True, face_visible=visible)
+            geometry = self._head_geometry(points, face)
+            mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True, face_visible=visible, geometry=geometry)
             rows, cols = np.where(mask > 0)
             if len(rows) < 100:
                 continue

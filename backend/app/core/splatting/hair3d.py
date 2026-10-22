@@ -196,13 +196,13 @@ def _row_extents(body, scale):
     return _smooth_rows(left, valid, sigma), _smooth_rows(right, valid, sigma), valid
 
 
-def _skull_radius(level, directions):
+def _skull_radius(level, directions, axes=SKULL_AXES):
     """Distance from the head axis to the mannequin skull along each
     horizontal direction, at height `level` (0 outside the skull)."""
-    height = 1.0 - (level / SKULL_AXES[1]) ** 2
+    height = 1.0 - (level / axes[1]) ** 2
     if height <= 0:
         return np.zeros(len(directions))
-    ax, az = SKULL_AXES[0] * np.sqrt(height), SKULL_AXES[2] * np.sqrt(height)
+    ax, az = axes[0] * np.sqrt(height), axes[2] * np.sqrt(height)
     c, s = directions[:, 0], directions[:, 1]
     oz = -SKULL_CENTER[2]
     a = (c / ax) ** 2 + (s / az) ** 2
@@ -295,7 +295,7 @@ def _synthesize_back(pos, views, placements, scale, rng):
     return np.clip(color, 0, 1), found
 
 
-def _hull_samples(views, bodies, placements, scale, budget, rng):
+def _hull_samples(views, bodies, placements, scale, budget, rng, axes=SKULL_AXES):
     """Multi-view peluca as one closed surface.
 
     At every height each capture says where the hair starts and ends seen
@@ -330,17 +330,20 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
         bounds.append(bound)
         votes += ok
     bounds = np.sort(np.stack(bounds), axis=0)
-    radius = bounds[1] if len(views) >= 4 else bounds[0]
+    trim = max(1 if len(views) >= 4 else 0, int(round(0.1 * len(views))))
+    radius = bounds[min(trim, len(views) - 1)]
     radius = np.minimum(radius, _shape_prior(extents[reference], placements[reference], levels, directions, scale))
+    apex = levels[0]
     keep = votes >= max(1, int(np.ceil(len(views) / 2)))
     levels, radius = levels[keep], radius[keep]
     if len(levels) < 3:
         raise ValueError("The hair silhouettes do not overlap between captures")
+    axes = _fit_skull(axes, -apex)
     radius = np.clip(np.where(np.isfinite(radius), radius, 0.02), 0.02, 3.0)
     wrapped = np.hstack([radius[:, -20:], radius, radius[:, :20]]).astype(np.float32)
     radius = cv2.GaussianBlur(wrapped, (0, 0), sigmaX=5, sigmaY=2)[:, 20:-20]
     for index, level in enumerate(levels):
-        radius[index] = np.maximum(radius[index], _skull_radius(level, directions) * 1.05)
+        radius[index] = np.maximum(radius[index], _skull_radius(level, directions, axes) * 1.05)
 
     ring = radius[:, :, None] * directions[None, :, :]
     perimeter = np.linalg.norm(np.roll(ring, -1, axis=1) - ring, axis=2).sum(axis=1)
@@ -382,7 +385,8 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     skin_votes = np.zeros(count)
     hair_votes = np.zeros(count)
     tangent = np.tile([[0.0, 1.0, 0.0]], (count, 1))
-    for view, (center_x, eye_y, _), yaw in zip(views, placements, yaws):
+    front_hair = np.zeros(count, bool)
+    for index, (view, (center_x, eye_y, _), yaw) in enumerate(zip(views, placements, yaws)):
         h, w = view.alpha.shape
         facing = normal[:, 0] * -np.sin(yaw) + normal[:, 2] * np.cos(yaw)
         u = center_x + scale * (pos[:, 0] * np.cos(yaw) + pos[:, 2] * np.sin(yaw))
@@ -399,6 +403,8 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
         face_votes += frontal & (face | (view.alpha[np.clip(v, 0, h - 1).astype(int), np.clip(u, 0, w - 1).astype(int)] < 0.1))
         skin_votes += frontal & face
         hair_votes += frontal & hair
+        if index == reference:
+            front_hair = hair & (facing > 0.6)
         best_hair = np.maximum(best_hair, np.where(hair, facing, 0.0))
         weight = np.where(hair, facing ** 6, 0.0)
         if not hair.any():
@@ -419,6 +425,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
     alpha[textured] /= weight_sum[textured]
     front = pos[:, 2] >= 0.0
     not_hair = np.where(front, (face_votes > 0) & (face_votes >= hair_votes), (skin_votes > 0) & (skin_votes >= hair_votes))
+    not_hair &= ~front_hair
     keep = textured & ~not_hair
     behind = (pos[:, 2] < 0.2) & ~not_hair
     synthetic, found = _synthesize_back(pos, views, placements, scale, rng)
@@ -447,24 +454,55 @@ def _hull_samples(views, bodies, placements, scale, budget, rng):
             color[back] = _sample_color(texture, np.stack([u_ref, ref_eye + scale * pos[back, 1]], axis=1)) * 0.8
             alpha[back] = 0.92
         keep |= back
-    return {
+    samples = {
         "pos": pos[keep],
         "tangent": tangent[keep],
         "normal": normal[keep],
         "color": color[keep],
         "alpha": np.clip(alpha[keep] * 1.05, 0, 0.95),
         "stretch": np.ones(int(keep.sum())),
-    }, spacing
+    }
+    crown = _crown(radius[0], levels[0], apex, samples, spacing, rng)
+    if crown is not None:
+        samples = {key: np.concatenate([samples[key], crown[key]]) for key in samples}
+    return samples, spacing, axes
 
 
-def _outside_skull(pos, margin=1.06):
+def _crown(ring, level, apex, samples, spacing, rng):
+    """The hull is stacked rings, so its topmost ring is left open and the
+    mannequin shows through. A round dome closes it, rising from that ring
+    exactly up to `apex`, the top of the hair in the frontal capture, and
+    coloured like the hair nearest to it."""
+    near = samples["pos"][:, 1] < level + 0.06
+    if near.sum() < 10:
+        return None
+    reach = float(ring.mean())
+    count = int(np.pi * reach * reach / (spacing * spacing))
+    t = np.sqrt(rng.uniform(0, 1, count))
+    phi = rng.uniform(0, 2 * np.pi, count)
+    r = t * np.interp(phi, np.linspace(0, 2 * np.pi, len(ring), endpoint=False), ring, period=2 * np.pi)
+    height = max(level - apex, 0.0) * (1 - t * t)
+    pos = np.stack([r * np.cos(phi), level - height, r * np.sin(phi)], axis=1)
+    normal = np.stack([pos[:, 0], -np.full(count, reach), pos[:, 2]], axis=1)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True)
+    edge = samples["pos"][near]
+    nearest = np.argmin(((pos[:, None, [0, 2]] - edge[None, :, [0, 2]]) ** 2).sum(axis=2), axis=1) if count * len(edge) < 4e7 else np.zeros(count, int)
+    color = samples["color"][near][nearest] * 0.92
+    tangent = np.stack([-pos[:, 0], np.zeros(count), -pos[:, 2]], axis=1) + 1e-3
+    return {
+        "pos": pos, "tangent": tangent, "normal": normal, "color": color,
+        "alpha": np.full(count, 0.92), "stretch": np.ones(count),
+    }
+
+
+def _outside_skull(pos, axes=SKULL_AXES, margin=1.06):
     """Hair lies on top of the scalp and around the neck: anything that ended
     up inside the mannequin is pushed out radially to just above its surface."""
-    local = (pos - SKULL_CENTER) / SKULL_AXES
+    local = (pos - SKULL_CENTER) / axes
     radius = np.linalg.norm(local, axis=1)
     inside = (radius < margin) & (radius > 1e-6) & (pos[:, 1] < 0.55)
     pos = pos.copy()
-    pos[inside] = SKULL_CENTER + local[inside] / radius[inside, None] * margin * SKULL_AXES
+    pos[inside] = SKULL_CENTER + local[inside] / radius[inside, None] * margin * axes
     neck = np.stack([pos[:, 0], pos[:, 2] - NECK_CENTER_Z], axis=1) / NECK_AXES
     reach = np.linalg.norm(neck, axis=1)
     around = (pos[:, 1] >= NECK_RANGE[0]) & (pos[:, 1] <= NECK_RANGE[1] + 0.1) & (reach < margin) & (reach > 1e-6)
@@ -474,14 +512,48 @@ def _outside_skull(pos, margin=1.06):
     return pos
 
 
-def _mannequin(count, rng):
+def _clear_neck(pos):
+    """Hair never crosses in front of the throat: the visual hull closes the
+    strands that hang behind both shoulders with a front strip under the
+    chin, which is dropped."""
+    return ~((pos[:, 1] > 0.7) & (pos[:, 1] < 1.05) & (np.abs(pos[:, 0]) < NECK_AXES[0] * 0.85) & (pos[:, 2] > NECK_CENTER_Z))
+
+
+def _crown_row(view):
+    """Image row of the top of the hair, or None when the hair touches the
+    top of the frame. The crown is the highest point of the head from every
+    angle, so it lines up the captures vertically even when the head moved
+    up or down between them or its eyes were not found in a profile."""
+    rows = np.flatnonzero((view.alpha > 0.35).any(axis=1))
+    if not len(rows) or rows.min() <= 1:
+        return None
+    return float(rows.min())
+
+
+def _fit_skull(axes, top):
+    """Mannequin skull sized to the scan: hair inside the skull is pushed out
+    to 1.06x its surface, so the crown is kept low enough that even pushed
+    hair never rises above `top`, the highest hair actually reconstructed."""
+    axes = axes.copy()
+    axes[1] = float(np.clip(top / 1.06 - 0.01, 0.5, axes[1]))
+    return axes
+
+
+def skull_axes(view, eye_y, scale):
+    rows = np.flatnonzero((view.alpha > 0.35).any(axis=1))
+    if not len(rows):
+        return SKULL_AXES.copy()
+    return _fit_skull(SKULL_AXES, (eye_y - rows.min()) / scale)
+
+
+def _mannequin(count, rng, axes=SKULL_AXES):
     """Neutral head and neck so the peluca can be seen as worn."""
     head = int(count * 0.8)
     theta = np.arccos(rng.uniform(-1, 1, head))
     phi = rng.uniform(0, 2 * np.pi, head)
     unit = np.stack([np.sin(theta) * np.cos(phi), np.cos(theta), np.sin(theta) * np.sin(phi)], axis=1)
-    head_pos = unit * SKULL_AXES + SKULL_CENTER
-    head_normal = unit / SKULL_AXES
+    head_pos = unit * axes + SKULL_CENTER
+    head_normal = unit / axes
     neck = count - head
     angle = rng.uniform(0, 2 * np.pi, neck)
     height = rng.uniform(NECK_RANGE[0], NECK_RANGE[1], neck)
@@ -498,7 +570,7 @@ def _mannequin(count, rng):
     return pos, _covariance((t1, t2, n), scales), color, np.full(len(pos), 0.98)
 
 
-def build_hair_splats(views, budget=70000, mannequin=9000, seed=5):
+def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None):
     """3D Gaussian peluca from one or more hair captures.
 
     One photo is lifted onto a lathe surface built from its silhouette; several
@@ -507,20 +579,27 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5):
     strand flow. The unseen back of the head is closed with the hair texture
     of the most frontal capture. Returns float32 rows
     [x, y, z, cov(6), r, g, b, a] (hair first, then mannequin) in the same
-    y-up, camera-facing frame as the 3D Mirror head."""
+    y-up, camera-facing frame as the 3D Mirror head. `head(axes)` replaces the
+    mannequin with (pos, cov, color, alpha) in the same head frame, built
+    around a skull of the given axes."""
     rng = np.random.default_rng(seed)
     reference = min(range(len(views)), key=lambda index: abs(views[index].yaw))
     ref = views[reference]
     scale = float(ref.geometry["face_w"])
     bodies = [_body_mask(view) for view in views]
     placements = []
+    crown = _crown_row(ref)
     for view, body in zip(views, bodies):
         eye_y = float(view.geometry["center"][1]) if view.tracked else float(ref.geometry["center"][1])
+        top = _crown_row(view)
+        if crown is not None and top is not None:
+            eye_y = top + (float(ref.geometry["center"][1]) - crown)
         center_x = _head_center_x(body, eye_y, scale, float(view.geometry["center"][0]))
         placements.append((center_x, eye_y, scale))
 
+    axes = skull_axes(ref, placements[reference][1], scale)
     if len(views) > 1:
-        samples, spacing = _hull_samples(views, bodies, placements, scale, budget, rng)
+        samples, spacing, axes = _hull_samples(views, bodies, placements, scale, budget, rng, axes)
     else:
         step = max(1.0, np.sqrt(float((ref.alpha > 0.35).sum()) * 1.4 / budget))
         parts = [_view_samples(ref, bodies[0], placements[0][0], placements[0][1], scale, step, rng)]
@@ -531,7 +610,9 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5):
         samples = {key: np.concatenate([part[key] for part in parts]) for key in parts[0]}
         spacing = step / scale
 
-    samples["pos"] = _outside_skull(samples["pos"])
+    samples["pos"] = _outside_skull(samples["pos"], axes)
+    keep = _clear_neck(samples["pos"])
+    samples = {key: value[keep] for key, value in samples.items()}
     t1, t2, n = _frame(samples["tangent"], samples["normal"])
     scales = np.tile([spacing * 2.0, spacing * 0.85, spacing * 0.25], (len(t1), 1))
     scales[:, :2] *= samples["stretch"][:, None]
@@ -540,8 +621,8 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5):
     cov = [hair_cov]
     color = [samples["color"]]
     alpha = [samples["alpha"]]
-    if mannequin:
-        m_pos, m_cov, m_color, m_alpha = _mannequin(mannequin, rng)
+    if head is not None or mannequin:
+        m_pos, m_cov, m_color, m_alpha = head(axes) if head is not None else _mannequin(mannequin, rng, axes)
         pos.append(m_pos)
         cov.append(m_cov)
         color.append(m_color)

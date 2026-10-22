@@ -115,6 +115,19 @@ class BaldRenderer:
         return cv2.resize(filled, (w, h), interpolation=cv2.INTER_LINEAR)
 
     def render(self, image_bgr, hair_mask, geometry, probabilities=None):
+        result = image_bgr.copy()
+        layer = self.layer(image_bgr, hair_mask, geometry, probabilities)
+        if layer is None:
+            return result
+        x0, y0, fill, alpha = layer
+        window = (slice(y0, y0 + fill.shape[0]), slice(x0, x0 + fill.shape[1]))
+        alpha = alpha[..., None]
+        result[window] = np.clip(image_bgr[window] * (1.0 - alpha) + fill * alpha, 0, 255).astype(np.uint8)
+        return result
+
+    def layer(self, image_bgr, hair_mask, geometry, probabilities=None):
+        """The bald scalp as a patch: (x0, y0, fill, alpha) over the head
+        window, or None when there is no hair to remove."""
         x0, y0, x1, y1 = head_window(image_bgr.shape[:2], geometry, 1.1)
         rows, cols = np.nonzero(hair_mask)
         if len(rows):
@@ -140,15 +153,12 @@ class BaldRenderer:
             None if probabilities is None else shrink(probabilities[FACE_SKIN][window]),
             plate,
         )
-        result = image_bgr.copy()
         if alpha is None:
-            return result
+            return None
         if scale != 1.0:
             fill = cv2.resize(fill, (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
             alpha = cv2.resize(alpha, (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR)
-        alpha = alpha[..., None]
-        result[window] = np.clip(crop * (1.0 - alpha) + fill * alpha, 0, 255).astype(np.uint8)
-        return result
+        return x0, y0, fill, alpha
 
     def _render_window(self, image_bgr, hair_mask, geometry, face_skin, plate):
         fw = geometry["face_w"]

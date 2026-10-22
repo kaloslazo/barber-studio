@@ -4,16 +4,20 @@ import numpy as np
 from app.core.segmentation.mp_segmenter import BACKGROUND, HAIR
 
 
-def head_geometry(points=None, face_box=None):
+def head_geometry(points=None, face_box=None, width=None):
     """Head frame shared by the scan and the try-on: eye-level center, face
-    width, in-plane roll and the face polygon that must never count as hair."""
+    width, in-plane roll and the face polygon that must never count as hair.
+
+    `width` is the ear-to-ear distance measured in 3D; unlike the 2D jaw
+    span it does not shrink when the head turns, so every scanned angle and
+    every try-on frame share the same scale."""
     if points is not None and len(points) >= 68:
         points = np.asarray(points, np.float32)
         left_eye = points[36:42].mean(axis=0)
         right_eye = points[42:48].mean(axis=0)
         eye_mid = (left_eye + right_eye) / 2
         dx, dy = right_eye - left_eye
-        face_w = float(max(np.linalg.norm(points[16] - points[0]), 1.0))
+        face_w = float(max(width or np.linalg.norm(points[16] - points[0]), 1.0))
         brow_y = float(points[17:27, 1].min())
         chin = points[8]
         jaw = points[0:17].copy()
@@ -34,7 +38,7 @@ def head_geometry(points=None, face_box=None):
     )
     return {
         "center": (x + w / 2, y + h * 0.4),
-        "face_w": w * 0.92,
+        "face_w": width or w * 0.92,
         "roll": 0.0,
         "brow_y": y + h * 0.22,
         "chin": (x + w / 2, y + h),
@@ -103,6 +107,22 @@ def _ellipse(shape, geometry, offset, axes):
     return mask
 
 
+def hair_color_distance(image_bgr, soft, seeds_zone):
+    """Squared Mahalanobis distance (Lab) of every pixel to the colour of the
+    surely-hair pixels at the crown, or None when there are too few of them.
+    A wall or a lamp that the segmenter half-confuses with hair is far from
+    that colour even when its probability is high."""
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    seeds = lab[(soft > 0.85) & (seeds_zone > 0)]
+    if len(seeds) < 200:
+        return None
+    mean = seeds.mean(axis=0)
+    covariance = np.cov(seeds, rowvar=False) + np.eye(3, dtype=np.float32) * 36.0
+    inverse = np.linalg.inv(covariance).astype(np.float32)
+    diff = lab - mean
+    return np.einsum("...i,ij,...j->...", diff, inverse, diff)
+
+
 def transfer_mask(image_bgr, geometry, probabilities=None, fallback=None):
     """Hair of the head in `geometry` only: a binary mask plus a soft alpha.
 
@@ -125,7 +145,13 @@ def transfer_mask(image_bgr, geometry, probabilities=None, fallback=None):
         chin = (int(geometry["chin"][0]), int(geometry["chin"][1]))
         cv2.ellipse(face, chin, (max(1, int(0.38 * fw)), max(1, int(0.32 * fw))), np.degrees(geometry["roll"]), 0, 360, 255, -1)
 
-    binary = np.where(soft > 0.5, 255, 0).astype(np.uint8)
+    sure = soft > 0.5
+    if probabilities is not None:
+        sure &= soft >= probabilities[BACKGROUND]
+    distance = hair_color_distance(image_bgr, soft, cv2.bitwise_and(crown, cv2.bitwise_not(face)))
+    if distance is not None:
+        sure &= distance < 16.0
+    binary = np.where(sure, 255, 0).astype(np.uint8)
     binary = cv2.bitwise_and(binary, zone)
     binary = cv2.bitwise_and(binary, cv2.bitwise_not(face))
     binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
@@ -144,6 +170,8 @@ def transfer_mask(image_bgr, geometry, probabilities=None, fallback=None):
     near = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
     alpha = np.where(near > 0, soft, 0.0).astype(np.float32)
     alpha[face > 0] = 0.0
+    if distance is not None:
+        alpha *= np.clip((24.0 - distance) / 8.0, 0.0, 1.0)
     alpha = np.clip((alpha - 0.25) / 0.5, 0.0, 1.0)
     alpha = cv2.GaussianBlur(alpha, (0, 0), 0.8)
     return mask, alpha

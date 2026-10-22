@@ -172,13 +172,12 @@
           <div>
             <p class="eyebrow">3D hair scanning &amp; virtual try-on</p>
             <h1>Transfering hair</h1>
-            <p>Capture your complete hairstyle, then place it on another person in real time.</p>
+            <p>Capture your complete hairstyle, then see it in 3D on a mannequin or on your scanned face.</p>
           </div>
           <div class="transfer-steps" role="tablist" aria-label="Transfering hair steps">
             <button class="transfer-step active" data-transfer-view="scan" role="tab">1. Scan Hair</button>
             <button class="transfer-step" data-transfer-view="library" role="tab">2. Peluca Library</button>
-            <button class="transfer-step" data-transfer-view="tryon" role="tab">3. Try-On Studio</button>
-            <button class="transfer-step" data-transfer-view="splat" role="tab">4. 3D Peluca</button>
+            <button class="transfer-step" data-transfer-view="splat" role="tab">3. 3D Peluca</button>
           </div>
         </header>
 
@@ -186,7 +185,7 @@
           <div class="transfer-grid">
             <div class="card scanner-card">
               <div class="scanner-stage" id="scan-stage">
-                <img id="scan-result" alt="Hair scan with selected hair and face mesh" hidden>
+                <canvas id="scan-live" aria-label="Live hair scan with selected hair and face mesh" hidden></canvas>
                 <div class="scan-guide" aria-hidden="true">
                   <span class="guide-front">FRONT</span>
                   <span class="guide-left">↶ LEFT</span>
@@ -202,19 +201,17 @@
               <div class="scan-progress"><span id="scan-progress-bar"></span></div>
               <div class="scan-actions">
                 <button id="scan-start">Start Scan</button>
-                <button id="scan-capture" disabled>Capture Front</button>
                 <button id="scan-stop" disabled>Cancel Scan</button>
-                <button id="scan-save" disabled>Save as Peluca</button>
               </div>
-              <p class="scan-note">Turn naturally through 180°. The computer detects each angle and captures it automatically. Green is selected hair; the face mesh is visible when the face is facing forward.</p>
+              <p class="scan-note">A 12 second sweep: turn fully left, then slowly all the way to the right. Every analysed frame becomes a view of the peluca. Green is selected hair; the face mesh is visible when the face is facing forward.</p>
             </div>
             <aside class="card scan-instructions">
               <span class="step-label">CAPTURE GUIDE</span>
               <h2>Scan all your length</h2>
               <ol>
-                <li>Turn naturally from full left profile through full right profile; the computer selects the seven best angles.</li>
-                <li>Stay centered and keep the same distance from the camera while the scan advances.</li>
-                <li>Keep long hair over your shoulders and inside the frame for all seven captures.</li>
+                <li>Press Start Scan and turn your head fully to the left (3 s).</li>
+                <li>Turn slowly and steadily to the right until your right profile (about 9 s), staying centered at the same distance.</li>
+                <li>Keep long hair over your shoulders and inside the frame; the 3D peluca is built as soon as the sweep ends.</li>
               </ol>
               <div class="scan-key"><i></i> Green = selected hair</div>
               <div class="scan-key mesh-key"><i></i> Lines = face mesh</div>
@@ -275,12 +272,27 @@
               <p class="dz-sub">One front photo, like the 3D Mirror (JPG / PNG)</p>
               <input type="file" id="hair3d-input" accept="image/*" hidden>
             </div>
+            <div class="card splat-source">
+              <span class="step-label">YOUR FACE</span>
+              <h2 id="face3d-status">No face scanned yet</h2>
+              <p>A 7 second scan like the 3D Mirror: look straight, then slowly turn left and right.</p>
+              <div class="face-scan-stage" id="face3d-stage" hidden>
+                <canvas id="face3d-live" aria-label="Live face scan"></canvas>
+                <div class="pose-badge" id="face3d-hint">Get ready...</div>
+              </div>
+              <button id="face3d-scan">Scan my face (7 s)</button>
+              <video id="face3d-video" hidden autoplay playsinline muted></video>
+            </div>
           </div>
 
           <div class="card controls">
             <label class="check">
               <input type="checkbox" id="hair3d-mannequin" checked>
-              <span>Mannequin head</span>
+              <span>Show head</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="hair3d-myface" disabled>
+              <span>Use my face</span>
             </label>
             <label class="check">
               <input type="checkbox" id="hair3d-auto" checked>
@@ -292,6 +304,7 @@
             </label>
             <button class="quiet-button" id="hair3d-reset">Reset view</button>
             <button class="quiet-button" id="hair3d-ply" disabled>Download .ply</button>
+            <button class="quiet-button" id="hair3d-photos" disabled>Download scan photos</button>
           </div>
 
           <div class="banner" id="hair3d-error" hidden></div>

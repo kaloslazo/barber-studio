@@ -590,7 +590,7 @@ button.loading {
 .transfer-grid, .tryon-layout { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(240px, .8fr); gap: 16px; }
 .scanner-card { padding: 16px; }
 .scanner-stage, .tryon-stage { position: relative; overflow: hidden; min-height: 390px; border-radius: 5px; background: #201f1e; display: grid; place-items: center; }
-.scanner-stage img, .tryon-stage video { display: block; width: 100%; height: 100%; min-height: 390px; object-fit: cover; }
+.scanner-stage img, .scanner-stage canvas, .tryon-stage video { display: block; width: 100%; height: 100%; min-height: 390px; object-fit: cover; }
 .scan-empty, .tryon-placeholder { color: #d8d4cf; font-size: 14px; }
 .scan-guide { position: absolute; inset: 0; z-index: 2; pointer-events: none; color: white; font-size: 12px; font-weight: 700; text-shadow: 0 1px 5px #000; }
 .scan-guide::before { content: ""; position: absolute; left: 50%; top: 11%; width: 45%; aspect-ratio: 1; transform: translateX(-50%); border: 2px solid rgba(211, 239, 250, .85); border-radius: 50%; }
@@ -631,7 +631,9 @@ button.loading {
 .pose-badge { position: absolute; z-index: 3; left: 12px; top: 12px; border-radius: 99px; padding: 5px 9px; background: rgba(0,0,0,.6); color: #fff; font-size: 12px; }
 .tryon-summary img { display: block; width: 100%; height: 220px; object-fit: contain; background: var(--panel-2); border-radius: 4px; margin: 10px 0 14px; }
 .tryon-summary p { color: var(--muted); font-size: 13px; margin: 0; }
-.splat-sources { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.splat-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.face-scan-stage { position: relative; overflow: hidden; margin: 0 0 12px; border-radius: 5px; background: #201f1e; }
+.face-scan-stage canvas { display: block; width: 100%; }
 .splat-source { margin: 0; }
 .splat-source h2 { margin: 8px 0; font-size: 18px; }
 .splat-source p { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
@@ -671,5 +673,5 @@ button.loading {
   .content { padding: 20px 16px; }
   .transfer-head { align-items: flex-start; flex-direction: column; }
   .transfer-grid, .tryon-layout, .splat-sources { grid-template-columns: 1fr; }
-  .scanner-stage, .scanner-stage img, .tryon-stage, .tryon-stage video { min-height: 320px; }
+  .scanner-stage, .scanner-stage img, .scanner-stage canvas, .tryon-stage, .tryon-stage video { min-height: 320px; }
 }

@@ -51,6 +51,7 @@ class LandmarkDetector:
         self._mp_mesh = None
         self._mp_failed = False
         self.last_yaw = None
+        self.last_head_width = None
         self._lbf = None
         self._yunet = None
         self._yunet_template = str(MODELS_DIR / yunet_model)
@@ -93,14 +94,14 @@ class LandmarkDetector:
         if not result.face_landmarks:
             self._filter.reset()
             return None
-        if result.facial_transformation_matrixes:
-            rotation = np.asarray(result.facial_transformation_matrixes[0])[:3, :3]
-            self.last_yaw = float(np.degrees(np.arctan2(rotation[0, 2], rotation[2, 2])))
         mesh = result.face_landmarks[0]
         h, w = image_bgr.shape[:2]
         all_points = np.array(
             [[lm.x * w, lm.y * h] for lm in mesh], dtype=np.float32
         )
+        ends = np.array([[mesh[i].x * w, mesh[i].y * h, mesh[i].z * w] for i in (MP_JAW_ARC[0], MP_JAW_ARC[-1])])
+        self.last_head_width = float(np.linalg.norm(ends[1] - ends[0]))
+        self.last_yaw = float(np.degrees(np.arctan2(ends[1, 2] - ends[0, 2], ends[1, 0] - ends[0, 0])))
         jaw = _resample_polyline(all_points[MP_JAW_ARC], 17)
         rest = all_points[MP_TO_68]
         points = np.vstack([jaw, rest])
@@ -180,6 +181,7 @@ class LandmarkDetector:
 
     def landmarks(self, image_bgr, face_box=None):
         self.last_yaw = None
+        self.last_head_width = None
         points = self._mediapipe_landmarks(image_bgr)
         if points is not None:
             return points
