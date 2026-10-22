@@ -185,7 +185,7 @@
           <div class="transfer-grid">
             <div class="card scanner-card">
               <div class="scanner-stage" id="scan-stage">
-                <canvas id="scan-live" aria-label="Live hair scan with selected hair and face mesh" hidden></canvas>
+                <canvas id="scan-live" aria-label="Live hair scan with the face mesh" hidden></canvas>
                 <div class="scan-guide" aria-hidden="true">
                   <span class="guide-front">FRONT</span>
                   <span class="guide-left">↶ LEFT</span>
@@ -203,17 +203,12 @@
                 <button id="scan-start">Start Scan</button>
                 <button id="scan-stop" disabled>Cancel Scan</button>
               </div>
-              <p class="scan-note">A 12 second sweep: turn fully left, then slowly all the way to the right. Every analysed frame becomes a view of the peluca. Green is selected hair; the face mesh is visible when the face is facing forward.</p>
+              <p class="scan-note">We will scan your head through 180° for 12 seconds: start from the left and turn to the right.</p>
             </div>
             <aside class="card scan-instructions">
               <span class="step-label">CAPTURE GUIDE</span>
-              <h2>Scan all your length</h2>
-              <ol>
-                <li>Press Start Scan and turn your head fully to the left (3 s).</li>
-                <li>Turn slowly and steadily to the right until your right profile (about 9 s), staying centered at the same distance.</li>
-                <li>Keep long hair over your shoulders and inside the frame; the 3D peluca is built as soon as the sweep ends.</li>
-              </ol>
-              <div class="scan-key"><i></i> Green = selected hair</div>
+              <h2>12 second scan, 180°</h2>
+              <p>We will scan your head through 180° for 12 seconds: start from the left and turn to the right.</p>
               <div class="scan-key mesh-key"><i></i> Lines = face mesh</div>
             </aside>
           </div>

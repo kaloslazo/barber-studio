@@ -720,7 +720,7 @@ function updateScanSweep(now) {
   const elapsed = now - sweep.start;
   if (sweep.phase === "left") {
     if (elapsed < SCAN_LEFT_MS) {
-      setScanProgress(0, `Turn your head fully to the LEFT, showing your profile — ${Math.ceil((SCAN_LEFT_MS - elapsed) / 1000)}…`);
+      setScanProgress(0, `Start from the LEFT — ${Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000)} s`);
       return;
     }
     sweep.phase = "sweep";
@@ -729,7 +729,7 @@ function updateScanSweep(now) {
   const last = sweep.captures[sweep.captures.length - 1];
   const reachedRight = last && last.yaw >= 72 && turning > 5000;
   if (turning < SCAN_SWEEP_MS && !reachedRight) {
-    setScanProgress((turning / SCAN_SWEEP_MS) * 100, `Now turn SLOWLY to the RIGHT until your right profile — ${sweep.captures.length} views`);
+    setScanProgress((elapsed / (SCAN_LEFT_MS + SCAN_SWEEP_MS)) * 100, `Turn slowly to the RIGHT — ${Math.max(0, Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000))} s`);
     return;
   }
   sweep.phase = "done";

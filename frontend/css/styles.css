@@ -609,6 +609,7 @@ button.loading {
 .scan-note, .drag-hint { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
 .scan-instructions h2, .tryon-summary h2, .library-heading h2 { margin: 8px 0; font-size: 18px; }
 .scan-instructions ol { padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.scan-instructions p { color: var(--muted); font-size: 13px; line-height: 1.65; }
 .scan-key { display: flex; gap: 8px; align-items: center; margin-top: 18px; font-size: 13px; color: var(--muted); }
 .scan-key i { width: 13px; height: 13px; border-radius: 50%; background: #44ca6a; }
 .scan-key.mesh-key { margin-top: 8px; }

@@ -551,12 +551,12 @@ class StylePipeline:
         return result
 
     def transfer_scan(self, image_bgr, key=None):
-        """Transparent overlay for the live scan preview: selected hair in
-        green and, on frontal views, the landmark mesh."""
+        """Transparent overlay for the live scan preview: the landmark mesh
+        on frontal views. The hair is analysed (and kept for the peluca) but
+        not drawn."""
         analysed = self._hair_view(image_bgr, key)
         image_bgr, points, geometry = analysed["image"], analysed["points"], analysed["geometry"]
         overlay = np.zeros(image_bgr.shape[:2] + (4,), np.uint8)
-        overlay[analysed["mask"] > 0] = (68, 205, 78, 165)
         pose = analysed["pose"]
         if points is not None and pose == "front":
             lines = draw_mesh(np.zeros_like(image_bgr), points, delaunay_triangles(points), color=(80, 220, 255))
