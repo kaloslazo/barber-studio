@@ -64,11 +64,12 @@ def face_width(mesh):
     return float(np.linalg.norm(mesh[SIDE_A] - mesh[SIDE_B]))
 
 
-def oriented_triangles(mesh):
-    """Delaunay on the reference view, with every triangle wound so that its
-    normal points to the camera (negative z in MediaPipe space). The fixed
-    winding lets any later frame rebuild a consistent triangle frame."""
-    tris = np.asarray(delaunay_triangles(mesh[:, :2]))
+def oriented_triangles(mesh, tris=None):
+    """Delaunay on the reference view (or the given triangles), with every
+    triangle wound so that its normal points to the camera (negative z in
+    MediaPipe space). The fixed winding lets any later frame rebuild a
+    consistent triangle frame."""
+    tris = np.array(delaunay_triangles(mesh[:, :2]) if tris is None else tris)
     a, b, c = (mesh[tris[:, k]] for k in range(3))
     normal_z = np.cross(b - a, c - a)[:, 2]
     flip = normal_z > 0
@@ -246,7 +247,7 @@ def _psnr(a, b, mask):
 
 
 def build_scanned_head(views_bgr, meshes, beard_texture=None, beard_region=None, beard_style=None,
-                       budget=40000, iterations=30, holdout=True, seed=5):
+                       budget=40000, iterations=30, holdout=True, seed=5, tris=None):
     """B: build an anchored head from several views and fuse + optimize its colors.
 
     1. Reference = the most frontal view (smallest nose offset from the face center).
@@ -261,7 +262,7 @@ def build_scanned_head(views_bgr, meshes, beard_texture=None, beard_region=None,
     rng = np.random.default_rng(seed)
     yaw = [abs(float((m[1, 0] - 0.5 * (m[SIDE_A, 0] + m[SIDE_B, 0])) / max(face_width(m), 1.0))) for m in meshes]
     ref = int(np.argmin(yaw))
-    tris = oriented_triangles(meshes[ref])
+    tris = oriented_triangles(meshes[ref]) if tris is None else tris
     head = AnchoredHead(meshes[ref], tris)
     _surface(head, rng, budget)
     if beard_region is not None and beard_style:

@@ -1339,6 +1339,17 @@ face3dScan.addEventListener("click", async () => {
       throw new Error(error.detail || "Your face could not be built. Try the face scan again.");
     }
     face3dStatus.textContent = `Your face · ${frames.length} views`;
+    const debugImage = (await response.json()).debug_image;
+    if (debugImage) {
+      const debug = new Image();
+      debug.onload = () => {
+        face3dStage.hidden = false;
+        face3dLive.width = debug.naturalWidth;
+        face3dLive.height = debug.naturalHeight;
+        face3dLive.getContext("2d").drawImage(debug, 0, 0);
+      };
+      debug.src = debugImage;
+    }
     hair3dMyFace.disabled = false;
     hair3dMyFace.checked = true;
     if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);

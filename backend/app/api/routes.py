@@ -19,6 +19,7 @@ from app.core.game.speedrun import TARGETS as GAME_TARGETS
 from app.core.compositing.haircut import DISABLED_STYLES as HAIRCUT_DISABLED
 from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
+from app.core.splatting.face3d import face_scan_debug_image
 from app.core.splatting.head3d import to_ply
 
 router = APIRouter(prefix="/api")
@@ -189,10 +190,14 @@ async def transfer_face(face_frames: List[UploadFile] = File(...)):
     data = [await frame.read() for frame in face_frames]
     images = [decode_image(item) for item in data]
     try:
-        await run_in_threadpool(pipeline.face_scan, images, frame_key(b"".join(data)))
+        scan = await run_in_threadpool(pipeline.face_scan, images, frame_key(b"".join(data)))
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
-    return JSONResponse({"views": len(images)})
+    success, encoded = cv2.imencode(".jpg", face_scan_debug_image(scan))
+    if not success:
+        raise HTTPException(status_code=500, detail="Could not create face scan debug image")
+    debug_image = "data:image/jpeg;base64," + base64.b64encode(encoded.tobytes()).decode("ascii")
+    return JSONResponse({"views": len(images), "debug_image": debug_image})
 
 
 @router.post("/transfer/photos")
