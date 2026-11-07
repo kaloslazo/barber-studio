@@ -1143,13 +1143,263 @@ function hair3dForm(source, extra = {}) {
   return formData;
 }
 
+const WIG_PRESETS = [
+  { name: "Blonde", hex: "#d6b26e" },
+  { name: "Light brown", hex: "#8a5a3b" },
+  { name: "Black", hex: "#16120f" },
+  { name: "Dark red", hex: "#6b1d18" },
+];
+const WIG_CUT_DEPTH = 0.35;
+const wigStudio = document.getElementById("wig-studio");
+const wigSwatches = document.getElementById("wig-swatches");
+const wigColor = document.getElementById("wig-color");
+const wigStrength = document.getElementById("wig-strength");
+const wigOriginal = document.getElementById("wig-original");
+const wigScissors = document.getElementById("wig-scissors");
+const wigBrush = document.getElementById("wig-brush");
+const wigLength = document.getElementById("wig-length");
+const wigTips = document.getElementById("wig-tips");
+const wigBald = document.getElementById("wig-bald");
+const wigUndo = document.getElementById("wig-undo");
+const wigReset = document.getElementById("wig-reset");
+const wigHint = document.getElementById("wig-hint");
+const wigRing = document.getElementById("wig-ring");
+const wig = { color: null, cut: null, length: 1, history: [], visible: null, points: null, frame: 0 };
+
+function hexToRgb(hex) {
+  const value = parseInt(hex.slice(1), 16);
+  return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
+}
+
+function luminance(r, g, b) {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function resetWig() {
+  const data = new Float32Array(hair3dModel.buffer);
+  const count = hair3dModel.hair;
+  let lum = 0;
+  let weight = 0;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < count; i++) {
+    const o = i * SPLAT_FLOATS;
+    const a = data[o + 12];
+    lum += luminance(data[o + 9], data[o + 10], data[o + 11]) * a;
+    weight += a;
+    minY = Math.min(minY, data[o + 1]);
+    maxY = Math.max(maxY, data[o + 1]);
+  }
+  wig.source = data;
+  wig.meanLum = weight > 0 ? lum / weight : 0.3;
+  wig.minY = minY;
+  wig.maxY = maxY;
+  wig.cut = new Uint8Array(count);
+  wig.length = 1;
+  wig.history = [];
+  wigLength.value = 100;
+  wigUndo.disabled = true;
+}
+
+function recolor(out, at, o, target, strength) {
+  const source = wig.source;
+  const shade = Math.min(2.6, Math.max(0.15, (luminance(source[o + 9], source[o + 10], source[o + 11]) + 0.03) / (wig.meanLum + 0.03)));
+  const sheen = Math.min(0.5, Math.max(0, (shade - 1) * 0.25));
+  for (let c = 0; c < 3; c++) {
+    const tinted = Math.min(1, target[c] * shade + (1 - target[c]) * sheen);
+    out[at + 9 + c] = source[o + 9 + c] + (tinted - source[o + 9 + c]) * strength;
+  }
+}
+
 function showHair3d() {
   if (!hair3dModel) return;
-  const hairBytes = hair3dModel.hair * SPLAT_FLOATS * 4;
-  hair3dViewer.load(hair3dMannequin.checked ? hair3dModel.buffer : hair3dModel.buffer.slice(0, hairBytes));
+  const source = wig.source;
+  const hair = hair3dModel.hair;
+  const cutY = wig.maxY - wig.length * (wig.maxY - wig.minY);
+  const visible = new Uint32Array(hair);
+  let kept = 0;
+  for (let i = 0; i < hair; i++) {
+    if (wig.cut[i] || wig.length <= 0 || source[i * SPLAT_FLOATS + 1] < cutY) continue;
+    visible[kept++] = i;
+  }
+  const head = hair3dMannequin.checked ? source.length / SPLAT_FLOATS - hair : 0;
+  const out = new Float32Array((kept + head) * SPLAT_FLOATS);
+  const target = wig.color ? hexToRgb(wig.color) : null;
+  const strength = Number(wigStrength.value) / 100;
+  for (let k = 0; k < kept; k++) {
+    const o = visible[k] * SPLAT_FLOATS;
+    out.set(source.subarray(o, o + SPLAT_FLOATS), k * SPLAT_FLOATS);
+    if (target) recolor(out, k * SPLAT_FLOATS, o, target, strength);
+  }
+  if (head) out.set(source.subarray(hair * SPLAT_FLOATS), kept * SPLAT_FLOATS);
+  wig.visible = visible.subarray(0, kept);
+  wig.points = null;
+  hair3dViewer.load(out.buffer);
   hair3dViewer.autoRotate = hair3dAuto.checked;
   hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
+  const percent = hair ? Math.round((kept / hair) * 100) : 0;
+  wigHint.textContent = wigScissors.getAttribute("aria-pressed") === "true"
+    ? `Paint over the peluca to cut it · ${percent}% of the hair left. Hold Shift and drag to rotate.`
+    : `${percent}% of the hair left. Turn on the scissors and paint over the peluca to cut that part.`;
 }
+
+function scheduleWig() {
+  if (wig.frame) return;
+  wig.frame = requestAnimationFrame(() => {
+    wig.frame = 0;
+    showHair3d();
+  });
+}
+
+function pushWigHistory() {
+  wig.history.push({ cut: wig.cut.slice(), length: wig.length });
+  if (wig.history.length > 30) wig.history.shift();
+  wigUndo.disabled = false;
+}
+
+function selectWigSwatch(button) {
+  wigSwatches.querySelectorAll(".wig-swatch").forEach((item) => item.classList.toggle("selected", item === button));
+}
+
+WIG_PRESETS.forEach((preset) => {
+  const button = document.createElement("button");
+  button.className = "swatch wig-swatch";
+  button.innerHTML = `<i style="background:${preset.hex}"></i>${preset.name}`;
+  button.addEventListener("click", () => {
+    wig.color = preset.hex;
+    wigColor.value = preset.hex;
+    selectWigSwatch(button);
+    scheduleWig();
+  });
+  wigSwatches.appendChild(button);
+});
+
+wigColor.addEventListener("input", () => {
+  wig.color = wigColor.value;
+  selectWigSwatch(null);
+  scheduleWig();
+});
+wigStrength.addEventListener("input", () => { if (wig.color) scheduleWig(); });
+wigOriginal.addEventListener("click", () => {
+  wig.color = null;
+  selectWigSwatch(null);
+  scheduleWig();
+});
+
+function ringAt(event) {
+  const stage = hair3dStage.getBoundingClientRect();
+  wigRing.style.left = `${event.clientX - stage.left}px`;
+  wigRing.style.top = `${event.clientY - stage.top}px`;
+  wigRing.style.width = wigRing.style.height = `${Number(wigBrush.value) * 2}px`;
+  wigRing.hidden = false;
+}
+
+function cutAt(event) {
+  if (!wig.visible || !wig.visible.length) return;
+  if (!wig.points) wig.points = hair3dViewer.screenPoints(wig.visible.length);
+  const rect = hair3dCanvas.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  const radius = Number(wigBrush.value);
+  const r2 = radius * radius;
+  const points = wig.points;
+  const hits = [];
+  let front = Infinity;
+  for (let k = 0; k < wig.visible.length; k++) {
+    if (wig.cut[wig.visible[k]]) continue;
+    const dx = points[k * 3] - x;
+    const dy = points[k * 3 + 1] - y;
+    if (dx * dx + dy * dy > r2) continue;
+    hits.push(k);
+    front = Math.min(front, points[k * 3 + 2]);
+  }
+  let changed = false;
+  hits.forEach((k) => {
+    if (points[k * 3 + 2] > front + WIG_CUT_DEPTH) return;
+    wig.cut[wig.visible[k]] = 1;
+    changed = true;
+  });
+  if (changed) scheduleWig();
+}
+
+const wigTool = {
+  down(event) {
+    pushWigHistory();
+    cutAt(event);
+  },
+  move(event) {
+    cutAt(event);
+  },
+  hover(event) {
+    ringAt(event);
+  },
+  up() {
+    wig.points = null;
+  },
+  leave() {
+    wigRing.hidden = true;
+  },
+};
+
+function setScissors(active) {
+  wigScissors.setAttribute("aria-pressed", String(active));
+  hair3dStage.classList.toggle("cutting", active);
+  wigRing.hidden = true;
+  if (!hair3dViewer) return;
+  hair3dViewer.tool = active ? wigTool : null;
+  if (active) {
+    hair3dAuto.checked = false;
+    hair3dViewer.autoRotate = false;
+  }
+  showHair3d();
+}
+
+wigScissors.addEventListener("click", () => setScissors(wigScissors.getAttribute("aria-pressed") !== "true"));
+wigBrush.addEventListener("input", () => { wigRing.style.width = wigRing.style.height = `${Number(wigBrush.value) * 2}px`; });
+wigLength.addEventListener("pointerdown", pushWigHistory);
+wigLength.addEventListener("keydown", pushWigHistory);
+wigLength.addEventListener("input", () => {
+  wig.length = Number(wigLength.value) / 100;
+  scheduleWig();
+});
+wigTips.addEventListener("click", () => {
+  pushWigHistory();
+  wig.length = Math.max(0, wig.length - 0.08);
+  wigLength.value = Math.round(wig.length * 100);
+  scheduleWig();
+});
+wigBald.addEventListener("click", () => {
+  pushWigHistory();
+  wig.length = 0;
+  wigLength.value = 0;
+  scheduleWig();
+});
+wigUndo.addEventListener("click", () => {
+  const last = wig.history.pop();
+  if (!last) return;
+  wig.cut = last.cut;
+  wig.length = last.length;
+  wigLength.value = Math.round(wig.length * 100);
+  wigUndo.disabled = wig.history.length === 0;
+  scheduleWig();
+});
+wigReset.addEventListener("click", () => {
+  pushWigHistory();
+  wig.cut.fill(0);
+  wig.length = 1;
+  wigLength.value = 100;
+  scheduleWig();
+});
+hair3dAuto.addEventListener("change", () => {
+  if (hair3dAuto.checked) setScissors(false);
+  if (hair3dViewer) hair3dViewer.autoRotate = hair3dAuto.checked;
+});
+hair3dSplats.addEventListener("change", () => {
+  if (hair3dViewer) hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
+});
+hair3dReset.addEventListener("click", () => {
+  if (hair3dViewer) hair3dViewer.setView(0, 0.1, 2.1);
+});
 
 async function buildHair3d(source, label) {
   hair3dError.hidden = true;
@@ -1179,7 +1429,9 @@ async function buildHair3d(source, label) {
         hair3dFps.textContent = hair3dViewer.autoRotate ? `${hair3dViewer.fps.toFixed(0)} fps` : "";
       }, 1000);
     }
-    showHair3d();
+    resetWig();
+    wigStudio.hidden = false;
+    setScissors(wigScissors.getAttribute("aria-pressed") === "true");
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     const views = hair3dModel.views === 1 ? "1 photo" : `${hair3dModel.views} angles`;
     const head = hair3dMyFace.checked ? " on your face" : "";

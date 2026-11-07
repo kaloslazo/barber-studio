@@ -1,4 +1,5 @@
 const SPLAT_FLOATS = 13;
+const SPLAT_FOVY = (35 * Math.PI) / 180;
 
 const SPLAT_VS = `#version 300 es
 precision highp float;
@@ -85,6 +86,7 @@ class SplatViewer {
     this.distance = 1.9;
     this.autoRotate = false;
     this.splatScale = 1;
+    this.tool = null;
     this.count = 0;
     this.dirty = true;
     this.lastSortKey = "";
@@ -143,15 +145,26 @@ class SplatViewer {
 
   bindControls() {
     let dragging = false;
+    let tooling = false;
     let lastX = 0;
     let lastY = 0;
     this.canvas.addEventListener("pointerdown", (event) => {
+      this.canvas.setPointerCapture(event.pointerId);
+      if (this.tool && !event.shiftKey) {
+        tooling = true;
+        this.tool.down(event);
+        return;
+      }
       dragging = true;
       lastX = event.clientX;
       lastY = event.clientY;
-      this.canvas.setPointerCapture(event.pointerId);
     });
     this.canvas.addEventListener("pointermove", (event) => {
+      if (this.tool) this.tool.hover(event);
+      if (tooling) {
+        this.tool.move(event);
+        return;
+      }
       if (!dragging) return;
       this.yaw += (event.clientX - lastX) * 0.008;
       this.pitch = Math.max(-1.2, Math.min(1.2, this.pitch + (event.clientY - lastY) * 0.008));
@@ -159,7 +172,14 @@ class SplatViewer {
       lastY = event.clientY;
       this.dirty = true;
     });
-    ["pointerup", "pointercancel"].forEach((type) => this.canvas.addEventListener(type, () => (dragging = false)));
+    ["pointerup", "pointercancel"].forEach((type) => this.canvas.addEventListener(type, () => {
+      if (tooling && this.tool) this.tool.up();
+      dragging = false;
+      tooling = false;
+    }));
+    this.canvas.addEventListener("pointerleave", () => {
+      if (this.tool) this.tool.leave();
+    });
     this.canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
       this.distance = Math.max(0.8, Math.min(6, this.distance * (1 + event.deltaY * 0.001)));
@@ -187,6 +207,27 @@ class SplatViewer {
     this.pitch = pitch;
     if (distance) this.distance = distance;
     this.dirty = true;
+  }
+
+  screenPoints(limit) {
+    const n = Math.min(limit, this.count);
+    const data = this.data;
+    const width = this.canvas.clientWidth;
+    const height = this.canvas.clientHeight;
+    const f = 1 / Math.tan(SPLAT_FOVY / 2);
+    const view = orbitView(this.yaw, this.pitch, this.distance);
+    const out = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const o = i * SPLAT_FLOATS;
+      const x = data[o], y = data[o + 1], z = data[o + 2];
+      const cx = view[0] * x + view[4] * y + view[8] * z + view[12];
+      const cy = view[1] * x + view[5] * y + view[9] * z + view[13];
+      const depth = -(view[2] * x + view[6] * y + view[10] * z + view[14]);
+      out[i * 3] = (1 + (f * height / width) * cx / depth) * 0.5 * width;
+      out[i * 3 + 1] = (1 - f * cy / depth) * 0.5 * height;
+      out[i * 3 + 2] = depth;
+    }
+    return out;
   }
 
   sort(view) {
@@ -250,7 +291,7 @@ class SplatViewer {
       canvas.width = width;
       canvas.height = height;
     }
-    const fovy = (35 * Math.PI) / 180;
+    const fovy = SPLAT_FOVY;
     const view = orbitView(this.yaw, this.pitch, this.distance);
     const key = `${this.yaw.toFixed(3)}:${this.pitch.toFixed(3)}:${this.count}`;
     if (key !== this.lastSortKey) {

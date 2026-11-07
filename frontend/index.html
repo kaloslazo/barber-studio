@@ -302,10 +302,48 @@
             <button class="quiet-button" id="hair3d-photos" disabled>Download scan photos</button>
           </div>
 
+          <div class="card wig-studio" id="wig-studio" hidden>
+            <div class="wig-tool">
+              <span class="step-label">COLOR</span>
+              <div class="wig-row">
+                <div class="swatches" id="wig-swatches"></div>
+                <label class="custom-color">
+                  <span>Custom</span>
+                  <input type="color" id="wig-color" value="#8a5a3b">
+                </label>
+                <label class="slider">
+                  <span>Intensity</span>
+                  <input type="range" id="wig-strength" min="0" max="100" value="85">
+                </label>
+                <button class="quiet-button" id="wig-original">Original color</button>
+              </div>
+            </div>
+            <div class="wig-tool">
+              <span class="step-label">SCISSORS</span>
+              <div class="wig-row">
+                <button id="wig-scissors" aria-pressed="false">✂ Scissors</button>
+                <label class="slider">
+                  <span>Blade size</span>
+                  <input type="range" id="wig-brush" min="8" max="90" value="28">
+                </label>
+                <label class="slider">
+                  <span>Length</span>
+                  <input type="range" id="wig-length" min="0" max="100" value="100">
+                </label>
+                <button class="quiet-button" id="wig-tips">Trim tips</button>
+                <button class="quiet-button" id="wig-bald">Shave bald</button>
+                <button class="quiet-button" id="wig-undo" disabled>Undo</button>
+                <button class="quiet-button" id="wig-reset">Restore hair</button>
+              </div>
+              <p class="hint" id="wig-hint">Turn on the scissors and paint over the peluca to cut that part. Hold Shift and drag to rotate while cutting.</p>
+            </div>
+          </div>
+
           <div class="banner" id="hair3d-error" hidden></div>
 
           <div class="card mirror-stage" id="hair3d-stage" hidden>
             <canvas id="hair3d-canvas" aria-label="3D Gaussian peluca viewer"></canvas>
+            <div class="brush-ring" id="wig-ring" hidden></div>
             <div class="live-meta">
               <span id="hair3d-stats">--</span>
               <span id="hair3d-fps"></span>

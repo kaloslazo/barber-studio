@@ -476,6 +476,67 @@ button.loading {
   cursor: grabbing;
 }
 
+#hair3d-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+#hair3d-stage.cutting canvas {
+  cursor: none;
+}
+
+.brush-ring {
+  position: absolute;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: rgba(168, 128, 47, 0.12);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.wig-studio {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.wig-tool .wig-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.wig-swatch {
+  width: auto;
+  height: 32px;
+  padding: 0 12px 0 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wig-swatch i {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.wig-swatch.selected {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+#wig-scissors[aria-pressed="true"] {
+  background: var(--fg);
+  color: #fff;
+}
+
 .lab-layout {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
