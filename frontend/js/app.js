@@ -157,9 +157,6 @@ const beardCompare = document.getElementById("beard-compare");
 const beardOriginal = document.getElementById("beard-original");
 const beardResult = document.getElementById("beard-result");
 const beardStrength = document.getElementById("beard-strength");
-const beardMeshToggle = document.getElementById("beard-mesh");
-const beardMeshCard = document.getElementById("beard-mesh-card");
-const beardMeshImage = document.getElementById("beard-mesh-img");
 let beardFile = null;
 let beardStyle = "full";
 
@@ -237,27 +234,6 @@ beardBtn.addEventListener("click", async () => {
     }
     beardResult.src = URL.createObjectURL(await response.blob());
     beardCompare.hidden = false;
-    if (beardMeshToggle.checked) {
-      try {
-        const meshFormData = new FormData();
-        meshFormData.append("image", beardFile);
-        const meshResponse = await fetch(`${API}/mesh`, {
-          method: "POST",
-          body: meshFormData,
-        });
-        if (meshResponse.ok) {
-          beardMeshImage.src = URL.createObjectURL(await meshResponse.blob());
-          beardMeshCard.hidden = false;
-          beardCompare.classList.add("trio");
-        }
-      } catch (meshError) {
-        beardMeshCard.hidden = true;
-        beardCompare.classList.remove("trio");
-      }
-    } else {
-      beardMeshCard.hidden = true;
-      beardCompare.classList.remove("trio");
-    }
   } catch (error) {
     beardError.textContent = error.message;
     beardError.hidden = false;
@@ -863,7 +839,7 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">Ver en 3D</button></div>`;
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat" data-icon="rotate-3d">Ver en 3D</button></div>`;
     card.querySelector('[data-action="splat"]').addEventListener("click", () => {
       selectPeluca(peluca, "splat");
       buildHair3dFromPeluca();
@@ -895,7 +871,7 @@ async function toggleTryonCamera() {
     tryonFrame = null;
     tryonAnchor = null;
     tryonServer = null;
-    tryonCamera.textContent = "Encender cámara de la persona B";
+    tryonCamera.textContent = "Encender cámara";
     tryonPlaceholder.hidden = false;
     poseBadge.textContent = "Esperando la cámara";
     renderTryonMesh();
@@ -906,7 +882,7 @@ async function toggleTryonCamera() {
     tryonVideo.srcObject = tryonStream;
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
-    tryonCamera.textContent = "Apagar cámara de la persona B";
+    tryonCamera.textContent = "Apagar cámara";
     poseBadge.textContent = "Cargando el seguimiento de cabeza…";
     tryonReset = true;
     tryonSmoother = null;

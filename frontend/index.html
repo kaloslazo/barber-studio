@@ -45,11 +45,12 @@
     <section class="panel active" id="panel-inicio">
       <div class="hero">
         <div class="hero-copy">
-          <h1>Barba, tinte y corte sobre tu propia foto</h1>
-          <p class="lead">Sube una foto de frente. La app ubica 478 puntos de tu cara y dibuja el estilo encima. Una barba tarda menos de medio segundo.</p>
+          <h1 aria-label="Barba, tinte y corte sobre tu propia foto"><span class="rt" id="rt" aria-hidden="true">Candado</span><span class="h1-rest" aria-hidden="true"> sobre tu propia foto</span></h1>
+          <p class="lead">Barba, tinte y corte sobre tu foto. Súbela o tómala con la cámara: la app ubica 478 puntos de tu cara y dibuja el estilo encima en menos de un segundo.</p>
           <div class="hero-actions">
             <button type="button" data-upload data-icon="photo-up">Subir foto</button>
-            <button type="button" class="quiet-button" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <button type="button" class="quiet-button" data-camera data-icon="camera">Tomar foto</button>
+            <button type="button" class="link-button" data-sample>o usa la foto de ejemplo</button>
           </div>
           <p class="fine">Sale mejor con luz pareja, fondo liso y sin gorra.</p>
         </div>
@@ -66,9 +67,11 @@
             <button type="button" class="demo-style" data-demo="mustache" data-time="0,31"><img src="assets/samples/estilo-mustache.jpg" alt=""><span>Bigote</span></button>
             <button type="button" class="demo-style" data-demo="stubble" data-time="0,28"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
           </div>
-          <p class="demo-note" id="demo-note">Candado · generado en 0,37 s</p>
+          <p class="demo-note" id="demo-note"><span id="demo-name">Candado</span> · generado en <span id="demo-time">0,37</span> s</p>
         </div>
       </div>
+
+      <div class="threads-band" aria-hidden="true"><canvas class="threads" id="threads"></canvas></div>
 
       <section class="carta" aria-labelledby="carta-title">
         <div class="carta-head">
@@ -79,7 +82,7 @@
             <h3>Estilos</h3>
             <button class="carta-row" type="button" data-go="beard"><span class="carta-icon" data-icon="moustache"></span><span class="carta-name">Barba</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Completa, candado, bigote o tres días.</span></button>
             <button class="carta-row" type="button" data-go="dye"><span class="carta-icon" data-icon="palette"></span><span class="carta-name">Tinte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Siete colores o uno a tu elección.</span></button>
-            <button class="carta-row" type="button" data-go="haircut"><span class="carta-icon" data-icon="razor-electric"></span><span class="carta-name">Corte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Degradado bajo o rapado.</span></button>
+            <button class="carta-row" type="button" data-go="haircut"><span class="carta-icon" data-icon="razor-electric"></span><span class="carta-name">Corte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Degradado bajo, medio, alto o rapado.</span></button>
             <button class="carta-row" type="button" data-go="live"><span class="carta-icon" data-icon="video"></span><span class="carta-name">En vivo</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Tinte, barba y física con la cámara.</span></button>
           </div>
           <div class="carta-col">
@@ -103,6 +106,7 @@
         </div>
         <div class="looks-grid compact" id="recent-grid"></div>
       </section>
+      <p class="credits">Hecho por Kalos Lazo, Sofía Herrera y Gianpier Segovia para CS4016 Computación Gráfica, UTEC.</p>
     </section>
 
     <section class="panel" id="panel-dye">
@@ -120,7 +124,8 @@
               <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
             <span class="dz-cta">Elegir foto</span>
-            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="photo-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="compare" hidden>
@@ -172,7 +177,8 @@
               <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
             <span class="dz-cta">Elegir foto</span>
-            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="beard-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="beard-compare" hidden>
@@ -185,10 +191,6 @@
             <button type="button" class="quiet-button" data-save data-icon="bookmark-plus">Guardar</button>
             <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
             <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
-          </div>
-          <div class="card mesh-card" id="beard-mesh-card" hidden>
-            <h3>Malla de Delaunay</h3>
-            <img id="beard-mesh-img" alt="Malla de Delaunay sobre la cara">
           </div>
         </div>
         <aside class="card inspector ticket">
@@ -219,7 +221,7 @@
     <section class="panel" id="panel-haircut">
       <header class="page-head">
         <h1>Corte</h1>
-        <p>Degradado bajo o rapado sobre tu pelo real. Los otros degradados están en desarrollo.</p>
+        <p>Degradado bajo, medio o alto, o rapado, sobre tu pelo real. En los degradados el pelo de arriba se mantiene.</p>
       </header>
       <div class="workspace">
         <div class="stage-col">
@@ -231,7 +233,8 @@
               <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
             <span class="dz-cta">Elegir foto</span>
-            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="hc-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="hc-compare" hidden>
@@ -251,9 +254,9 @@
             <span class="field-label">Corte</span>
             <div class="style-group options" id="hc-style-group">
               <button class="style-btn active" data-hc-style="low-fade">Degradado bajo</button>
+              <button class="style-btn" data-hc-style="mid-fade">Degradado medio</button>
+              <button class="style-btn" data-hc-style="high-fade">Degradado alto</button>
               <button class="style-btn" data-hc-style="buzz">Rapado</button>
-              <button class="style-btn" data-hc-style="mid-fade" disabled>Degradado medio</button>
-              <button class="style-btn" data-hc-style="high-fade" disabled>Degradado alto</button>
             </div>
           </div>
           <label class="field">
@@ -334,9 +337,9 @@
           <p>Escanea tu peinado con la cámara y míralo en 3D sobre un maniquí o sobre tu cara.</p>
         </div>
         <div class="transfer-steps" role="tablist" aria-label="Pasos de la peluca 3D">
-          <button class="transfer-step active" data-transfer-view="scan" role="tab">1 · Escanear</button>
-          <button class="transfer-step" data-transfer-view="library" role="tab">2 · Mis pelucas</button>
-          <button class="transfer-step" data-transfer-view="splat" role="tab">3 · Peluca 3D</button>
+          <button class="transfer-step active" data-transfer-view="scan" role="tab" data-icon="scan">Escanear</button>
+          <button class="transfer-step" data-transfer-view="library" role="tab" data-icon="hanger">Mis pelucas</button>
+          <button class="transfer-step" data-transfer-view="splat" role="tab" data-icon="rotate-3d">Peluca 3D</button>
         </div>
       </header>
 
@@ -366,7 +369,7 @@
             <div class="scan-key mesh-key"><i></i> Las líneas son la malla facial</div>
             <div class="actions">
               <button id="scan-start" data-icon="scan">Empezar escaneo</button>
-              <button id="scan-stop" disabled>Cancelar</button>
+              <button class="quiet-button" id="scan-stop" disabled>Cancelar</button>
             </div>
             <div class="banner" id="scan-error" hidden></div>
           </aside>
@@ -402,12 +405,12 @@
             <h2 id="selected-peluca-name">Elige una peluca</h2>
             <p id="selected-peluca-date">Vuelve a Mis pelucas para elegir un escaneo.</p>
             <div class="actions">
-              <button id="tryon-camera">Encender cámara de la persona B</button>
-              <div class="actions-row">
-                <button id="rotate-left">Girar a la izq.</button>
-                <button id="rotate-right">Girar a la der.</button>
+              <button id="tryon-camera" data-icon="camera">Encender cámara</button>
+              <div class="actions-row pair">
+                <button class="quiet-button" id="rotate-left" data-icon="rotate" aria-label="Girar a la izquierda">Izquierda</button>
+                <button class="quiet-button" id="rotate-right" data-icon="rotate-clockwise" aria-label="Girar a la derecha">Derecha</button>
               </div>
-              <button id="switch-peluca">Cambiar peluca</button>
+              <button class="quiet-button" id="switch-peluca" data-icon="arrows-exchange">Cambiar peluca</button>
             </div>
             <div class="banner" id="tryon-error" hidden></div>
           </aside>
@@ -443,13 +446,13 @@
                     <span class="field-label">Intensidad <output data-for="wig-strength" data-unit=" %"></output></span>
                     <input type="range" id="wig-strength" min="0" max="100" value="85">
                   </label>
-                  <button class="quiet-button" id="wig-original" data-icon="refresh">Color original</button>
+                  <button class="quiet-button" id="wig-original" data-icon="palette-off">Color original</button>
                 </div>
               </div>
               <div class="wig-tool">
                 <span class="field-label">Tijeras</span>
                 <div class="wig-row">
-                  <button id="wig-scissors" aria-pressed="false" data-icon="scissors">Tijeras</button>
+                  <button class="quiet-button" id="wig-scissors" aria-pressed="false" data-icon="scissors">Tijeras</button>
                   <label class="field grow">
                     <span class="field-label">Grosor <output data-for="wig-brush" data-unit=" px"></output></span>
                     <input type="range" id="wig-brush" min="8" max="90" value="28">
@@ -460,9 +463,9 @@
                   </label>
                 </div>
                 <div class="wig-row">
-                  <button class="quiet-button" id="wig-tips">Cortar puntas</button>
+                  <button class="quiet-button" id="wig-tips" data-icon="cut">Cortar puntas</button>
                   <button class="quiet-button" id="wig-bald" data-icon="razor-electric">Rapar</button>
-                  <button class="quiet-button" id="wig-undo" disabled>Deshacer</button>
+                  <button class="quiet-button" id="wig-undo" data-icon="arrow-back-up" disabled>Deshacer</button>
                   <button class="quiet-button" id="wig-reset" data-icon="refresh">Restaurar pelo</button>
                 </div>
                 <p class="hint" id="wig-hint">Activa las tijeras y pinta sobre la peluca para cortar esa parte. Mantén Shift y arrastra para girar mientras cortas.</p>
@@ -474,7 +477,7 @@
               <span class="step-label">Desde tu escaneo</span>
               <h2 id="hair3d-peluca-name">Ninguna peluca elegida</h2>
               <p class="field-note">Cada ángulo capturado se lleva a 3D y se une en una sola peluca de gaussianas.</p>
-              <div class="actions"><button id="hair3d-scan" disabled>Construir desde el escaneo</button></div>
+              <div class="actions"><button id="hair3d-scan" data-icon="cube-plus" disabled>Construir desde el escaneo</button></div>
             </div>
             <div class="card drop-zone compact" id="hair3d-drop" tabindex="0">
               <img class="dz-preview" alt="">
@@ -492,7 +495,7 @@
                 <canvas id="face3d-live" aria-label="Escaneo de la cara en vivo"></canvas>
                 <div class="pose-badge" id="face3d-hint">Prepárate…</div>
               </div>
-              <div class="actions"><button class="quiet-button" id="face3d-scan">Escanear mi cara (7 s)</button></div>
+              <div class="actions"><button class="quiet-button" id="face3d-scan" data-icon="user-scan">Escanear mi cara (7 s)</button></div>
               <video id="face3d-video" hidden autoplay playsinline muted></video>
             </div>
             <div class="card inspector ticket">
@@ -504,8 +507,8 @@
               <div class="actions">
                 <button class="quiet-button" id="hair3d-reset" data-icon="refresh">Reiniciar vista</button>
                 <div class="actions-row">
-                  <button class="quiet-button" id="hair3d-ply" disabled>Descargar .ply</button>
-                  <button class="quiet-button" id="hair3d-photos" disabled>Fotos del escaneo</button>
+                  <button class="quiet-button" id="hair3d-ply" data-icon="download" disabled>Descargar .ply</button>
+                  <button class="quiet-button" id="hair3d-photos" data-icon="photo-down" disabled>Fotos del escaneo</button>
                 </div>
               </div>
               <div class="banner" id="hair3d-error" hidden></div>
@@ -530,7 +533,8 @@
               <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
             <span class="dz-cta">Elegir foto</span>
-            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="mirror-input" accept="image/*" hidden>
           </div>
           <div class="card mirror-stage result" id="mirror-stage" hidden>
@@ -557,7 +561,7 @@
             <button id="mirror-btn" data-icon="cube-plus" disabled>Construir cabeza 3D</button>
             <div class="actions-row">
               <button class="quiet-button" id="mirror-reset" data-icon="refresh">Reiniciar vista</button>
-              <button class="quiet-button" id="mirror-ply" disabled>Descargar .ply</button>
+              <button class="quiet-button" id="mirror-ply" data-icon="download" disabled>Descargar .ply</button>
             </div>
           </div>
           <div class="banner" id="mirror-error" hidden></div>
@@ -595,8 +599,8 @@
           </div>
           <div class="actions">
             <div class="actions-row">
-              <button class="quiet-button" id="lab-camera">Encender cámara</button>
-              <button class="quiet-button" id="lab-scan" disabled>Escanear (7 s)</button>
+              <button class="quiet-button" id="lab-camera" data-icon="camera">Encender cámara</button>
+              <button class="quiet-button" id="lab-scan" data-icon="scan" disabled>Escanear (7 s)</button>
             </div>
             <label class="quiet-button lab-upload" data-icon="upload">
               O sube fotos
@@ -614,7 +618,7 @@
           </div>
           <div class="actions">
             <button id="lab-build" data-icon="cube-plus" disabled>Construir cabeza</button>
-            <button class="quiet-button" id="lab-live" disabled>Avatar en vivo</button>
+            <button class="quiet-button" id="lab-live" data-icon="player-play" disabled>Avatar en vivo</button>
           </div>
           <table class="lab-metrics" id="lab-metrics" hidden>
             <thead><tr><th>PSNR (dB)</th><th>Entrenamiento</th><th>Vista de prueba</th></tr></thead>
@@ -669,8 +673,8 @@
             </label>
             <label class="check"><span>Cortar con la mano</span><input type="checkbox" id="game-hand" checked></label>
             <div class="actions">
-              <button class="quiet-button" id="game-camera">Encender cámara</button>
-              <button id="game-start" disabled>Empezar ronda</button>
+              <button class="quiet-button" id="game-camera" data-icon="camera">Encender cámara</button>
+              <button id="game-start" data-icon="player-play" disabled>Empezar ronda</button>
             </div>
             <div class="banner" id="game-error" hidden></div>
           </div>
@@ -700,7 +704,8 @@
               <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
             <span class="dz-cta">Elegir foto</span>
-            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="splat-input" accept="image/*" hidden>
           </div>
         </div>
@@ -729,7 +734,7 @@
       </div>
       <div class="card guess-bar" id="splat-guess-bar" hidden>
         <span id="splat-guess-text">Toca el botón apenas reconozcas la cara. Menos gaussianas, más puntos.</span>
-        <button id="splat-guess-btn" disabled>La reconozco</button>
+        <button id="splat-guess-btn" data-icon="check" disabled>La reconozco</button>
         <strong id="splat-score"></strong>
       </div>
       <div class="splat-grid" id="splat-grid"></div>
@@ -753,7 +758,26 @@
     </section>
   </main>
 
-  <footer class="site-foot">Fresh · Proyecto de CS4016 Computación Gráfica, UTEC · Kalos Lazo, Sofía Herrera y Gianpier Segovia</footer>
+
+  <div class="cam-modal" id="cam-modal" role="dialog" aria-modal="true" aria-labelledby="cam-title" hidden>
+    <div class="cam-box">
+      <div class="cam-head">
+        <h2 id="cam-title">Tomar foto</h2>
+        <button type="button" class="quiet-button icon-only" id="cam-close" data-icon="x" aria-label="Cerrar"></button>
+      </div>
+      <div class="cam-stage">
+        <video id="cam-video" autoplay playsinline muted></video>
+        <div class="cam-guide" aria-hidden="true"></div>
+        <div class="cam-count" id="cam-count" hidden></div>
+      </div>
+      <p class="cam-tip">Ponte de frente, con la cabeza dentro del óvalo y algo de espacio sobre el pelo.</p>
+      <div class="banner" id="cam-error" hidden></div>
+      <div class="cam-actions">
+        <button type="button" class="quiet-button" id="cam-cancel">Cancelar</button>
+        <button type="button" id="cam-shot" data-icon="camera">Tomar foto en 3 s</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite" data-icon="check" hidden></div>
 
@@ -761,5 +785,6 @@
   <script src="js/app.js"></script>
   <script src="js/lab.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/bits.js"></script>
 </body>
 </html>
