@@ -18,6 +18,7 @@ models/*
 !models/.gitkeep
 !models/face_landmarker.task
 *.pt
+!backend/models/hair_best.pt
 *.onnx
 *.weights
 
