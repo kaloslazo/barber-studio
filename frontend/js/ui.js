@@ -56,9 +56,16 @@
   const chipText = byId("photo-chip-text");
   let syncing = false;
   let goAfterUpload = null;
+  let chain = null;
+  let chaining = false;
 
   function sharePhoto(file, sourceId) {
     if (!file || !file.type.startsWith("image/")) return;
+    if (!chaining && chain) {
+      URL.revokeObjectURL(chain.origin);
+      chain = null;
+      renderChain();
+    }
     syncing = true;
     PHOTO_INPUTS.forEach((id) => {
       if (id === sourceId) return;
@@ -426,7 +433,22 @@
     updateOrder(tool);
     byId(conf.after).addEventListener("load", () => {
       const before = byId(conf.before);
-      lastResult[tool] = { ...describe(tool), before: before.dataset.original || before.src, after: byId(conf.after).src };
+      const own = describe(tool);
+      const after = byId(conf.after).src;
+      if (!chain) {
+        lastResult[tool] = { ...own, before: before.dataset.original || before.src, after };
+        return;
+      }
+      const steps = [...chain.steps, { tool, title: own.title, order: own.order }];
+      lastResult[tool] = {
+        title: steps.map((step) => step.title).join(" + "),
+        order: own.order,
+        meta: steps.map((step) => SERVICE[step.tool]).join(" + "),
+        details: steps.map((step) => [SERVICE[step.tool], step.order]),
+        before: chain.origin,
+        after,
+      };
+      before.src = chain.origin;
     });
   });
 
@@ -686,6 +708,60 @@
         button.disabled = false;
       }
     });
+  });
+
+  const SERVICE = { beard: "Barba", dye: "Tinte", haircut: "Corte" };
+  const NEXT = { beard: "la barba", dye: "el tinte", haircut: "el corte" };
+
+  function renderChain() {
+    $$("[data-chain-note]").forEach((note) => {
+      note.hidden = !chain;
+      if (chain) note.querySelector("strong").textContent = chain.steps.map((step) => step.title).join(" + ");
+    });
+  }
+
+  async function chainTo(tool, target) {
+    const result = lastResult[tool];
+    const blob = await (await fetch(result.after)).blob();
+    if (!chain) {
+      const origin = await (await fetch(result.before)).blob();
+      chain = { origin: URL.createObjectURL(origin), originBlob: origin, steps: [] };
+    }
+    const own = describe(tool);
+    chain.steps = [...chain.steps, { tool, title: own.title, order: own.order }];
+    const name = `${slug(chain.steps.map((step) => step.title).join(" "))}.jpg`;
+    chaining = true;
+    try {
+      sharePhoto(new File([blob], name, { type: blob.type || "image/jpeg" }), null);
+    } finally {
+      chaining = false;
+    }
+    renderChain();
+    go(target);
+    toast(`${result.title}: listo. Ahora elige ${NEXT[target]}`);
+  }
+
+  $$(".chain-bar").forEach((bar) => {
+    const tool = bar.dataset.tool;
+    bar.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-chain]");
+      if (!button || !lastResult[tool]) return;
+      button.disabled = true;
+      try {
+        await chainTo(tool, button.dataset.chain);
+      } catch (error) {
+        toast("No se pudo combinar");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-unchain]") || !chain) return;
+    const file = new File([chain.originBlob], "foto-original.jpg", { type: chain.originBlob.type || "image/jpeg" });
+    sharePhoto(file, null);
+    toast("Volviste a tu foto original");
   });
 
   function lookCard(look, compact) {
