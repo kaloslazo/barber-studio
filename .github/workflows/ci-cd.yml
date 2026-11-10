@@ -1,0 +1,57 @@
+name: ci-cd
+
+on:
+  push:
+    branches: [main, ui-redesign]
+    paths-ignore: ["**.md", "docs/**", "backend/training/**"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**", "backend/training/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+      - run: python -m pytest tests -q
+        working-directory: backend
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref_name == vars.DEPLOY_BRANCH
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      PUBLIC_URL: https://fresh.plezgo.com
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy
+        run: ssh -i ~/.ssh/deploy_key -o BatchMode=yes "ubuntu@${{ vars.DEPLOY_HOST }}" "$GITHUB_SHA"
+      - name: Check public health
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-all-errors "$PUBLIC_URL/api/health"
