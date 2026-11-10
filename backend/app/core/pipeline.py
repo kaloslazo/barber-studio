@@ -72,7 +72,7 @@ class StylePipeline:
             return None
         try:
             return HairSegmenter()
-        except FileNotFoundError:
+        except (FileNotFoundError, ImportError):
             return None
 
     def _landmarks(self, image_bgr, face, live=False):
