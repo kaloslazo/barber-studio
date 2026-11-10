@@ -1,0 +1,12 @@
+.git
+.env
+**/__pycache__
+**/*.pyc
+backend/venv
+backend/.pytest_cache
+backend/tests
+backend/training
+data
+docs
+models
+*.md

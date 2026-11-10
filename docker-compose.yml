@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: barber-studio:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.3
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+    profiles:
+      - prod
