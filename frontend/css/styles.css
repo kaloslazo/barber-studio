@@ -2571,9 +2571,9 @@ body.modal-open {
 .cam-guide {
   position: absolute;
   left: 50%;
-  top: 47%;
-  width: 44%;
-  height: 80%;
+  top: 48%;
+  width: 34%;
+  height: 56%;
   transform: translate(-50%, -50%);
   border: 2px dashed rgba(255, 255, 255, 0.7);
   border-radius: 50%;
@@ -2614,8 +2614,8 @@ body.modal-open {
   }
 
   .cam-guide {
-    width: 64%;
-    height: 66%;
+    width: 50%;
+    height: 46%;
   }
 
   .cam-actions button {

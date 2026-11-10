@@ -157,9 +157,6 @@ const beardCompare = document.getElementById("beard-compare");
 const beardOriginal = document.getElementById("beard-original");
 const beardResult = document.getElementById("beard-result");
 const beardStrength = document.getElementById("beard-strength");
-const beardMeshToggle = document.getElementById("beard-mesh");
-const beardMeshCard = document.getElementById("beard-mesh-card");
-const beardMeshImage = document.getElementById("beard-mesh-img");
 let beardFile = null;
 let beardStyle = "full";
 
@@ -237,27 +234,6 @@ beardBtn.addEventListener("click", async () => {
     }
     beardResult.src = URL.createObjectURL(await response.blob());
     beardCompare.hidden = false;
-    if (beardMeshToggle.checked) {
-      try {
-        const meshFormData = new FormData();
-        meshFormData.append("image", beardFile);
-        const meshResponse = await fetch(`${API}/mesh`, {
-          method: "POST",
-          body: meshFormData,
-        });
-        if (meshResponse.ok) {
-          beardMeshImage.src = URL.createObjectURL(await meshResponse.blob());
-          beardMeshCard.hidden = false;
-          beardCompare.classList.add("trio");
-        }
-      } catch (meshError) {
-        beardMeshCard.hidden = true;
-        beardCompare.classList.remove("trio");
-      }
-    } else {
-      beardMeshCard.hidden = true;
-      beardCompare.classList.remove("trio");
-    }
   } catch (error) {
     beardError.textContent = error.message;
     beardError.hidden = false;

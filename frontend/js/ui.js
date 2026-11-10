@@ -301,6 +301,64 @@
     if (first) first.classList.add("selected");
   }
 
+  const meshToggle = byId("beard-mesh");
+  const meshTargets = [
+    { img: byId("beard-original"), caption: byId("beard-original").closest("figure").querySelector("figcaption") },
+    { img: document.querySelector("#beard-drop .dz-preview"), caption: null },
+  ];
+  let meshFile = null;
+  let meshCache = { file: null, url: null };
+
+  async function meshUrl(file) {
+    if (meshCache.file === file && meshCache.url) return meshCache.url;
+    const form = new FormData();
+    form.append("image", file);
+    const response = await fetch("/api/mesh", { method: "POST", body: form });
+    if (!response.ok) throw new Error(String(response.status));
+    if (meshCache.url) URL.revokeObjectURL(meshCache.url);
+    meshCache = { file, url: URL.createObjectURL(await response.blob()) };
+    return meshCache.url;
+  }
+
+  function hideMesh() {
+    meshTargets.forEach(({ img, caption }) => {
+      if (img.dataset.original) img.src = img.dataset.original;
+      delete img.dataset.original;
+      if (caption) caption.textContent = "Antes";
+    });
+  }
+
+  async function syncMesh() {
+    if (!meshToggle.checked || !meshFile) {
+      hideMesh();
+      return;
+    }
+    try {
+      const url = await meshUrl(meshFile);
+      if (!meshToggle.checked) return;
+      meshTargets.forEach(({ img, caption }) => {
+        if (!img.dataset.original) img.dataset.original = img.src;
+        img.src = url;
+        if (caption) caption.textContent = "Malla";
+      });
+    } catch (error) {
+      meshToggle.checked = false;
+      hideMesh();
+      toast("No pudimos dibujar la malla en esta foto");
+    }
+  }
+
+  function setMeshFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    meshFile = file;
+    meshTargets.forEach(({ img }) => delete img.dataset.original);
+    setTimeout(syncMesh, 0);
+  }
+
+  meshToggle.addEventListener("change", syncMesh);
+  byId("beard-input").addEventListener("change", () => setMeshFile(byId("beard-input").files[0]));
+  byId("beard-drop").addEventListener("drop", (event) => setMeshFile(event.dataTransfer.files[0]));
+
   const TOOLS = {
     dye: { panel: "panel-dye", before: "original-image", after: "result-image" },
     beard: { panel: "panel-beard", before: "beard-original", after: "beard-result" },
@@ -356,7 +414,8 @@
     ["click", "input"].forEach((type) => panel.addEventListener(type, () => updateOrder(tool)));
     updateOrder(tool);
     byId(conf.after).addEventListener("load", () => {
-      lastResult[tool] = { ...describe(tool), before: byId(conf.before).src, after: byId(conf.after).src };
+      const before = byId(conf.before);
+      lastResult[tool] = { ...describe(tool), before: before.dataset.original || before.src, after: byId(conf.after).src };
     });
   });
 
