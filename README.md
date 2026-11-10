@@ -45,6 +45,21 @@ Tests:
 cd backend && venv/bin/python -m pytest tests/ -q
 ```
 
+## Deploy
+
+Production runs at https://fresh.plezgo.com on an AWS Lightsail instance (`us-east-2`, Ubuntu 24.04) behind a Cloudflare Tunnel. Only port 22 is open; the `tunnel` service connects out to Cloudflare. The tunnel token lives only in `/opt/fresh/.env` on the server.
+
+CI/CD (`.github/workflows/ci-cd.yml`): every push and PR runs the tests. A push to the branch in the `DEPLOY_BRANCH` repo variable then SSHes into `DEPLOY_HOST` with a key restricted to `/usr/local/bin/fresh-deploy` (a copy of `deploy/fresh-deploy.sh`), which fast-forwards `/opt/fresh`, rebuilds with the Docker cache, waits for the app to be healthy and prunes old images. Required secrets: `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+
+Manual operations on the server, from `/opt/fresh`:
+
+```bash
+git pull && docker compose --profile prod up -d --build   # update
+docker compose logs -f app                                 # logs
+```
+
+To save credits, stop the instance in Lightsail; the disk is still billed while it is stopped.
+
 ## Current status
 
 - **Hair segmentation with fine-tuned YOLOv8n-seg** (Mask mAP50 = 0.968, trained on Figaro1k + CelebAMask-HQ, see `backend/training/`). The dye pipeline now uses the real hair shape; the geometric dome remains as fallback.

@@ -1,0 +1,587 @@
+(() => {
+  const byId = (id) => document.getElementById(id);
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+  const toastEl = byId("toast");
+  let toastTimer = null;
+  function toast(message) {
+    toastEl.textContent = message;
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toastEl.hidden = true;
+    }, 2600);
+  }
+
+  const menuItems = $$(".menu-item");
+  const groupTabs = $$(".group-tab");
+  const subnav = byId("subnav");
+  const lastInGroup = { inicio: "inicio", estilos: "beard", "3d": "mirror", juegos: "speedrun", looks: "looks" };
+  let fromHistory = false;
+
+  function syncNav(item) {
+    const group = item.dataset.group;
+    const panel = item.dataset.panel;
+    lastInGroup[group] = panel;
+    groupTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.group === group));
+    menuItems.forEach((other) => other.classList.toggle("is-hidden", other.dataset.group !== group));
+    subnav.hidden = menuItems.filter((other) => other.dataset.group === group).length < 2;
+    document.body.dataset.group = group;
+    if (panel === "looks" || panel === "inicio") renderLooks();
+    if (!fromHistory && location.hash !== `#${panel}`) history.pushState(null, "", `#${panel}`);
+    window.scrollTo({ top: 0 });
+  }
+
+  function go(panel) {
+    const item = menuItems.find((candidate) => candidate.dataset.panel === panel);
+    if (item) item.click();
+  }
+
+  menuItems.forEach((item) => item.addEventListener("click", () => syncNav(item)));
+  groupTabs.forEach((tab) => tab.addEventListener("click", () => go(lastInGroup[tab.dataset.group])));
+  document.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-go]");
+    if (target) go(target.dataset.go);
+  });
+  window.addEventListener("popstate", () => {
+    fromHistory = true;
+    go(location.hash.slice(1) || "inicio");
+    fromHistory = false;
+  });
+
+  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input"];
+  const sharedInput = byId("shared-input");
+  const chip = byId("photo-chip");
+  const chipImg = byId("photo-chip-img");
+  const chipText = byId("photo-chip-text");
+  let syncing = false;
+  let goAfterUpload = null;
+
+  function sharePhoto(file, sourceId) {
+    if (!file || !file.type.startsWith("image/")) return;
+    syncing = true;
+    PHOTO_INPUTS.forEach((id) => {
+      if (id === sourceId) return;
+      const input = byId(id);
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    syncing = false;
+    if (chipImg.src) URL.revokeObjectURL(chipImg.src);
+    chipImg.src = URL.createObjectURL(file);
+    chipText.textContent = "Tu foto";
+    chip.title = "Cambiar la foto";
+  }
+
+  const LOADED = "Foto cargada en Barba, Tinte, Corte, Espejo 3D y Gaussianas";
+
+  PHOTO_INPUTS.forEach((id) => {
+    const input = byId(id);
+    input.addEventListener("change", () => {
+      if (!syncing && input.files[0]) {
+        sharePhoto(input.files[0], id);
+        toast(LOADED);
+      }
+    });
+    const zone = input.closest(".drop-zone");
+    zone.addEventListener("drop", (event) => {
+      const file = event.dataTransfer.files[0];
+      if (file) sharePhoto(file, id);
+    });
+  });
+
+  chip.addEventListener("click", () => sharedInput.click());
+  sharedInput.addEventListener("change", () => {
+    const file = sharedInput.files[0];
+    if (!file) return;
+    sharePhoto(file, null);
+    sharedInput.value = "";
+    if (goAfterUpload) {
+      go(goAfterUpload);
+      goAfterUpload = null;
+    }
+    toast(LOADED);
+  });
+
+  $$("[data-upload]").forEach((button) => button.addEventListener("click", () => {
+    goAfterUpload = "beard";
+    sharedInput.click();
+  }));
+
+  async function useSample(goTo) {
+    try {
+      const blob = await fetch("assets/samples/muestra.jpg").then((response) => response.blob());
+      sharePhoto(new File([blob], "foto-de-ejemplo.jpg", { type: "image/jpeg" }), null);
+      if (goTo) go(goTo);
+      toast("Foto de ejemplo cargada");
+    } catch (error) {
+      toast("No se pudo cargar la foto de ejemplo");
+    }
+  }
+
+  $$("[data-sample]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    useSample(button.closest("#panel-inicio") ? "beard" : null);
+  }));
+
+  $$(".drop-zone").forEach((zone) => {
+    const input = zone.querySelector('input[type="file"]');
+    const preview = zone.querySelector(".dz-preview");
+    if (!input || !preview || input.multiple) return;
+    const show = (file) => {
+      if (!file || !file.type.startsWith("image/")) return;
+      if (preview.src) URL.revokeObjectURL(preview.src);
+      preview.src = URL.createObjectURL(file);
+      zone.classList.add("has-photo");
+    };
+    input.addEventListener("change", () => show(input.files[0]));
+    zone.addEventListener("drop", (event) => show(event.dataTransfer.files[0]));
+  });
+
+  $$("output[data-for]").forEach((output) => {
+    const input = byId(output.dataset.for);
+    if (!input) return;
+    const unit = output.dataset.unit || "";
+    const render = () => {
+      const min = Number(input.min || 0);
+      const max = Number(input.max || 100);
+      input.style.setProperty("--fill", `${((Number(input.value) - min) / (max - min)) * 100}%`);
+      output.textContent = `${input.value}${unit}`;
+    };
+    input.addEventListener("input", render);
+    render();
+  });
+
+  $$(".ba").forEach((ba) => {
+    const range = ba.querySelector(".ba-range");
+    const modes = document.createElement("div");
+    modes.className = "ba-modes";
+    modes.innerHTML = `<button type="button" data-pos="100">Antes</button><button type="button" data-pos="50" data-icon="arrows-horizontal">Comparar</button><button type="button" data-pos="0">Después</button>`;
+    ba.append(modes);
+    const update = () => {
+      ba.style.setProperty("--pos", `${range.value}%`);
+      const value = Number(range.value);
+      ba.classList.toggle("edge", value === 0 || value === 100);
+      $$("button", modes).forEach((button) => {
+        const target = Number(button.dataset.pos);
+        const on = target === 50 ? value > 0 && value < 100 : value === target;
+        button.classList.toggle("active", on);
+      });
+    };
+    range.addEventListener("input", () => {
+      ba.classList.remove("animate");
+      update();
+    });
+    modes.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      ba.classList.add("animate");
+      range.value = button.dataset.pos;
+      update();
+    });
+    update();
+  });
+
+  const demoAfter = byId("demo-after");
+  const demoNote = byId("demo-note");
+  $$(".demo-style").forEach((button) => button.addEventListener("click", () => {
+    $$(".demo-style").forEach((other) => other.classList.toggle("active", other === button));
+    demoAfter.src = `assets/samples/demo-${button.dataset.demo}.jpg`;
+    demoNote.textContent = `${button.querySelector("span").textContent} · generado en ${button.dataset.time} s`;
+  }));
+
+  $$(".palette").forEach((palette) => {
+    const custom = palette.querySelector(".swatch-custom");
+    custom.querySelector("input").addEventListener("input", () => custom.classList.add("selected"));
+    palette.addEventListener("click", (event) => {
+      if (event.target.closest("button.swatch")) custom.classList.remove("selected");
+    });
+  });
+
+  const liveSwatches = byId("live-swatches");
+  if (liveSwatches && !liveSwatches.querySelector(".selected")) {
+    const first = liveSwatches.querySelector(".swatch");
+    if (first) first.classList.add("selected");
+  }
+
+  const TOOLS = {
+    dye: { panel: "panel-dye", before: "original-image", after: "result-image" },
+    beard: { panel: "panel-beard", before: "beard-original", after: "beard-result" },
+    haircut: { panel: "panel-haircut", before: "hc-original", after: "hc-result" },
+  };
+
+  function activeText(selector) {
+    const button = document.querySelector(selector);
+    return button ? button.textContent.trim() : "";
+  }
+
+  function describe(tool) {
+    if (tool === "dye") {
+      const custom = document.querySelector("#panel-dye .swatch-custom.selected");
+      const picked = document.querySelector("#swatches .swatch.selected span");
+      const color = custom ? byId("custom-color").value.toUpperCase() : (picked ? picked.textContent : "Negro");
+      const level = byId("strength").value;
+      return {
+        title: custom ? "Tinte personalizado" : `Tinte ${color.toLowerCase()}`,
+        order: `${custom ? `Color ${color}` : color} al ${level} %`,
+        details: [["Servicio", "Tinte"], ["Color", color], ["Intensidad", `${level} %`]],
+        meta: `Intensidad ${level} %`,
+      };
+    }
+    if (tool === "beard") {
+      const style = activeText("#style-group .style-btn.active") || "Completa";
+      const level = byId("beard-strength").value;
+      return {
+        title: `Barba ${style.toLowerCase()}`,
+        order: `${style}, densidad ${level} %`,
+        details: [["Servicio", "Barba"], ["Estilo", style], ["Densidad", `${level} %`]],
+        meta: `Densidad ${level} %`,
+      };
+    }
+    const cut = activeText("#hc-style-group .style-btn.active") || "Degradado bajo";
+    const level = byId("hc-strength").value;
+    return {
+      title: cut,
+      order: `${cut} al ${level} %`,
+      details: [["Servicio", "Corte"], ["Corte", cut], ["Intensidad", `${level} %`]],
+      meta: `Intensidad ${level} %`,
+    };
+  }
+
+  function updateOrder(tool) {
+    const target = document.querySelector(`[data-order="${tool}"]`);
+    if (target) target.textContent = describe(tool).order;
+  }
+
+  const lastResult = {};
+  Object.entries(TOOLS).forEach(([tool, conf]) => {
+    const panel = byId(conf.panel);
+    ["click", "input"].forEach((type) => panel.addEventListener(type, () => updateOrder(tool)));
+    updateOrder(tool);
+    byId(conf.after).addEventListener("load", () => {
+      lastResult[tool] = { ...describe(tool), before: byId(conf.before).src, after: byId(conf.after).src };
+    });
+  });
+
+  const narrow = window.matchMedia("(max-width: 900px)");
+  const resultWatcher = new MutationObserver((changes) => {
+    changes.forEach((change) => {
+      const el = change.target;
+      if (!el.hidden && narrow.matches && el.closest(".panel.active")) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  });
+  $$(".result").forEach((el) => resultWatcher.observe(el, { attributes: true, attributeFilter: ["hidden"] }));
+
+  const BUSY = { "apply-btn": "panel-dye", "beard-btn": "panel-beard", "hc-btn": "panel-haircut", "mirror-btn": "panel-mirror" };
+  Object.entries(BUSY).forEach(([buttonId, panelId]) => {
+    const button = byId(buttonId);
+    const panel = byId(panelId);
+    const check = () => panel.classList.toggle("is-busy", /^(Procesando|Construyendo)/.test(button.textContent.trim()));
+    new MutationObserver(check).observe(button, { childList: true, characterData: true, subtree: true });
+  });
+
+  const MESSAGES = [
+    [/^Invalid image file/i, "El archivo no es una imagen válida."],
+    [/^Failed to encode result/i, "No se pudo generar el resultado."],
+    [/^No face detected/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
+    [/^Unknown beard style: (.*)/i, "Estilo de barba desconocido: $1"],
+    [/temporarily disabled/i, "Ese corte todavía no está disponible."],
+    [/^Unknown haircut style: (.*)/i, "Corte desconocido: $1"],
+    [/^Face landmarker model not found/i, "Falta el modelo de puntos faciales en el servidor."],
+    [/^No hair or face detected/i, "No encontramos pelo ni cara en la foto."],
+    [/^Frames and scan angles must match/i, "Las capturas y los ángulos no coinciden."],
+    [/^Scan your face first/i, "Primero escanea tu cara en «Tu cara», dentro de Peluca 3D."],
+    [/^No hair detected in the captures/i, "No encontramos pelo en las capturas."],
+    [/^count must be between/i, "La cantidad debe estar entre 10 y 5000."],
+    [/^Unknown target: (.*)/i, "Objetivo desconocido: $1"],
+    [/^Unknown live mode: (.*)/i, "Modo en vivo desconocido: $1"],
+    [/^Send between 1 and 16 frames/i, "Envía entre 1 y 16 fotos."],
+    [/^No face found in the scan frames/i, "No encontramos tu cara en las capturas."],
+    [/^(Failed to fetch|Load failed|NetworkError.*)$/i, "No hay conexión con el servidor."],
+    [/^No se pudo abrir la cámara: .*(permission|denied|notallowed).*/i, "No se pudo abrir la cámara: no diste permiso."],
+    [/^No se pudo abrir la cámara: .*(notfound|not found|device).*/i, "No se pudo abrir la cámara: no encontramos ninguna."],
+  ];
+
+  $$(".banner").forEach((banner) => {
+    new MutationObserver(() => {
+      const text = banner.textContent.trim();
+      const rule = MESSAGES.find(([pattern]) => pattern.test(text));
+      if (!rule) return;
+      const next = text.replace(rule[0], rule[1]);
+      if (next !== text) banner.textContent = next;
+    }).observe(banner, { childList: true, characterData: true, subtree: true });
+  });
+
+  const STORE = "barberstudio-looks-v1";
+  const formatDate = new Intl.DateTimeFormat("es-PE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  function loadLooks() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE)) || [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function storeLooks(looks) {
+    const list = looks.slice();
+    while (list.length) {
+      try {
+        localStorage.setItem(STORE, JSON.stringify(list));
+        return list;
+      } catch (error) {
+        list.pop();
+      }
+    }
+    try {
+      localStorage.removeItem(STORE);
+    } catch (error) {
+      return [];
+    }
+    return [];
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
+  }
+
+  async function thumbnail(src, max = 560) {
+    const image = await loadImage(src);
+    const scale = Math.min(1, max / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(image.naturalWidth * scale);
+    canvas.height = Math.round(image.naturalHeight * scale);
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.86);
+  }
+
+  function slug(text) {
+    return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  }
+
+  function saveBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  async function downloadImage(src, title) {
+    const blob = await fetch(src).then((response) => response.blob());
+    const ext = blob.type.includes("png") ? "png" : "jpg";
+    saveBlob(blob, `fresh-${slug(title)}.${ext}`);
+  }
+
+  function drawCover(ctx, image, x, y, w, h) {
+    const scale = Math.max(w / image.naturalWidth, h / image.naturalHeight);
+    const sw = w / scale;
+    const sh = h / scale;
+    const sx = (image.naturalWidth - sw) / 2;
+    const sy = (image.naturalHeight - sh) / 2;
+    ctx.drawImage(image, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function drawPanel(ctx, image, x, y, w, h, label) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 28);
+    ctx.clip();
+    ctx.fillStyle = "#0A0A0A";
+    ctx.fillRect(x, y, w, h);
+    drawCover(ctx, image, x, y, w, h);
+    ctx.restore();
+    ctx.font = '500 22px Figtree, Arial, sans-serif';
+    const width = ctx.measureText(label).width + 36;
+    ctx.fillStyle = "rgba(10, 10, 10, 0.62)";
+    ctx.beginPath();
+    ctx.roundRect(x + 20, y + h - 62, width, 42, 21);
+    ctx.fill();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText(label, x + 38, y + h - 34);
+  }
+
+  async function makeFicha(look) {
+    await Promise.all([
+      document.fonts.load('76px "Libre Caslon Display"'),
+      document.fonts.load('500 22px "Figtree"'),
+      document.fonts.load('600 18px "Figtree"'),
+    ]).catch(() => null);
+    const [before, after] = await Promise.all([loadImage(look.before), loadImage(look.after)]);
+    const W = 1080;
+    const H = 1350;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#FAFAF8";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#0A0A0A";
+    ctx.font = '44px "Libre Caslon Display", Georgia, serif';
+    ctx.fillText("Fresh", 72, 108);
+    ctx.font = '500 22px Figtree, Arial, sans-serif';
+    ctx.fillStyle = "#6A6A69";
+    ctx.textAlign = "right";
+    ctx.fillText(formatDate.format(new Date(look.ts)), W - 72, 104);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#0A0A0A";
+    ctx.fillRect(72, 138, W - 144, 3);
+    ctx.font = '76px "Libre Caslon Display", Georgia, serif';
+    ctx.fillText("Ficha para tu barbero", 72, 236);
+    const panelW = (W - 144 - 24) / 2;
+    drawPanel(ctx, before, 72, 284, panelW, 540, "Antes");
+    drawPanel(ctx, after, 72 + panelW + 24, 284, panelW, 540, "Después");
+    let y = 900;
+    look.details.forEach(([label, value]) => {
+      ctx.fillStyle = "#6A6A69";
+      ctx.font = '600 18px Figtree, Arial, sans-serif';
+      ctx.fillText(label.toUpperCase(), 72, y);
+      ctx.fillStyle = "#0A0A0A";
+      ctx.font = '40px "Libre Caslon Display", Georgia, serif';
+      ctx.textAlign = "right";
+      ctx.fillText(value, W - 72, y + 6);
+      ctx.textAlign = "left";
+      ctx.strokeStyle = "#BDBDBA";
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(72, y + 34);
+      ctx.lineTo(W - 72, y + 34);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      y += 84;
+    });
+    ctx.fillStyle = "#0A0A0A";
+    ctx.fillRect(72, H - 120, W - 144, 3);
+    ctx.font = '500 24px Figtree, Arial, sans-serif';
+    ctx.fillText("Muéstrale esta ficha a tu barbero.", 72, H - 66);
+    ctx.fillStyle = "#6A6A69";
+    ctx.textAlign = "right";
+    ctx.fillText("Hecho con Fresh", W - 72, H - 66);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    saveBlob(blob, `ficha-${slug(look.title)}.png`);
+  }
+
+  async function saveLook(tool) {
+    const result = lastResult[tool];
+    if (!result) return;
+    const [before, after] = await Promise.all([thumbnail(result.before), thumbnail(result.after)]);
+    const look = { id: Date.now().toString(36), tool, title: result.title, meta: result.meta, details: result.details, ts: Date.now(), before, after };
+    const saved = storeLooks([look, ...loadLooks()].slice(0, 24));
+    renderLooks();
+    toast(saved.length ? `${result.title}: guardado en Mis looks` : "No queda espacio para guardar más looks");
+  }
+
+  $$(".result-bar").forEach((bar) => {
+    const tool = bar.dataset.tool;
+    bar.addEventListener("click", async (event) => {
+      const button = event.target.closest("button");
+      if (!button || !lastResult[tool]) return;
+      const result = lastResult[tool];
+      button.disabled = true;
+      try {
+        if (button.hasAttribute("data-save")) await saveLook(tool);
+        if (button.hasAttribute("data-download")) await downloadImage(result.after, result.title);
+        if (button.hasAttribute("data-ficha")) {
+          await makeFicha({ ...result, ts: Date.now() });
+          toast("Ficha descargada");
+        }
+      } catch (error) {
+        toast("No se pudo completar");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  function lookCard(look, compact) {
+    const card = document.createElement("article");
+    card.className = "card look";
+    const media = document.createElement("button");
+    media.type = "button";
+    media.className = "look-media";
+    media.setAttribute("aria-label", "Cambiar entre antes y después");
+    media.innerHTML = `<img class="after" alt=""><img class="before" alt=""><span data-icon="eye">Después</span>`;
+    media.querySelector(".after").src = look.after;
+    media.querySelector(".before").src = look.before;
+    media.addEventListener("click", () => {
+      const showing = media.classList.toggle("show-before");
+      media.querySelector("span").textContent = showing ? "Antes" : "Después";
+    });
+    const info = document.createElement("div");
+    info.className = "look-info";
+    const title = document.createElement("p");
+    title.className = "look-title";
+    title.textContent = look.title;
+    const meta = document.createElement("p");
+    meta.className = "look-meta";
+    meta.textContent = `${look.meta} · ${formatDate.format(new Date(look.ts))}`;
+    info.append(title, meta);
+    card.append(media, info);
+    if (!compact) {
+      const actions = document.createElement("div");
+      actions.className = "look-actions";
+      actions.innerHTML = `<button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha</button><button type="button" class="quiet-button icon-only" data-download data-icon="download" aria-label="Descargar" title="Descargar"></button><button type="button" class="quiet-button icon-only" data-delete data-icon="trash" aria-label="Borrar" title="Borrar"></button>`;
+      actions.addEventListener("click", async (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        if (button.hasAttribute("data-ficha")) {
+          await makeFicha(look);
+          toast("Ficha descargada");
+        }
+        if (button.hasAttribute("data-download")) await downloadImage(look.after, look.title);
+        if (button.hasAttribute("data-delete")) {
+          storeLooks(loadLooks().filter((item) => item.id !== look.id));
+          renderLooks();
+          toast("Look borrado");
+        }
+      });
+      card.append(actions);
+    }
+    return card;
+  }
+
+  function renderLooks() {
+    const looks = loadLooks();
+    const grid = byId("looks-grid");
+    const recent = byId("recent-grid");
+    grid.replaceChildren(...looks.map((look) => lookCard(look, false)));
+    recent.replaceChildren(...looks.slice(0, 4).map((look) => lookCard(look, true)));
+    byId("looks-empty").hidden = looks.length > 0;
+    byId("recent-looks").hidden = looks.length === 0;
+    byId("looks-clear").hidden = looks.length === 0;
+    const count = byId("looks-count");
+    count.hidden = looks.length === 0;
+    count.textContent = looks.length;
+  }
+
+  byId("looks-clear").addEventListener("click", () => {
+    if (!window.confirm("¿Borrar todos tus looks guardados?")) return;
+    storeLooks([]);
+    renderLooks();
+    toast("Se borraron tus looks");
+  });
+
+  renderLooks();
+  const startPanel = location.hash.slice(1);
+  if (startPanel && menuItems.some((item) => item.dataset.panel === startPanel)) {
+    fromHistory = true;
+    go(startPanel);
+    fromHistory = false;
+  } else {
+    fromHistory = true;
+    syncNav(menuItems.find((item) => item.dataset.panel === "inicio"));
+    fromHistory = false;
+  }
+})();

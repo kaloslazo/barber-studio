@@ -14,13 +14,13 @@ const dzTitle = dropZone.querySelector(".dz-title");
 const dzSub = dropZone.querySelector(".dz-sub");
 
 const PRESETS = [
-  { name: "Black", hex: "#1f1f1f" },
-  { name: "Blonde", hex: "#d9b04a" },
-  { name: "Red", hex: "#b3312c" },
-  { name: "Blue", hex: "#2f4fb8" },
-  { name: "Green", hex: "#3d8b3d" },
-  { name: "Purple", hex: "#7a3ba8" },
-  { name: "Pink", hex: "#d95fa6" },
+  { name: "Negro", hex: "#1f1f1f" },
+  { name: "Rubio", hex: "#d9b04a" },
+  { name: "Rojo", hex: "#b3312c" },
+  { name: "Azul", hex: "#2f4fb8" },
+  { name: "Verde", hex: "#3d8b3d" },
+  { name: "Morado", hex: "#7a3ba8" },
+  { name: "Rosado", hex: "#d95fa6" },
 ];
 
 let selectedColor = PRESETS[0].hex;
@@ -45,7 +45,7 @@ function selectSwatch(button) {
 PRESETS.forEach((preset, index) => {
   const button = document.createElement("button");
   button.className = "swatch";
-  button.style.background = preset.hex;
+  button.innerHTML = `<i style="background:${preset.hex}"></i><span>${preset.name}</span>`;
   button.title = preset.name;
   button.addEventListener("click", () => {
     selectedColor = preset.hex;
@@ -69,7 +69,7 @@ function setFile(file) {
   resultImage.removeAttribute("src");
   applyBtn.disabled = false;
   dzTitle.textContent = file.name;
-  dzSub.textContent = "click or drop to change the photo";
+  dzSub.textContent = "toca o suelta otra foto para cambiarla";
 }
 
 dropZone.addEventListener("click", () => photoInput.click());
@@ -116,7 +116,7 @@ applyBtn.addEventListener("click", async () => {
   formData.append("strength", (strengthInput.value / 100).toString());
   applyBtn.disabled = true;
   applyBtn.classList.add("loading");
-  applyBtn.textContent = "Processing...";
+  applyBtn.textContent = "Procesando…";
   clearError();
   try {
     const response = await fetch(`${API}/dye`, {
@@ -125,7 +125,7 @@ applyBtn.addEventListener("click", async () => {
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Request failed: ${response.status}`);
+      throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     const blob = await response.blob();
     resultImage.src = URL.createObjectURL(blob);
@@ -135,7 +135,7 @@ applyBtn.addEventListener("click", async () => {
   } finally {
     applyBtn.disabled = false;
     applyBtn.classList.remove("loading");
-    applyBtn.textContent = "Apply dye";
+    applyBtn.textContent = "Aplicar tinte";
   }
 });
 
@@ -163,9 +163,9 @@ const beardMeshImage = document.getElementById("beard-mesh-img");
 let beardFile = null;
 let beardStyle = "full";
 
-document.querySelectorAll(".style-btn").forEach((button) => {
+document.querySelectorAll("#style-group .style-btn").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".style-btn").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll("#style-group .style-btn").forEach((b) => b.classList.remove("active"));
     button.classList.add("active");
     beardStyle = button.dataset.style;
   });
@@ -179,7 +179,7 @@ function setBeardFile(file) {
   beardResult.removeAttribute("src");
   beardBtn.disabled = false;
   beardDrop.querySelector(".dz-title").textContent = file.name;
-  beardDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  beardDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
 }
 
 beardDrop.addEventListener("click", () => beardInput.click());
@@ -224,7 +224,7 @@ beardBtn.addEventListener("click", async () => {
   formData.append("image", beardFile);
   formData.append("style", beardStyle);
   formData.append("strength", (beardStrength.value / 100).toString());  beardBtn.disabled = true;
-  beardBtn.textContent = "Processing...";
+  beardBtn.textContent = "Procesando…";
   beardError.hidden = true;
   try {
     const response = await fetch(`${API}/beard`, {
@@ -233,7 +233,7 @@ beardBtn.addEventListener("click", async () => {
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Request failed: ${response.status}`);
+      throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     beardResult.src = URL.createObjectURL(await response.blob());
     beardCompare.hidden = false;
@@ -263,7 +263,7 @@ beardBtn.addEventListener("click", async () => {
     beardError.hidden = false;
   } finally {
     beardBtn.disabled = false;
-    beardBtn.textContent = "Apply beard";
+    beardBtn.textContent = "Aplicar barba";
   }
 });
 
@@ -306,7 +306,7 @@ let liveColor = PRESETS[0].hex;
 PRESETS.forEach((preset) => {
   const button = document.createElement("button");
   button.className = "swatch";
-  button.style.background = preset.hex;
+  button.innerHTML = `<i style="background:${preset.hex}"></i><span>${preset.name}</span>`;
   button.title = preset.name;
   button.addEventListener("click", () => {
     liveColor = preset.hex;
@@ -375,7 +375,7 @@ liveBtn.addEventListener("click", async () => {
   if (liveRunning) {
     liveRunning = false;
     liveStream.getTracks().forEach((track) => track.stop());
-    liveBtn.textContent = "Start camera";
+    liveBtn.textContent = "Encender cámara";
     return;
   }
   try {
@@ -387,10 +387,10 @@ liveBtn.addEventListener("click", async () => {
     await liveVideo.play();
     liveStage.hidden = false;
     liveRunning = true;
-    liveBtn.textContent = "Stop camera";
+    liveBtn.textContent = "Apagar cámara";
     liveLoop();
   } catch (error) {
-    liveError.textContent = `Camera unavailable: ${error.message}`;
+    liveError.textContent = `No se pudo abrir la cámara: ${error.message}`;
     liveError.hidden = false;
   }
 });
@@ -422,7 +422,7 @@ function setHcFile(file) {
   hcResult.removeAttribute("src");
   hcBtn.disabled = false;
   hcDrop.querySelector(".dz-title").textContent = file.name;
-  hcDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  hcDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
 }
 
 hcDrop.addEventListener("click", () => hcInput.click());
@@ -463,7 +463,7 @@ hcBtn.addEventListener("click", async () => {
   formData.append("style", hcStyle);
   formData.append("strength", (hcStrength.value / 100).toString());
   hcBtn.disabled = true;
-  hcBtn.textContent = "Processing...";
+  hcBtn.textContent = "Procesando…";
   hcError.hidden = true;
   try {
     const response = await fetch(`${API}/haircut`, {
@@ -472,7 +472,7 @@ hcBtn.addEventListener("click", async () => {
     });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Request failed: ${response.status}`);
+      throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     hcResult.src = URL.createObjectURL(await response.blob());
     hcCompare.hidden = false;
@@ -481,7 +481,7 @@ hcBtn.addEventListener("click", async () => {
     hcError.hidden = false;
   } finally {
     hcBtn.disabled = false;
-    hcBtn.textContent = "Apply cut";
+    hcBtn.textContent = "Aplicar corte";
   }
 });
 
@@ -720,7 +720,7 @@ function updateScanSweep(now) {
   const elapsed = now - sweep.start;
   if (sweep.phase === "left") {
     if (elapsed < SCAN_LEFT_MS) {
-      setScanProgress(0, `Start from the LEFT — ${Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000)} s`);
+      setScanProgress(0, `Empieza mirando a la IZQUIERDA — ${Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000)} s`);
       return;
     }
     sweep.phase = "sweep";
@@ -729,7 +729,7 @@ function updateScanSweep(now) {
   const last = sweep.captures[sweep.captures.length - 1];
   const reachedRight = last && last.yaw >= 72 && turning > 5000;
   if (turning < SCAN_SWEEP_MS && !reachedRight) {
-    setScanProgress((elapsed / (SCAN_LEFT_MS + SCAN_SWEEP_MS)) * 100, `Turn slowly to the RIGHT — ${Math.max(0, Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000))} s`);
+    setScanProgress((elapsed / (SCAN_LEFT_MS + SCAN_SWEEP_MS)) * 100, `Gira despacio a la DERECHA — ${Math.max(0, Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000))} s`);
     return;
   }
   sweep.phase = "done";
@@ -769,22 +769,22 @@ async function finishScan(captures) {
   const views = pickSweepViews(captures);
   if (views.length < 5) {
     scanStart.disabled = false;
-    setScanProgress(0, "Too few views — keep your head in frame and turn slowly, then try again");
+    setScanProgress(0, "Muy pocas vistas: mantén la cabeza en el cuadro, gira despacio y vuelve a intentarlo");
     return;
   }
-  setScanProgress(100, `Sweep complete — ${views.length} views, building your peluca...`);
+  setScanProgress(100, `Barrido completo: ${views.length} vistas, armando tu peluca…`);
   try {
     const front = views.reduce((best, view) => (Math.abs(view.angle) < Math.abs(best.angle) ? view : best));
     const formData = new FormData();
     formData.append("image", front.frame, "front-hair.jpg");
     const response = await fetch(`${API}/transfer/asset`, { method: "POST", body: formData });
-    if (!response.ok) throw new Error("No hair found in the front view. Keep your full hair in frame and try again.");
+    if (!response.ok) throw new Error("No encontramos pelo en la vista de frente. Deja todo tu pelo dentro del cuadro y vuelve a intentarlo.");
     const now = new Date();
     const peluca = {
       frames: views.map((view) => view.frame),
       angles: views.map((view) => Math.round(view.angle)),
       previewUrl: URL.createObjectURL(await response.blob()),
-      name: `Hair Sweep ${pelucas.length + 1}`,
+      name: `Peluca ${pelucas.length + 1}`,
       date: now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
     };
     pelucas.unshift(peluca);
@@ -808,7 +808,7 @@ async function scanLoop() {
       const formData = new FormData();
       formData.append("image", frame, "scan-frame.jpg");
       const response = await fetch(`${API}/transfer/scan`, { method: "POST", body: formData });
-      if (!response.ok) throw new Error("Could not identify hair. Keep your full head visible and try again.");
+      if (!response.ok) throw new Error("No pudimos identificar el pelo. Deja toda tu cabeza visible y vuelve a intentarlo.");
       const detectedYaw = Number(response.headers.get("X-Head-Yaw"));
       const anchor = JSON.parse(response.headers.get("X-Head-Anchor") || "null");
       const bitmap = await createImageBitmap(await response.blob());
@@ -837,7 +837,7 @@ scanStart.addEventListener("click", async () => {
       loadHeadTracker();
       requestAnimationFrame(scanRender);
     } catch (error) {
-      scanError.textContent = `Camera unavailable: ${error.message}`;
+      scanError.textContent = `No se pudo abrir la cámara: ${error.message}`;
       scanError.hidden = false;
       return;
     }
@@ -854,7 +854,7 @@ scanStop.addEventListener("click", () => {
   scanSweep = null;
   scanStart.disabled = false;
   scanStop.disabled = true;
-  setScanProgress(0, "Scan cancelled");
+  setScanProgress(0, "Escaneo cancelado");
 });
 
 function renderLibrary() {
@@ -863,7 +863,7 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">View 3D</button></div>`;
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">Ver en 3D</button></div>`;
     card.querySelector('[data-action="splat"]').addEventListener("click", () => {
       selectPeluca(peluca, "splat");
       buildHair3dFromPeluca();
@@ -879,7 +879,7 @@ function selectPeluca(peluca, view = "splat") {
   updateScanPhotos();
   selectedPelucaPreview.src = peluca.previewUrl;
   selectedPelucaName.textContent = peluca.name;
-  selectedPelucaDate.textContent = `Captured ${peluca.date}`;
+  selectedPelucaDate.textContent = `Capturada el ${peluca.date}`;
   tryonManualRotation = 0;
   tryonDetectedRotation = 0;
   openTransferView(view);
@@ -895,9 +895,9 @@ async function toggleTryonCamera() {
     tryonFrame = null;
     tryonAnchor = null;
     tryonServer = null;
-    tryonCamera.textContent = "Start Person B camera";
+    tryonCamera.textContent = "Encender cámara de la persona B";
     tryonPlaceholder.hidden = false;
-    poseBadge.textContent = "Waiting for camera";
+    poseBadge.textContent = "Esperando la cámara";
     renderTryonMesh();
     return;
   }
@@ -906,8 +906,8 @@ async function toggleTryonCamera() {
     tryonVideo.srcObject = tryonStream;
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
-    tryonCamera.textContent = "Stop Person B camera";
-    poseBadge.textContent = "Loading head tracker...";
+    tryonCamera.textContent = "Apagar cámara de la persona B";
+    poseBadge.textContent = "Cargando el seguimiento de cabeza…";
     tryonReset = true;
     tryonSmoother = null;
     tryonVideoTime = -1;
@@ -915,7 +915,7 @@ async function toggleTryonCamera() {
     requestAnimationFrame(tryonRender);
     tryonLoop();
   } catch (error) {
-    tryonError.textContent = `Camera unavailable: ${error.message}`;
+    tryonError.textContent = `No se pudo abrir la cámara: ${error.message}`;
     tryonError.hidden = false;
   }
 }
@@ -1057,13 +1057,13 @@ function tryonRender() {
       if (!tryonSmoother || now - tryonLastSeen > 300) tryonSmoother = createHeadSmoother();
       tryonLastSeen = now;
       tryonAnchor = { ...tryonSmoother(head, now / 1000), pose: "live" };
-      poseBadge.textContent = "Head tracked live";
+      poseBadge.textContent = "Cabeza en seguimiento";
     } else if (server) {
       tryonAnchor = server;
-      poseBadge.textContent = `${server.pose[0].toUpperCase()}${server.pose.slice(1)} view tracked`;
+      poseBadge.textContent = `Vista ${({ front: "de frente", left: "izquierda", right: "derecha" })[server.pose] || server.pose} detectada`;
     } else if (now - tryonLastSeen > 400) {
       tryonAnchor = null;
-      poseBadge.textContent = headTracker ? "Keep your face in frame" : "Loading head tracker...";
+      poseBadge.textContent = headTracker ? "Mantén tu cara en el cuadro" : "Cargando el seguimiento de cabeza…";
     }
     if (tryonAnchor) tryonDetectedRotation = tryonAnchor.yaw;
     updateTryonRotation();
@@ -1081,12 +1081,12 @@ async function tryonLoop() {
       formData.append("reset", tryonReset ? "true" : "false");
       tryonReset = false;
       const response = await fetch(`${API}/transfer/tryon`, { method: "POST", body: formData });
-      if (!response.ok) throw new Error("Could not process the Person B frame");
+      if (!response.ok) throw new Error("No se pudo procesar la imagen de la persona B");
       const anchor = await response.json();
       if (!tryonStream) return;
       tryonServer = anchor.center ? { anchor, time: performance.now() } : null;
     } catch (error) {
-      if (!headTracker) poseBadge.textContent = "Head tracking unavailable";
+      if (!headTracker) poseBadge.textContent = "El seguimiento de cabeza no está disponible";
     } finally {
       tryonBusy = false;
     }
@@ -1119,9 +1119,9 @@ const face3dHint = document.getElementById("face3d-hint");
 const face3dVideo = document.getElementById("face3d-video");
 const face3dStatus = document.getElementById("face3d-status");
 const facePlan = [
-  ["Look straight at the camera", 2],
-  ["Slowly turn your head LEFT", 3],
-  ["Slowly turn your head RIGHT", 3],
+  ["Mira de frente a la cámara", 2],
+  ["Gira la cabeza despacio a la IZQUIERDA", 3],
+  ["Gira la cabeza despacio a la DERECHA", 3],
 ];
 let hair3dViewer = null;
 let hair3dModel = null;
@@ -1144,10 +1144,10 @@ function hair3dForm(source, extra = {}) {
 }
 
 const WIG_PRESETS = [
-  { name: "Blonde", hex: "#d6b26e" },
-  { name: "Light brown", hex: "#8a5a3b" },
-  { name: "Black", hex: "#16120f" },
-  { name: "Dark red", hex: "#6b1d18" },
+  { name: "Rubio", hex: "#d6b26e" },
+  { name: "Castaño claro", hex: "#8a5a3b" },
+  { name: "Negro", hex: "#16120f" },
+  { name: "Caoba", hex: "#6b1d18" },
 ];
 const WIG_CUT_DEPTH = 0.35;
 const wigStudio = document.getElementById("wig-studio");
@@ -1239,8 +1239,8 @@ function showHair3d() {
   hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
   const percent = hair ? Math.round((kept / hair) * 100) : 0;
   wigHint.textContent = wigScissors.getAttribute("aria-pressed") === "true"
-    ? `Paint over the peluca to cut it · ${percent}% of the hair left. Hold Shift and drag to rotate.`
-    : `${percent}% of the hair left. Turn on the scissors and paint over the peluca to cut that part.`;
+    ? `Pinta sobre la peluca para cortarla · queda ${percent} % del pelo. Mantén Shift y arrastra para girar.`
+    : `Queda ${percent} % del pelo. Activa las tijeras y pinta sobre la peluca para cortar esa parte.`;
 }
 
 function scheduleWig() {
@@ -1264,7 +1264,7 @@ function selectWigSwatch(button) {
 WIG_PRESETS.forEach((preset) => {
   const button = document.createElement("button");
   button.className = "swatch wig-swatch";
-  button.innerHTML = `<i style="background:${preset.hex}"></i>${preset.name}`;
+  button.innerHTML = `<i style="background:${preset.hex}"></i><span>${preset.name}</span>`;
   button.addEventListener("click", () => {
     wig.color = preset.hex;
     wigColor.value = preset.hex;
@@ -1405,14 +1405,14 @@ async function buildHair3d(source, label) {
   hair3dError.hidden = true;
   hair3dScan.disabled = true;
   hair3dPly.disabled = true;
-  hair3dStats.textContent = `Building ${label}...`;
+  hair3dStats.textContent = `Construyendo ${label}…`;
   hair3dStage.hidden = false;
   const started = performance.now();
   try {
     const response = await fetch(`${API}/transfer/splat`, { method: "POST", body: hair3dForm(source) });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Request failed: ${response.status}`);
+      throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     hair3dModel = {
       buffer: await response.arrayBuffer(),
@@ -1433,9 +1433,9 @@ async function buildHair3d(source, label) {
     wigStudio.hidden = false;
     setScissors(wigScissors.getAttribute("aria-pressed") === "true");
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    const views = hair3dModel.views === 1 ? "1 photo" : `${hair3dModel.views} angles`;
-    const head = hair3dMyFace.checked ? " on your face" : "";
-    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} hair Gaussians from ${views} · built in ${seconds}s`;
+    const views = hair3dModel.views === 1 ? "1 foto" : `${hair3dModel.views} ángulos`;
+    const head = hair3dMyFace.checked ? " en tu cara" : "";
+    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} gaussianas de pelo desde ${views} · lista en ${seconds} s`;
     hair3dPly.disabled = false;
   } catch (error) {
     hair3dError.textContent = error.message;
@@ -1473,7 +1473,7 @@ hair3dDrop.addEventListener("keydown", (event) => {
 });
 function setHair3dFile(file) {
   hair3dDrop.querySelector(".dz-title").textContent = file.name;
-  hair3dDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  hair3dDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
   buildHair3d({ frames: [file], angles: [0] }, file.name);
 }
 hair3dDrop.addEventListener("drop", (event) => {
@@ -1497,14 +1497,14 @@ function updateScanPhotos() {
 hair3dPhotos.addEventListener("click", async () => {
   const source = scanPhotosSource();
   hair3dPhotos.disabled = true;
-  hair3dPhotos.textContent = "Packing...";
+  hair3dPhotos.textContent = "Empaquetando…";
   try {
     const formData = new FormData();
     (source ? source.frames : []).forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
     formData.append("angles", source ? source.angles.join(",") : "");
     if (faceScan) faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
     const response = await fetch(`${API}/transfer/photos`, { method: "POST", body: formData });
-    if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+    if (!response.ok) throw new Error(`Falló la exportación (${response.status})`);
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
@@ -1515,7 +1515,7 @@ hair3dPhotos.addEventListener("click", async () => {
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
   } finally {
-    hair3dPhotos.textContent = "Download scan photos";
+    hair3dPhotos.textContent = "Fotos del escaneo";
     updateScanPhotos();
   }
 });
@@ -1529,7 +1529,7 @@ function stopFaceCamera() {
   face3dVideo.srcObject = null;
   face3dStage.hidden = true;
   face3dScan.disabled = false;
-  face3dScan.textContent = faceScan ? "Rescan my face (7 s)" : "Scan my face (7 s)";
+  face3dScan.textContent = faceScan ? "Volver a escanear (7 s)" : "Escanear mi cara (7 s)";
 }
 
 function faceRender() {
@@ -1550,19 +1550,19 @@ face3dScan.addEventListener("click", async () => {
     await face3dVideo.play();
   } catch (error) {
     faceStream = null;
-    hair3dError.textContent = `Camera unavailable: ${error.message}`;
+    hair3dError.textContent = `No se pudo abrir la cámara: ${error.message}`;
     hair3dError.hidden = false;
     return;
   }
   face3dScan.disabled = true;
-  face3dScan.textContent = "Scanning...";
+  face3dScan.textContent = "Escaneando…";
   face3dStage.hidden = false;
   faceVideoTime = -1;
   requestAnimationFrame(faceRender);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const frames = [];
   const total = facePlan.reduce((sum, [, shots]) => sum + shots, 0);
-  face3dHint.textContent = "Get ready...";
+  face3dHint.textContent = "Prepárate…";
   await sleep(1000);
   for (const [text, shots] of facePlan) {
     face3dHint.textContent = text;
@@ -1572,25 +1572,25 @@ face3dScan.addEventListener("click", async () => {
       const canvas = document.createElement("canvas");
       mirrorVideo(face3dVideo, canvas, 1024);
       frames.push(await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92)));
-      face3dStatus.textContent = `Face scan ${frames.length}/${total}`;
+      face3dStatus.textContent = `Escaneo ${frames.length}/${total}`;
     }
   }
-  face3dHint.textContent = "Done!";
+  face3dHint.textContent = "¡Listo!";
   await sleep(600);
   faceScan = { frames };
   updateScanPhotos();
   stopFaceCamera();
   face3dScan.disabled = true;
-  face3dStatus.textContent = "Building your Gaussian face...";
+  face3dStatus.textContent = "Construyendo tu cara de gaussianas…";
   try {
     const formData = new FormData();
     frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
     const response = await fetch(`${API}/transfer/face`, { method: "POST", body: formData });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || "Your face could not be built. Try the face scan again.");
+      throw new Error(error.detail || "No se pudo construir tu cara. Vuelve a escanearla.");
     }
-    face3dStatus.textContent = `Your face · ${frames.length} views`;
+    face3dStatus.textContent = `Tu cara · ${frames.length} vistas`;
     const debugImage = (await response.json()).debug_image;
     if (debugImage) {
       const debug = new Image();
@@ -1607,7 +1607,7 @@ face3dScan.addEventListener("click", async () => {
     if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
   } catch (error) {
     faceScan = null;
-    face3dStatus.textContent = "No face scanned yet";
+    face3dStatus.textContent = "Todavía no escaneas tu cara";
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
   } finally {
@@ -1672,7 +1672,7 @@ function setSplatFile(file) {
   splatGrid.innerHTML = "";
   splatBtn.disabled = false;
   splatDrop.querySelector(".dz-title").textContent = file.name;
-  splatDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  splatDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
 }
 
 splatDrop.addEventListener("click", () => splatInput.click());
@@ -1705,7 +1705,7 @@ splatInput.addEventListener("change", () => {
 function splatCard(title) {
   const card = document.createElement("div");
   card.className = "card splat-card pending";
-  card.innerHTML = `<h3>${title}</h3><img alt="${title}"><p class="meta">fitting...</p>`;
+  card.innerHTML = `<h3>${title}</h3><img alt="${title}"><p class="meta">ajustando…</p>`;
   splatGrid.appendChild(card);
   return card;
 }
@@ -1716,14 +1716,14 @@ function revealSplatTarget() {
   card.classList.add("splat-original");
   card.classList.remove("pending");
   card.querySelector("img").src = splatTarget;
-  card.querySelector(".meta").textContent = "the photo the Gaussians are fitting";
+  card.querySelector(".meta").textContent = "la foto que las gaussianas intentan imitar";
 }
 
 splatGuessBtn.addEventListener("click", () => {
   if (splatShown === 0) return;
   const points = Math.max(50, Math.round(1000 * (1 - Math.log(splatShown) / Math.log(SPLAT_STAGES[SPLAT_STAGES.length - 1] * 1.5))));
   splatScore.textContent = `${points} pts`;
-  splatGuessText.textContent = `You recognized it with ${splatShown} Gaussians!`;
+  splatGuessText.textContent = `¡La reconociste con ${splatShown} gaussianas!`;
   splatGuessBtn.disabled = true;
   revealSplatTarget();
 });
@@ -1736,15 +1736,15 @@ splatBtn.addEventListener("click", async () => {
   splatShown = 0;
   splatTarget = null;
   splatScore.textContent = "";
-  splatGuessText.textContent = "Press the button as soon as you recognize the face. Fewer Gaussians, more points.";
+  splatGuessText.textContent = "Toca el botón apenas reconozcas la cara. Menos gaussianas, más puntos.";
   splatGuessBar.hidden = !splatGuess.checked;
   splatGuessBtn.disabled = !splatGuess.checked;
   splatBtn.disabled = true;
   splatBtn.classList.add("loading");
   try {
     for (const count of SPLAT_STAGES) {
-      const card = splatCard(`${count} Gaussians`);
-      splatBtn.textContent = `Fitting ${count}...`;
+      const card = splatCard(`${count} gaussianas`);
+      splatBtn.textContent = `Ajustando ${count}…`;
       const formData = new FormData();
       formData.append("image", splatFile);
       formData.append("count", count.toString());
@@ -1754,7 +1754,7 @@ splatBtn.addEventListener("click", async () => {
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         card.remove();
-        throw new Error(error.detail || `Request failed: ${response.status}`);
+        throw new Error(error.detail || `La solicitud falló (${response.status})`);
       }
       const data = await response.json();
       const img = card.querySelector("img");
@@ -1762,13 +1762,13 @@ splatBtn.addEventListener("click", async () => {
       img.dataset.ellipses = data.ellipses;
       img.src = data[splatView];
       card.classList.remove("pending");
-      card.querySelector(".meta").textContent = `PSNR ${data.psnr} dB · ${data.iterations} steps · ${data.seconds}s`;
+      card.querySelector(".meta").textContent = `PSNR ${data.psnr} dB · ${data.iterations} pasos · ${data.seconds} s`;
       splatTarget = data.target;
       splatShown = count;
     }
     if (!splatGuess.checked || splatGuessBtn.disabled) revealSplatTarget();
     if (splatGuess.checked && !splatGuessBtn.disabled) {
-      splatGuessText.textContent = "Last stage reached. Do you recognize it now?";
+      splatGuessText.textContent = "Última etapa. ¿Ya la reconoces?";
     }
   } catch (error) {
     splatError.textContent = error.message;
@@ -1777,7 +1777,7 @@ splatBtn.addEventListener("click", async () => {
     splatRunning = false;
     splatBtn.disabled = false;
     splatBtn.classList.remove("loading");
-    splatBtn.textContent = "Start";
+    splatBtn.textContent = "Empezar";
   }
 });
 
@@ -1830,22 +1830,23 @@ function renderBoard() {
   gameBoard.innerHTML = "";
   if (board.length === 0) {
     const empty = document.createElement("li");
-    empty.textContent = "No rounds yet";
+    empty.className = "empty";
+    empty.textContent = "Todavía no hay rondas";
     gameBoard.appendChild(empty);
     return;
   }
   board.forEach((entry) => {
     const item = document.createElement("li");
-    item.textContent = `${entry.name} · ${entry.score} (${entry.target})`;
+    item.textContent = `${entry.name} · ${entry.score} (${({ goatee: "candado", mustache: "bigote", chinstrap: "collar" })[entry.target] || entry.target})`;
     gameBoard.appendChild(item);
   });
 }
 
 function rankFor(score) {
-  if (score >= 900) return "Master barber!";
-  if (score >= 750) return "Pro barber";
-  if (score >= 500) return "Apprentice";
-  return "Keep practicing";
+  if (score >= 900) return "¡Maestro barbero!";
+  if (score >= 750) return "Barbero pro";
+  if (score >= 500) return "Aprendiz";
+  return "Sigue practicando";
 }
 
 document.querySelectorAll("[data-game-target]").forEach((button) => {
@@ -1862,7 +1863,7 @@ async function startGameSession() {
   const formData = new FormData();
   formData.append("target", gameTarget);
   const response = await fetch(`${API}/game/start`, { method: "POST", body: formData });
-  if (!response.ok) throw new Error(`Could not start the game (${response.status})`);
+  if (!response.ok) throw new Error(`No se pudo iniciar el juego (${response.status})`);
 }
 
 function updatePointer(event) {
@@ -1902,11 +1903,11 @@ function finishRound() {
   gameInRound = false;
   flashOverlay("TIME!", 1400);
   gameStartBtn.disabled = false;
-  gameStartBtn.textContent = "Start round";
+  gameStartBtn.textContent = "Empezar ronda";
   const score = gameLast ? gameLast.score : 0;
-  gameFinal.textContent = `Final score: ${score} · ${rankFor(score)}`;
+  gameFinal.textContent = `Puntaje final: ${score} · ${rankFor(score)}`;
   gameFinal.hidden = false;
-  const name = (gameName.value || "Barber").trim().slice(0, 16) || "Barber";
+  const name = (gameName.value || "Barbero").trim().slice(0, 16) || "Barbero";
   const board = readBoard();
   board.push({ name, score, target: gameTarget });
   board.sort((a, b) => b.score - a.score);
@@ -1968,7 +1969,7 @@ gameCameraBtn.addEventListener("click", async () => {
     gameRunning = false;
     gameInRound = false;
     gameStream.getTracks().forEach((track) => track.stop());
-    gameCameraBtn.textContent = "Start camera";
+    gameCameraBtn.textContent = "Encender cámara";
     gameStartBtn.disabled = true;
     return;
   }
@@ -1982,11 +1983,11 @@ gameCameraBtn.addEventListener("click", async () => {
     await startGameSession();
     gameStage.hidden = false;
     gameRunning = true;
-    gameCameraBtn.textContent = "Stop camera";
+    gameCameraBtn.textContent = "Apagar cámara";
     gameStartBtn.disabled = false;
     gameLoop();
   } catch (error) {
-    gameError.textContent = `Camera unavailable: ${error.message}`;
+    gameError.textContent = `No se pudo abrir la cámara: ${error.message}`;
     gameError.hidden = false;
   }
 });
@@ -2007,12 +2008,12 @@ gameStartBtn.addEventListener("click", async () => {
   gameKeep.textContent = "100%";
   gameTime.textContent = GAME_SECONDS.toFixed(1);
   gameStartBtn.disabled = true;
-  gameStartBtn.textContent = "Get ready...";
+  gameStartBtn.textContent = "Prepárate…";
   for (const step of ["3", "2", "1"]) await flashOverlay(step, 700);
-  flashOverlay("GO!", 500);
+  flashOverlay("¡YA!", 500);
   gameDeadline = performance.now() + GAME_SECONDS * 1000;
   gameInRound = true;
-  gameStartBtn.textContent = "Shaving...";
+  gameStartBtn.textContent = "Afeitando…";
 });
 
 renderBoard();
@@ -2047,7 +2048,7 @@ function setMirrorFile(file) {
   mirrorBtn.disabled = false;
   mirrorPly.disabled = false;
   mirrorDrop.querySelector(".dz-title").textContent = file.name;
-  mirrorDrop.querySelector(".dz-sub").textContent = "click or drop to change the photo";
+  mirrorDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
 }
 
 mirrorDrop.addEventListener("click", () => mirrorInput.click());
@@ -2084,14 +2085,14 @@ mirrorAuto.addEventListener("change", () => {
 mirrorPly.addEventListener("click", async () => {
   if (!mirrorFile) return;
   mirrorPly.disabled = true;
-  mirrorPly.textContent = "Exporting...";
+  mirrorPly.textContent = "Exportando…";
   try {
     const formData = new FormData();
     formData.append("image", mirrorFile);
     formData.append("beard", mirrorBeard);
     formData.append("format", "ply");
     const response = await fetch(`${API}/head3d`, { method: "POST", body: formData });
-    if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+    if (!response.ok) throw new Error(`Falló la exportación (${response.status})`);
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
@@ -2103,7 +2104,7 @@ mirrorPly.addEventListener("click", async () => {
     mirrorError.hidden = false;
   } finally {
     mirrorPly.disabled = false;
-    mirrorPly.textContent = "Download .ply";
+    mirrorPly.textContent = "Descargar .ply";
   }
 });
 
@@ -2120,7 +2121,7 @@ mirrorBtn.addEventListener("click", async () => {
   mirrorError.hidden = true;
   mirrorBtn.disabled = true;
   mirrorBtn.classList.add("loading");
-  mirrorBtn.textContent = "Building...";
+  mirrorBtn.textContent = "Construyendo…";
   const started = performance.now();
   try {
     const formData = new FormData();
@@ -2129,7 +2130,7 @@ mirrorBtn.addEventListener("click", async () => {
     const response = await fetch(`${API}/head3d`, { method: "POST", body: formData });
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error.detail || `Request failed: ${response.status}`);
+      throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     const buffer = await response.arrayBuffer();
     mirrorStage.hidden = false;
@@ -2146,13 +2147,13 @@ mirrorBtn.addEventListener("click", async () => {
     const count = Number(response.headers.get("X-Splat-Count"));
     const beard = Number(response.headers.get("X-Splat-Beard"));
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    mirrorStats.textContent = `${count.toLocaleString()} Gaussians (${beard.toLocaleString()} beard) · built in ${seconds}s`;
+    mirrorStats.textContent = `${count.toLocaleString()} gaussianas (${beard.toLocaleString()} de barba) · lista en ${seconds} s`;
   } catch (error) {
     mirrorError.textContent = error.message;
     mirrorError.hidden = false;
   } finally {
     mirrorBtn.disabled = false;
     mirrorBtn.classList.remove("loading");
-    mirrorBtn.textContent = "Build 3D head";
+    mirrorBtn.textContent = "Construir cabeza 3D";
   }
 });
