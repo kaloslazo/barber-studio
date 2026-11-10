@@ -108,12 +108,29 @@ photoInput.addEventListener("change", () => {
   }
 });
 
+function showModelNote(headers) {
+  const note = document.getElementById("dye-model-note");
+  const model = headers.get("X-Hair-Model");
+  const agreement = parseFloat(headers.get("X-Mask-Agreement"));
+  const parts = [model === "yolo" ? "Pelo detectado con el YOLO propio" : "Pelo detectado con MediaPipe"];
+  if (model === "yolo" && !Number.isNaN(agreement)) parts.push(`coincide en ${Math.round(agreement * 100)} % con MediaPipe`);
+  if (document.getElementById("dye-beard").checked) parts.push(headers.get("X-Beard-Dyed") === "1" ? "barba incluida" : "no se encontró barba");
+  note.textContent = parts.join(" · ");
+  note.hidden = false;
+}
+
 applyBtn.addEventListener("click", async () => {
   if (!selectedFile) return;
   const formData = new FormData();
   formData.append("image", selectedFile);
   formData.append("color", selectedColor);
   formData.append("strength", (strengthInput.value / 100).toString());
+  const withBeard = document.getElementById("dye-beard").checked;
+  formData.append("beard", withBeard ? "true" : "false");
+  formData.append("beard_style", withBeard ? document.getElementById("panel-dye").dataset.beardStyle || "" : "");
+  const modelField = document.getElementById("dye-model-field");
+  const modelButton = document.querySelector("[data-dye-model].active");
+  formData.append("model", !modelField.hidden && modelButton ? modelButton.dataset.dyeModel : "auto");
   applyBtn.disabled = true;
   applyBtn.classList.add("loading");
   applyBtn.textContent = "Procesando…";
@@ -128,6 +145,7 @@ applyBtn.addEventListener("click", async () => {
       throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     const blob = await response.blob();
+    showModelNote(response.headers);
     resultImage.src = URL.createObjectURL(blob);
     compare.hidden = false;
   } catch (error) {

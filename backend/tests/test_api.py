@@ -20,7 +20,9 @@ def to_upload(image):
 def test_health():
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert isinstance(body["yolo"], bool)
 
 
 def test_root_serves_frontend():
@@ -109,7 +111,10 @@ def test_haircut_invalid_style_returns_400():
 
 
 def test_haircut_all_styles_are_enabled():
-    for style in ("low-fade", "mid-fade", "high-fade", "buzz"):
+    from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+
+    assert {"taper", "undercut", "hard-part", "crew"} <= set(HAIRCUT_STYLES)
+    for style in HAIRCUT_STYLES:
         response = client.post(
             "/api/haircut",
             files=to_upload(make_test_image()),
@@ -149,7 +154,9 @@ def test_haircut_never_touches_the_face():
     face = np.zeros(mask.shape, np.uint8)
     cv2.fillPoly(face, [geometry["polygon"]], 255)
     face = cv2.erode(face, np.ones((9, 9), np.uint8))
-    for style in ("low-fade", "buzz"):
+    from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+
+    for style in HAIRCUT_STYLES:
         result = apply_haircut(image, mask, geometry, style, 1.0)
         assert np.array_equal(result[face > 0], image[face > 0])
 
@@ -228,3 +235,57 @@ def test_head3d_without_face_returns_422():
 def test_head3d_rejects_unknown_beard():
     response = client.post("/api/head3d", files=to_upload(make_test_image()), data={"beard": "viking"})
     assert response.status_code == 400
+
+
+def test_face_shape_without_face_returns_422():
+    response = client.post("/api/face-shape", files=to_upload(make_test_image()))
+    assert response.status_code == 422
+
+
+def test_face_shape_classifies_proportions():
+    from app.core.geometry.face_shape import SHAPES, classify
+
+    typical = {"length": 1.219, "forehead": 0.857, "jaw": 0.805, "angle": 135.2}
+    assert classify(typical) == "ovalada"
+    assert classify({**typical, "length": 1.33}) == "alargada"
+    assert classify({**typical, "length": 1.15, "jaw": 0.83, "angle": 137.0}) == "redonda"
+    assert classify({**typical, "jaw": 0.83, "angle": 132.0}) == "cuadrada"
+    assert classify({**typical, "forehead": 0.88, "jaw": 0.78}) == "corazon"
+    for advice in SHAPES.values():
+        assert advice["haircut"] and advice["beard"] and advice["why"]
+
+
+def test_face_shape_suggests_known_styles():
+    from app.core.compositing.beard import STYLES as BEARD_STYLES
+    from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+    from app.core.geometry.face_shape import SHAPES
+
+    for advice in SHAPES.values():
+        assert set(advice["haircut"]) <= set(HAIRCUT_STYLES)
+        assert set(advice["avoid"]) <= set(HAIRCUT_STYLES)
+        assert set(advice["beard"]) <= set(BEARD_STYLES)
+
+
+def test_dye_rejects_unknown_model():
+    response = client.post("/api/dye", files=to_upload(make_test_image()), data={"model": "sam"})
+    assert response.status_code == 400
+
+
+def test_dye_rejects_unknown_beard_style():
+    response = client.post("/api/dye", files=to_upload(make_test_image()), data={"beard": "true", "beard_style": "viking"})
+    assert response.status_code == 400
+
+
+def test_facial_hair_stays_off_clean_skin():
+    from app.core.segmentation.facial_hair import facial_hair_alpha
+    from app.core.segmentation.transfer_mask import head_geometry
+
+    image = np.full((240, 320, 3), (120, 150, 200), np.uint8)
+    geometry = head_geometry(None, (100, 60, 120, 140))
+    jaw = geometry["polygon"][:17].astype(np.float32)
+    points = np.zeros((68, 2), np.float32)
+    points[0:17] = jaw
+    center = jaw.mean(axis=0)
+    points[17:68] = center + (np.arange(51)[:, None] % 7 - 3) * np.array([6.0, 2.0])
+    alpha = facial_hair_alpha(image, points)
+    assert alpha.max() < 0.05
