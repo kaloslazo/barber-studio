@@ -21,6 +21,8 @@ from app.core.pipeline import StylePipeline
 from app.core.splatting.face3d import face_scan_debug_image
 from app.core.splatting.head3d import to_ply
 
+MAX_SIDE = 2048
+
 router = APIRouter(prefix="/api")
 pipeline = StylePipeline()
 lab = LabSession(pipeline)
@@ -31,6 +33,10 @@ def decode_image(data):
     image = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
     if image is None:
         raise HTTPException(status_code=400, detail="Invalid image file")
+    longest = max(image.shape[:2])
+    if longest > MAX_SIDE:
+        scale = MAX_SIDE / longest
+        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     return image
 
 
