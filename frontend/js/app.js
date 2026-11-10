@@ -839,7 +839,7 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">Ver en 3D</button></div>`;
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat" data-icon="rotate-3d">Ver en 3D</button></div>`;
     card.querySelector('[data-action="splat"]').addEventListener("click", () => {
       selectPeluca(peluca, "splat");
       buildHair3dFromPeluca();
@@ -871,7 +871,7 @@ async function toggleTryonCamera() {
     tryonFrame = null;
     tryonAnchor = null;
     tryonServer = null;
-    tryonCamera.textContent = "Encender cámara de la persona B";
+    tryonCamera.textContent = "Encender cámara";
     tryonPlaceholder.hidden = false;
     poseBadge.textContent = "Esperando la cámara";
     renderTryonMesh();
@@ -882,7 +882,7 @@ async function toggleTryonCamera() {
     tryonVideo.srcObject = tryonStream;
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
-    tryonCamera.textContent = "Apagar cámara de la persona B";
+    tryonCamera.textContent = "Apagar cámara";
     poseBadge.textContent = "Cargando el seguimiento de cabeza…";
     tryonReset = true;
     tryonSmoother = null;

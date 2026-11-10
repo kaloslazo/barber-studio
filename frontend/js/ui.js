@@ -449,6 +449,23 @@
     new MutationObserver(check).observe(button, { childList: true, characterData: true, subtree: true });
   });
 
+  const ICON_STATES = [
+    [/…$/, "loader-2"],
+    [/^Apagar/, "camera-off"],
+    [/^Detener/, "player-stop"],
+  ];
+  function syncIcon(button) {
+    if (!button.dataset.iconIdle) button.dataset.iconIdle = button.dataset.icon;
+    const text = button.textContent.trim();
+    const state = ICON_STATES.find(([pattern]) => pattern.test(text));
+    const icon = state ? state[1] : button.dataset.iconIdle;
+    if (button.dataset.icon !== icon) button.dataset.icon = icon;
+    button.classList.toggle("is-working", icon === "loader-2");
+  }
+  $$("button[data-icon]:not(.group-tab, .menu-item, .photo-chip)").forEach((button) => {
+    new MutationObserver(() => syncIcon(button)).observe(button, { childList: true, characterData: true, subtree: true });
+  });
+
   const MESSAGES = [
     [/^Invalid image file.*$/i, "El archivo no es una imagen válida."],
     [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz."],

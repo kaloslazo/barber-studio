@@ -50,7 +50,7 @@
           <div class="hero-actions">
             <button type="button" data-upload data-icon="photo-up">Subir foto</button>
             <button type="button" class="quiet-button" data-camera data-icon="camera">Tomar foto</button>
-            <button type="button" class="quiet-button" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <button type="button" class="link-button" data-sample>o usa la foto de ejemplo</button>
           </div>
           <p class="fine">Sale mejor con luz pareja, fondo liso y sin gorra.</p>
         </div>
@@ -337,9 +337,9 @@
           <p>Escanea tu peinado con la cámara y míralo en 3D sobre un maniquí o sobre tu cara.</p>
         </div>
         <div class="transfer-steps" role="tablist" aria-label="Pasos de la peluca 3D">
-          <button class="transfer-step active" data-transfer-view="scan" role="tab">1 · Escanear</button>
-          <button class="transfer-step" data-transfer-view="library" role="tab">2 · Mis pelucas</button>
-          <button class="transfer-step" data-transfer-view="splat" role="tab">3 · Peluca 3D</button>
+          <button class="transfer-step active" data-transfer-view="scan" role="tab" data-icon="scan">Escanear</button>
+          <button class="transfer-step" data-transfer-view="library" role="tab" data-icon="hanger">Mis pelucas</button>
+          <button class="transfer-step" data-transfer-view="splat" role="tab" data-icon="rotate-3d">Peluca 3D</button>
         </div>
       </header>
 
@@ -369,7 +369,7 @@
             <div class="scan-key mesh-key"><i></i> Las líneas son la malla facial</div>
             <div class="actions">
               <button id="scan-start" data-icon="scan">Empezar escaneo</button>
-              <button id="scan-stop" disabled>Cancelar</button>
+              <button class="quiet-button" id="scan-stop" disabled>Cancelar</button>
             </div>
             <div class="banner" id="scan-error" hidden></div>
           </aside>
@@ -405,12 +405,12 @@
             <h2 id="selected-peluca-name">Elige una peluca</h2>
             <p id="selected-peluca-date">Vuelve a Mis pelucas para elegir un escaneo.</p>
             <div class="actions">
-              <button id="tryon-camera">Encender cámara de la persona B</button>
-              <div class="actions-row">
-                <button id="rotate-left">Girar a la izq.</button>
-                <button id="rotate-right">Girar a la der.</button>
+              <button id="tryon-camera" data-icon="camera">Encender cámara</button>
+              <div class="actions-row pair">
+                <button class="quiet-button" id="rotate-left" data-icon="rotate" aria-label="Girar a la izquierda">Izquierda</button>
+                <button class="quiet-button" id="rotate-right" data-icon="rotate-clockwise" aria-label="Girar a la derecha">Derecha</button>
               </div>
-              <button id="switch-peluca">Cambiar peluca</button>
+              <button class="quiet-button" id="switch-peluca" data-icon="arrows-exchange">Cambiar peluca</button>
             </div>
             <div class="banner" id="tryon-error" hidden></div>
           </aside>
@@ -446,13 +446,13 @@
                     <span class="field-label">Intensidad <output data-for="wig-strength" data-unit=" %"></output></span>
                     <input type="range" id="wig-strength" min="0" max="100" value="85">
                   </label>
-                  <button class="quiet-button" id="wig-original" data-icon="refresh">Color original</button>
+                  <button class="quiet-button" id="wig-original" data-icon="palette-off">Color original</button>
                 </div>
               </div>
               <div class="wig-tool">
                 <span class="field-label">Tijeras</span>
                 <div class="wig-row">
-                  <button id="wig-scissors" aria-pressed="false" data-icon="scissors">Tijeras</button>
+                  <button class="quiet-button" id="wig-scissors" aria-pressed="false" data-icon="scissors">Tijeras</button>
                   <label class="field grow">
                     <span class="field-label">Grosor <output data-for="wig-brush" data-unit=" px"></output></span>
                     <input type="range" id="wig-brush" min="8" max="90" value="28">
@@ -463,9 +463,9 @@
                   </label>
                 </div>
                 <div class="wig-row">
-                  <button class="quiet-button" id="wig-tips">Cortar puntas</button>
+                  <button class="quiet-button" id="wig-tips" data-icon="cut">Cortar puntas</button>
                   <button class="quiet-button" id="wig-bald" data-icon="razor-electric">Rapar</button>
-                  <button class="quiet-button" id="wig-undo" disabled>Deshacer</button>
+                  <button class="quiet-button" id="wig-undo" data-icon="arrow-back-up" disabled>Deshacer</button>
                   <button class="quiet-button" id="wig-reset" data-icon="refresh">Restaurar pelo</button>
                 </div>
                 <p class="hint" id="wig-hint">Activa las tijeras y pinta sobre la peluca para cortar esa parte. Mantén Shift y arrastra para girar mientras cortas.</p>
@@ -477,7 +477,7 @@
               <span class="step-label">Desde tu escaneo</span>
               <h2 id="hair3d-peluca-name">Ninguna peluca elegida</h2>
               <p class="field-note">Cada ángulo capturado se lleva a 3D y se une en una sola peluca de gaussianas.</p>
-              <div class="actions"><button id="hair3d-scan" disabled>Construir desde el escaneo</button></div>
+              <div class="actions"><button id="hair3d-scan" data-icon="cube-plus" disabled>Construir desde el escaneo</button></div>
             </div>
             <div class="card drop-zone compact" id="hair3d-drop" tabindex="0">
               <img class="dz-preview" alt="">
@@ -495,7 +495,7 @@
                 <canvas id="face3d-live" aria-label="Escaneo de la cara en vivo"></canvas>
                 <div class="pose-badge" id="face3d-hint">Prepárate…</div>
               </div>
-              <div class="actions"><button class="quiet-button" id="face3d-scan">Escanear mi cara (7 s)</button></div>
+              <div class="actions"><button class="quiet-button" id="face3d-scan" data-icon="user-scan">Escanear mi cara (7 s)</button></div>
               <video id="face3d-video" hidden autoplay playsinline muted></video>
             </div>
             <div class="card inspector ticket">
@@ -507,8 +507,8 @@
               <div class="actions">
                 <button class="quiet-button" id="hair3d-reset" data-icon="refresh">Reiniciar vista</button>
                 <div class="actions-row">
-                  <button class="quiet-button" id="hair3d-ply" disabled>Descargar .ply</button>
-                  <button class="quiet-button" id="hair3d-photos" disabled>Fotos del escaneo</button>
+                  <button class="quiet-button" id="hair3d-ply" data-icon="download" disabled>Descargar .ply</button>
+                  <button class="quiet-button" id="hair3d-photos" data-icon="photo-down" disabled>Fotos del escaneo</button>
                 </div>
               </div>
               <div class="banner" id="hair3d-error" hidden></div>
@@ -561,7 +561,7 @@
             <button id="mirror-btn" data-icon="cube-plus" disabled>Construir cabeza 3D</button>
             <div class="actions-row">
               <button class="quiet-button" id="mirror-reset" data-icon="refresh">Reiniciar vista</button>
-              <button class="quiet-button" id="mirror-ply" disabled>Descargar .ply</button>
+              <button class="quiet-button" id="mirror-ply" data-icon="download" disabled>Descargar .ply</button>
             </div>
           </div>
           <div class="banner" id="mirror-error" hidden></div>
@@ -599,8 +599,8 @@
           </div>
           <div class="actions">
             <div class="actions-row">
-              <button class="quiet-button" id="lab-camera">Encender cámara</button>
-              <button class="quiet-button" id="lab-scan" disabled>Escanear (7 s)</button>
+              <button class="quiet-button" id="lab-camera" data-icon="camera">Encender cámara</button>
+              <button class="quiet-button" id="lab-scan" data-icon="scan" disabled>Escanear (7 s)</button>
             </div>
             <label class="quiet-button lab-upload" data-icon="upload">
               O sube fotos
@@ -618,7 +618,7 @@
           </div>
           <div class="actions">
             <button id="lab-build" data-icon="cube-plus" disabled>Construir cabeza</button>
-            <button class="quiet-button" id="lab-live" disabled>Avatar en vivo</button>
+            <button class="quiet-button" id="lab-live" data-icon="player-play" disabled>Avatar en vivo</button>
           </div>
           <table class="lab-metrics" id="lab-metrics" hidden>
             <thead><tr><th>PSNR (dB)</th><th>Entrenamiento</th><th>Vista de prueba</th></tr></thead>
@@ -673,8 +673,8 @@
             </label>
             <label class="check"><span>Cortar con la mano</span><input type="checkbox" id="game-hand" checked></label>
             <div class="actions">
-              <button class="quiet-button" id="game-camera">Encender cámara</button>
-              <button id="game-start" disabled>Empezar ronda</button>
+              <button class="quiet-button" id="game-camera" data-icon="camera">Encender cámara</button>
+              <button id="game-start" data-icon="player-play" disabled>Empezar ronda</button>
             </div>
             <div class="banner" id="game-error" hidden></div>
           </div>
@@ -734,7 +734,7 @@
       </div>
       <div class="card guess-bar" id="splat-guess-bar" hidden>
         <span id="splat-guess-text">Toca el botón apenas reconozcas la cara. Menos gaussianas, más puntos.</span>
-        <button id="splat-guess-btn" disabled>La reconozco</button>
+        <button id="splat-guess-btn" data-icon="check" disabled>La reconozco</button>
         <strong id="splat-score"></strong>
       </div>
       <div class="splat-grid" id="splat-grid"></div>
