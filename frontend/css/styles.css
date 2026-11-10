@@ -418,8 +418,8 @@ p {
   margin: 0;
 }
 
-.hero-demo .ba .shot img {
-  height: clamp(380px, 62vh, 640px);
+.hero-demo .ba .shot:first-child img {
+  max-height: clamp(380px, 62vh, 640px);
 }
 
 .demo-note {
@@ -756,8 +756,14 @@ p {
 .ba .shot img {
   display: block;
   width: 100%;
-  height: var(--stage-h);
+  height: auto;
+  max-height: var(--stage-h);
   object-fit: contain;
+}
+
+.ba .shot + .shot img {
+  height: 100%;
+  max-height: none;
 }
 
 .ba .shot + .shot {
@@ -1919,8 +1925,8 @@ input[type="range"]:not(.ba-range)::-moz-range-thumb {
     flex: 1 1 auto;
   }
 
-  .hero-demo .ba .shot img {
-    height: 420px;
+  .hero-demo .ba .shot:first-child img {
+    max-height: 420px;
   }
 
   .carta {
@@ -1946,7 +1952,7 @@ input[type="range"]:not(.ba-range)::-moz-range-thumb {
   }
 
   .inspector {
-    position: static;
+    position: relative;
   }
 
   .drop-zone:not(.has-photo):not(.compact) {
@@ -2207,38 +2213,38 @@ label[data-icon],
 }
 
 .ba-modes {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  z-index: 3;
-  transform: translateX(-50%);
-  display: flex;
+  display: inline-flex;
+  align-self: flex-start;
   gap: 2px;
   padding: 4px;
   border-radius: var(--radius);
-  background: var(--overlay);
+  background: var(--surface);
+}
+
+.hero-demo > .ba-modes {
+  align-self: center;
 }
 
 .ba-modes button {
-  padding: 7px 13px;
+  padding: 8px 14px;
   border: 0;
   border-radius: var(--radius);
   background: transparent;
-  color: #D6D6D4;
-  font-size: 12.5px;
+  color: var(--muted);
+  font-size: 13px;
   font-weight: 500;
   --icon-size: 15px;
 }
 
 .ba-modes button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--on-stage);
+  background: transparent;
+  color: var(--ink);
 }
 
 .ba-modes button.active,
 .ba-modes button.active:hover:not(:disabled) {
-  background: var(--on-stage);
-  color: var(--ink);
+  background: var(--ink);
+  color: var(--on-accent);
 }
 
 .look-media span {
@@ -2620,6 +2626,238 @@ body.modal-open {
 
   .cam-actions button {
     flex: 1 1 auto;
+  }
+}
+
+.hero {
+  position: relative;
+}
+
+.threads {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero > :not(.threads) {
+  position: relative;
+  z-index: 1;
+}
+
+.bt-word {
+  display: inline-block;
+  animation: bt-in 0.75s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes bt-in {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(-0.3em);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+.rt {
+  display: inline-flex;
+  overflow: hidden;
+  padding: 0 0.16em 0.04em;
+  border-radius: 0.16em;
+  background: var(--red);
+  color: var(--ink);
+  line-height: 1.02;
+  vertical-align: baseline;
+}
+
+.rt-char {
+  display: inline-block;
+  animation: rt-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes rt-in {
+  from {
+    transform: translateY(105%);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.demo-note #demo-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.group-tab {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.group-tab::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  z-index: -1;
+  width: 150%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--tab);
+  opacity: 0;
+  transform: translate(-50%, 0) scale(0.2);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s;
+}
+
+.group-tab:not(.active):hover::after {
+  opacity: 1;
+  transform: translate(-50%, -58%) scale(1);
+}
+
+.group-tab:not(.active):hover:not(:disabled) {
+  background: transparent;
+  color: var(--ink);
+}
+
+.group-tab:not(.active):hover::before {
+  background: var(--ink);
+}
+
+.inspector,
+.look {
+  --mx: 50%;
+  --my: 0%;
+}
+
+.look {
+  position: relative;
+}
+
+.inspector::after,
+.look::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(320px circle at var(--mx) var(--my), color-mix(in srgb, var(--tone-line) 16%, transparent), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.inspector:hover::after,
+.look:hover::after {
+  opacity: 1;
+}
+
+.inspector > *,
+.look > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-actions > button,
+.actions > button,
+.dz-cta,
+.result-bar [data-ficha] {
+  transition: translate 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s, color 0.15s;
+}
+
+.demo-style,
+.look {
+  transition: transform 0.2s ease-out;
+  will-change: transform;
+}
+
+.spark-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.dz-change {
+  display: none;
+  gap: 8px;
+}
+
+.drop-zone.has-photo .dz-change {
+  display: flex;
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+}
+
+.dz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 9px 15px;
+  border: 0;
+  border-radius: var(--radius);
+  background: rgba(10, 10, 10, 0.66);
+  color: var(--on-stage);
+  font-size: 13px;
+  font-weight: 500;
+  --icon-size: 16px;
+}
+
+.dz-chip:hover:not(:disabled) {
+  background: rgba(10, 10, 10, 0.85);
+}
+
+.stage-col:has(> .result:not([hidden])) > .drop-zone {
+  flex-wrap: wrap;
+}
+
+.stage-col:has(> .result:not([hidden])) > .drop-zone .dz-change {
+  display: flex;
+  position: static;
+  margin-left: auto;
+}
+
+.stage-col:has(> .result:not([hidden])) > .drop-zone .dz-chip {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.stage-col:has(> .result:not([hidden])) > .drop-zone .dz-chip:hover:not(:disabled) {
+  background: var(--raised);
+}
+
+@media (max-width: 900px) {
+  .drop-zone.has-photo .dz-change {
+    top: 12px;
+    right: 12px;
+  }
+
+  .stage-col:has(> .result:not([hidden])) > .drop-zone .dz-change {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .stage-col:has(> .result:not([hidden])) > .drop-zone .dz-chip {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .result-bar .ba-modes {
+    width: 100%;
+  }
+
+  .result-bar .ba-modes button {
+    flex: 1 1 0;
   }
 }
 

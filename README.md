@@ -26,7 +26,7 @@ Web app where the user uploads a photo (or uses the webcam) and can try on hair 
 ## Architecture
 
 - **Backend** (`backend/`): FastAPI service in Python. Pipeline modules live in `backend/app/core/` (detection, segmentation, coloring, geometry, compositing). Fine-tuning scripts for Google Colab live in `backend/training/`.
-- **Frontend** (`frontend/`): vanilla HTML/CSS/JS, no build step.
+- **Frontend** (`frontend/`): vanilla HTML/CSS/JS, no build step. The animated details in `frontend/js/bits.js` (rotating headline, blur-in titles, threads background, pill nav fill, spotlight, magnet, tilt, click spark, count up) are vanilla ports of components from [React Bits](https://reactbits.dev) (MIT + Commons Clause).
 - `data/` and `models/` hold datasets and trained weights (gitignored).
 
 ## Run

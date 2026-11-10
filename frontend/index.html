@@ -44,9 +44,10 @@
   <main class="content">
     <section class="panel active" id="panel-inicio">
       <div class="hero">
+        <canvas class="threads" id="threads" aria-hidden="true"></canvas>
         <div class="hero-copy">
-          <h1>Barba, tinte y corte sobre tu propia foto</h1>
-          <p class="lead">Sube una foto de frente. La app ubica 478 puntos de tu cara y dibuja el estilo encima. Una barba tarda menos de medio segundo.</p>
+          <h1 aria-label="Barba, tinte y corte sobre tu propia foto"><span class="rt" id="rt" aria-hidden="true">Candado</span><span class="h1-rest" aria-hidden="true"> sobre tu propia foto</span></h1>
+          <p class="lead">Barba, tinte y corte sobre tu foto. Súbela o tómala con la cámara: la app ubica 478 puntos de tu cara y dibuja el estilo encima en menos de un segundo.</p>
           <div class="hero-actions">
             <button type="button" data-upload data-icon="photo-up">Subir foto</button>
             <button type="button" class="quiet-button" data-camera data-icon="camera">Tomar foto</button>
@@ -67,7 +68,7 @@
             <button type="button" class="demo-style" data-demo="mustache" data-time="0,31"><img src="assets/samples/estilo-mustache.jpg" alt=""><span>Bigote</span></button>
             <button type="button" class="demo-style" data-demo="stubble" data-time="0,28"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
           </div>
-          <p class="demo-note" id="demo-note">Candado · generado en 0,37 s</p>
+          <p class="demo-note" id="demo-note"><span id="demo-name">Candado</span> · generado en <span id="demo-time">0,37</span> s</p>
         </div>
       </div>
 
@@ -122,6 +123,7 @@
             </div>
             <span class="dz-cta">Elegir foto</span>
             <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="photo-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="compare" hidden>
@@ -174,6 +176,7 @@
             </div>
             <span class="dz-cta">Elegir foto</span>
             <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="beard-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="beard-compare" hidden>
@@ -229,6 +232,7 @@
             </div>
             <span class="dz-cta">Elegir foto</span>
             <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="hc-input" accept="image/*" hidden>
           </div>
           <div class="compare ba result" id="hc-compare" hidden>
@@ -528,6 +532,7 @@
             </div>
             <span class="dz-cta">Elegir foto</span>
             <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="mirror-input" accept="image/*" hidden>
           </div>
           <div class="card mirror-stage result" id="mirror-stage" hidden>
@@ -698,6 +703,7 @@
             </div>
             <span class="dz-cta">Elegir foto</span>
             <div class="dz-alt"><button type="button" class="dz-sample" data-camera data-icon="camera">Tomar foto</button><button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button></div>
+            <div class="dz-change"><button type="button" class="dz-chip" data-change data-icon="replace">Cambiar foto</button><button type="button" class="dz-chip" data-camera data-icon="camera">Tomar otra</button></div>
             <input type="file" id="splat-input" accept="image/*" hidden>
           </div>
         </div>
@@ -778,5 +784,6 @@
   <script src="js/app.js"></script>
   <script src="js/lab.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/bits.js"></script>
 </body>
 </html>

@@ -216,6 +216,10 @@
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !camModal.hidden) closeCamera();
   });
+  $$("[data-change]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    button.closest(".drop-zone").querySelector('input[type="file"]').click();
+  }));
   $$("[data-camera]").forEach((button) => button.addEventListener("click", (event) => {
     event.stopPropagation();
     openCamera(button.closest("#panel-inicio") ? "beard" : null);
@@ -254,7 +258,9 @@
     const modes = document.createElement("div");
     modes.className = "ba-modes";
     modes.innerHTML = `<button type="button" data-pos="100">Antes</button><button type="button" data-pos="50" data-icon="arrows-horizontal">Comparar</button><button type="button" data-pos="0">Después</button>`;
-    ba.append(modes);
+    const bar = ba.nextElementSibling;
+    if (bar && bar.classList.contains("result-bar")) bar.prepend(modes);
+    else ba.after(modes);
     const update = () => {
       ba.style.setProperty("--pos", `${range.value}%`);
       const value = Number(range.value);
@@ -280,11 +286,16 @@
   });
 
   const demoAfter = byId("demo-after");
-  const demoNote = byId("demo-note");
-  $$(".demo-style").forEach((button) => button.addEventListener("click", () => {
+  function showDemo(button) {
     $$(".demo-style").forEach((other) => other.classList.toggle("active", other === button));
     demoAfter.src = `assets/samples/demo-${button.dataset.demo}.jpg`;
-    demoNote.textContent = `${button.querySelector("span").textContent} · generado en ${button.dataset.time} s`;
+    byId("demo-name").textContent = button.querySelector("span").textContent;
+    byId("demo-time").textContent = button.dataset.time;
+    document.dispatchEvent(new CustomEvent("demo:style", { detail: { button } }));
+  }
+  $$(".demo-style").forEach((button) => button.addEventListener("click", (event) => {
+    if (event.isTrusted) document.dispatchEvent(new Event("demo:manual"));
+    showDemo(button);
   }));
 
   $$(".palette").forEach((palette) => {
