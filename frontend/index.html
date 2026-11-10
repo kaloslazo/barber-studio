@@ -139,6 +139,7 @@
             <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
             <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
           </div>
+          <div class="chain-bar" data-tool="dye"><span class="chain-label">Sobre este resultado</span><button type="button" class="quiet-button" data-chain="beard" data-icon="moustache">Agregar barba</button><button type="button" class="quiet-button" data-chain="haircut" data-icon="razor-electric">Agregar corte</button></div>
         </div>
         <aside class="card inspector ticket">
           <div class="field">
@@ -155,6 +156,7 @@
             <span class="field-label">Intensidad <output data-for="strength" data-unit=" %"></output></span>
             <input type="range" id="strength" min="10" max="100" value="75">
           </label>
+          <p class="chain-note" data-chain-note hidden><span>Sobre tu look: <strong></strong></span><button type="button" class="link-button" data-unchain>Volver a la foto original</button></p>
           <p class="order" data-order="dye"></p>
           <div class="actions"><button id="apply-btn" data-icon="palette" disabled>Aplicar tinte</button></div>
           <div class="banner" id="error-banner" hidden></div>
@@ -192,6 +194,7 @@
             <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
             <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
           </div>
+          <div class="chain-bar" data-tool="beard"><span class="chain-label">Sobre este resultado</span><button type="button" class="quiet-button" data-chain="dye" data-icon="palette">Agregar tinte</button><button type="button" class="quiet-button" data-chain="haircut" data-icon="razor-electric">Agregar corte</button></div>
         </div>
         <aside class="card inspector ticket">
           <div class="field">
@@ -211,6 +214,7 @@
             <span>Mostrar la malla de triángulos</span>
             <input type="checkbox" id="beard-mesh">
           </label>
+          <p class="chain-note" data-chain-note hidden><span>Sobre tu look: <strong></strong></span><button type="button" class="link-button" data-unchain>Volver a la foto original</button></p>
           <p class="order" data-order="beard"></p>
           <div class="actions"><button id="beard-btn" data-icon="moustache" disabled>Aplicar barba</button></div>
           <div class="banner" id="beard-error" hidden></div>
@@ -248,6 +252,7 @@
             <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
             <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
           </div>
+          <div class="chain-bar" data-tool="haircut"><span class="chain-label">Sobre este resultado</span><button type="button" class="quiet-button" data-chain="beard" data-icon="moustache">Agregar barba</button><button type="button" class="quiet-button" data-chain="dye" data-icon="palette">Agregar tinte</button></div>
         </div>
         <aside class="card inspector ticket">
           <div class="field">
@@ -263,6 +268,7 @@
             <span class="field-label">Intensidad <output data-for="hc-strength" data-unit=" %"></output></span>
             <input type="range" id="hc-strength" min="20" max="100" value="90">
           </label>
+          <p class="chain-note" data-chain-note hidden><span>Sobre tu look: <strong></strong></span><button type="button" class="link-button" data-unchain>Volver a la foto original</button></p>
           <p class="order" data-order="haircut"></p>
           <div class="actions"><button id="hc-btn" data-icon="razor-electric" disabled>Aplicar corte</button></div>
           <div class="banner" id="hc-error" hidden></div>

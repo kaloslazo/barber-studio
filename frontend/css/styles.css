@@ -851,8 +851,40 @@ p {
   gap: 8px;
 }
 
-.stage-col:not(:has(> .compare:not([hidden]))) > .result-bar {
+.stage-col:not(:has(> .compare:not([hidden]))) > .result-bar,
+.stage-col:not(:has(> .compare:not([hidden]))) > .chain-bar {
   display: none;
+}
+
+.chain-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chain-label {
+  margin-right: 4px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.chain-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--raised);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.chain-note strong {
+  font-weight: 600;
 }
 
 .result-bar .quiet-button {
@@ -3030,6 +3062,28 @@ button.is-working::before {
 
   .hero-actions > .link-button {
     flex-basis: 100%;
+  }
+}
+
+.chain-bar > .quiet-button {
+  min-height: var(--btn-h-sm);
+  padding: 0 14px;
+  font-size: 13.5px;
+  --icon-size: 16px;
+}
+
+.chain-note .link-button {
+  min-height: 0;
+  font-size: 13.5px;
+}
+
+@media (max-width: 900px) {
+  .chain-label {
+    flex-basis: 100%;
+  }
+
+  .chain-bar > .quiet-button {
+    flex: 1 1 0;
   }
 }
 
