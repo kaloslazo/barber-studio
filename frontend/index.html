@@ -44,7 +44,6 @@
   <main class="content">
     <section class="panel active" id="panel-inicio">
       <div class="hero">
-        <canvas class="threads" id="threads" aria-hidden="true"></canvas>
         <div class="hero-copy">
           <h1 aria-label="Barba, tinte y corte sobre tu propia foto"><span class="rt" id="rt" aria-hidden="true">Candado</span><span class="h1-rest" aria-hidden="true"> sobre tu propia foto</span></h1>
           <p class="lead">Barba, tinte y corte sobre tu foto. Súbela o tómala con la cámara: la app ubica 478 puntos de tu cara y dibuja el estilo encima en menos de un segundo.</p>
@@ -71,6 +70,8 @@
           <p class="demo-note" id="demo-note"><span id="demo-name">Candado</span> · generado en <span id="demo-time">0,37</span> s</p>
         </div>
       </div>
+
+      <div class="threads-band" aria-hidden="true"><canvas class="threads" id="threads"></canvas></div>
 
       <section class="carta" aria-labelledby="carta-title">
         <div class="carta-head">
@@ -105,6 +106,7 @@
         </div>
         <div class="looks-grid compact" id="recent-grid"></div>
       </section>
+      <p class="credits">Hecho por Kalos Lazo, Sofía Herrera y Gianpier Segovia para CS4016 Computación Gráfica, UTEC.</p>
     </section>
 
     <section class="panel" id="panel-dye">
@@ -756,7 +758,6 @@
     </section>
   </main>
 
-  <footer class="site-foot">Fresh · Proyecto de CS4016 Computación Gráfica, UTEC · Kalos Lazo, Sofía Herrera y Gianpier Segovia</footer>
 
   <div class="cam-modal" id="cam-modal" role="dialog" aria-modal="true" aria-labelledby="cam-title" hidden>
     <div class="cam-box">

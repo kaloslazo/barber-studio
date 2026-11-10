@@ -99,20 +99,20 @@
     mouse.x += (mouse.tx - mouse.x) * 0.09;
     mouse.y += (mouse.ty - mouse.y) * 0.09;
     const t = time * 0.00032;
-    const radius = 150;
+    const radius = 110;
     for (let i = 0; i < LINES; i += 1) {
       const p = i / (LINES - 1);
-      const base = height * (0.08 + 0.86 * p);
+      const base = height * (0.12 + 0.76 * p);
       ctx.beginPath();
       for (let x = -20; x <= width + 20; x += 12) {
         const nx = x / Math.max(width, 1);
         let y = base
-          + Math.sin(nx * 5.1 + t * 2.0 + p * 4.2) * 16 * (0.35 + nx)
-          + Math.sin(nx * 12.0 - t * 1.3 + p * 9.0) * 5;
+          + Math.sin(nx * 5.1 + t * 2.0 + p * 4.2) * 12 * (0.45 + nx)
+          + Math.sin(nx * 12.0 - t * 1.3 + p * 9.0) * 4;
         const dx = x - mouse.x;
         const dy = y - mouse.y;
         const pull = Math.exp(-(dx * dx + dy * dy) / (2 * radius * radius));
-        y += (dy >= 0 ? 1 : -1) * pull * 38;
+        y += (dy >= 0 ? 1 : -1) * pull * 26;
         if (x === -20) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
@@ -150,12 +150,12 @@
     updateThreads();
   }).observe(hero);
   document.addEventListener("visibilitychange", updateThreads);
-  hero.addEventListener("pointermove", (event) => {
+  inicio.addEventListener("pointermove", (event) => {
     const rect = hero.getBoundingClientRect();
     mouse.tx = event.clientX - rect.left;
     mouse.ty = event.clientY - rect.top;
-  });
-  hero.addEventListener("pointerleave", () => {
+  }, { passive: true });
+  inicio.addEventListener("pointerleave", () => {
     mouse.tx = -1e4;
     mouse.ty = -1e4;
   });
