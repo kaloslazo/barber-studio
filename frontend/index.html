@@ -1,596 +1,765 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BarberStudio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Fresh</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Display&family=Figtree:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/icons.css">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div class="layout">
-    <aside class="sidebar">
-      <div class="brand">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="6" cy="6" r="3"></circle>
-          <circle cx="6" cy="18" r="3"></circle>
-          <path d="M20 4L8.1 15.9"></path>
-          <path d="M14.5 14.5L20 20"></path>
-          <path d="M8.1 8.1L12 12"></path>
-        </svg>
-        <span>BarberStudio</span>
-      </div>
-      <nav class="menu">
-        <button class="menu-item active" data-panel="dye">Hair Dye</button>
-        <button class="menu-item" data-panel="beard">Beard</button>
-        <button class="menu-item" data-panel="haircut">Haircut</button>
-        <button class="menu-item" data-panel="live">Live</button>
-        <button class="menu-item" data-panel="transfer">Transfering hair</button>
-        <button class="menu-item" data-panel="splats">Gaussian Splatting</button>
-        <button class="menu-item" data-panel="speedrun">Barber Speedrun</button>
-        <button class="menu-item" data-panel="mirror">3D Mirror</button>
-        <button class="menu-item" data-panel="lab">3D Lab (beta)</button>
-      </nav>
-      <div class="card tips">
-        <h3>Photo tips</h3>
-        <ul>
-          <li>Look straight at the camera</li>
-          <li>Even light, no strong shadows</li>
-          <li>Plain background works best</li>
-          <li>Hair visible above your head</li>
-          <li>No hats or hoods</li>
-        </ul>
-      </div>
-    </aside>
-    <main class="content">
-      <section class="panel active" id="panel-dye">
-        <header class="page-head">
-          <h1>Hair Dye</h1>
-          <p>Pick a color and preview it on your hair.</p>
-        </header>
+  <header class="site-head">
+    <button class="brand" type="button" data-go="inicio">Fresh</button>
+    <nav class="groups" aria-label="Secciones">
+      <button class="group-tab active" type="button" data-group="inicio" data-icon="home"><span>Inicio</span></button>
+      <button class="group-tab" type="button" data-group="estilos" data-icon="scissors"><span>Estilos</span></button>
+      <button class="group-tab" type="button" data-group="3d" data-icon="cube-3d-sphere"><span>3D</span></button>
+      <button class="group-tab" type="button" data-group="juegos" data-icon="device-gamepad-2"><span>Juegos</span></button>
+      <button class="group-tab" type="button" data-group="looks" data-icon="bookmarks"><span>Mis looks</span><span class="count" id="looks-count" hidden></span></button>
+    </nav>
+    <button class="photo-chip" id="photo-chip" type="button" data-icon="photo-up">
+      <img id="photo-chip-img" alt="">
+      <span id="photo-chip-text">Subir foto</span>
+    </button>
+    <input type="file" id="shared-input" accept="image/*" hidden>
+  </header>
 
-        <div class="card drop-zone" id="drop-zone" tabindex="0">
-          <p class="dz-title">Drop your photo here</p>
-          <p class="dz-sub">or click to browse (JPG / PNG)</p>
-          <input type="file" id="photo-input" accept="image/*" hidden>
+  <nav class="subnav" id="subnav" aria-label="Herramientas">
+    <button class="menu-item active" data-panel="inicio" data-group="inicio">Inicio</button>
+    <button class="menu-item" data-panel="beard" data-group="estilos" data-icon="moustache">Barba</button>
+    <button class="menu-item" data-panel="dye" data-group="estilos" data-icon="palette">Tinte</button>
+    <button class="menu-item" data-panel="haircut" data-group="estilos" data-icon="razor-electric">Corte</button>
+    <button class="menu-item" data-panel="live" data-group="estilos" data-icon="video">En vivo</button>
+    <button class="menu-item" data-panel="mirror" data-group="3d" data-icon="user-scan">Espejo 3D</button>
+    <button class="menu-item" data-panel="transfer" data-group="3d" data-icon="rotate-3d">Peluca 3D</button>
+    <button class="menu-item" data-panel="lab" data-group="3d" data-icon="flask">Laboratorio <small>beta</small></button>
+    <button class="menu-item" data-panel="speedrun" data-group="juegos" data-icon="stopwatch">Contrarreloj</button>
+    <button class="menu-item" data-panel="splats" data-group="juegos" data-icon="grain">Gaussianas</button>
+    <button class="menu-item" data-panel="looks" data-group="looks">Mis looks</button>
+  </nav>
+
+  <main class="content">
+    <section class="panel active" id="panel-inicio">
+      <div class="hero">
+        <div class="hero-copy">
+          <h1>Barba, tinte y corte sobre tu propia foto</h1>
+          <p class="lead">Sube una foto de frente. La app ubica 478 puntos de tu cara y dibuja el estilo encima. Una barba tarda menos de medio segundo.</p>
+          <div class="hero-actions">
+            <button type="button" data-upload data-icon="photo-up">Subir foto</button>
+            <button type="button" class="quiet-button" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+          </div>
+          <p class="fine">Sale mejor con luz pareja, fondo liso y sin gorra.</p>
         </div>
+        <div class="hero-demo">
+          <div class="ba" id="demo-ba">
+            <figure class="shot"><img src="assets/samples/demo-none.jpg" alt="Foto de ejemplo sin barba"><figcaption>Antes</figcaption></figure>
+            <figure class="shot"><img id="demo-after" src="assets/samples/demo-goatee.jpg" alt="Foto de ejemplo con barba"><figcaption>Después</figcaption></figure>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="40" aria-label="Comparar antes y después">
+          </div>
+          <div class="demo-styles" aria-label="Estilos del ejemplo">
+            <button type="button" class="demo-style" data-demo="full" data-time="0,47"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+            <button type="button" class="demo-style active" data-demo="goatee" data-time="0,37"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+            <button type="button" class="demo-style" data-demo="mustache" data-time="0,31"><img src="assets/samples/estilo-mustache.jpg" alt=""><span>Bigote</span></button>
+            <button type="button" class="demo-style" data-demo="stubble" data-time="0,28"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
+          </div>
+          <p class="demo-note" id="demo-note">Candado · generado en 0,37 s</p>
+        </div>
+      </div>
 
-        <div class="card controls">
-          <div class="swatches" id="swatches"></div>
-          <label class="custom-color">
-            <span>Custom</span>
-            <input type="color" id="custom-color" value="#7a3ba8">
-          </label>
-          <label class="slider">
-            <span>Dye intensity</span>
+      <section class="carta" aria-labelledby="carta-title">
+        <div class="carta-head">
+          <h2 id="carta-title">Herramientas</h2>
+        </div>
+        <div class="carta-cols">
+          <div class="carta-col">
+            <h3>Estilos</h3>
+            <button class="carta-row" type="button" data-go="beard"><span class="carta-icon" data-icon="moustache"></span><span class="carta-name">Barba</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Completa, candado, bigote o tres días.</span></button>
+            <button class="carta-row" type="button" data-go="dye"><span class="carta-icon" data-icon="palette"></span><span class="carta-name">Tinte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Siete colores o uno a tu elección.</span></button>
+            <button class="carta-row" type="button" data-go="haircut"><span class="carta-icon" data-icon="razor-electric"></span><span class="carta-name">Corte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Degradado bajo o rapado.</span></button>
+            <button class="carta-row" type="button" data-go="live"><span class="carta-icon" data-icon="video"></span><span class="carta-name">En vivo</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Tinte, barba y física con la cámara.</span></button>
+          </div>
+          <div class="carta-col">
+            <h3>3D</h3>
+            <button class="carta-row" type="button" data-go="mirror"><span class="carta-icon" data-icon="user-scan"></span><span class="carta-name">Espejo 3D</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Tu cabeza armada con gaussianas.</span></button>
+            <button class="carta-row" type="button" data-go="transfer"><span class="carta-icon" data-icon="rotate-3d"></span><span class="carta-name">Peluca 3D</span><span class="carta-dots"></span><span class="carta-tag">Cámara · 12 s</span><span class="carta-desc">Escanea tu peinado y córtalo en 3D.</span></button>
+            <button class="carta-row" type="button" data-go="lab"><span class="carta-icon" data-icon="flask"></span><span class="carta-name">Laboratorio</span><span class="carta-dots"></span><span class="carta-tag">Cámara · 7 s</span><span class="carta-desc">Un avatar 3D que sigue tu cara.</span></button>
+          </div>
+          <div class="carta-col">
+            <h3>Juegos</h3>
+            <button class="carta-row" type="button" data-go="speedrun"><span class="carta-icon" data-icon="stopwatch"></span><span class="carta-name">Contrarreloj</span><span class="carta-dots"></span><span class="carta-tag">Cámara · 30 s</span><span class="carta-desc">Afeita hasta el estilo objetivo con el dedo.</span></button>
+            <button class="carta-row" type="button" data-go="splats"><span class="carta-icon" data-icon="grain"></span><span class="carta-name">Gaussianas</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Reconoce la cara con la menor cantidad.</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="recent" id="recent-looks" hidden>
+        <div class="carta-head">
+          <h2>Guardados</h2>
+          <button type="button" class="quiet-button" data-go="looks" data-icon="arrow-right">Ver todos</button>
+        </div>
+        <div class="looks-grid compact" id="recent-grid"></div>
+      </section>
+    </section>
+
+    <section class="panel" id="panel-dye">
+      <header class="page-head">
+        <h1>Tinte</h1>
+        <p>Elige un color y la intensidad. Se aplica solo sobre el pelo.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card drop-zone" id="drop-zone" tabindex="0">
+            <img class="dz-preview" alt="">
+            <span class="dz-icon" data-icon="photo-up"></span>
+            <div class="dz-text">
+              <p class="dz-title">Suelta tu foto aquí</p>
+              <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
+            </div>
+            <span class="dz-cta">Elegir foto</span>
+            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <input type="file" id="photo-input" accept="image/*" hidden>
+          </div>
+          <div class="compare ba result" id="compare" hidden>
+            <figure class="shot"><img id="original-image" alt="Foto original"><figcaption>Antes</figcaption></figure>
+            <figure class="shot"><img id="result-image" alt="Foto con el tinte"><figcaption>Después</figcaption></figure>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Comparar antes y después">
+          </div>
+          <div class="result-bar" data-tool="dye">
+            <button type="button" class="quiet-button" data-save data-icon="bookmark-plus">Guardar</button>
+            <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
+            <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Color</span>
+            <div class="palette">
+              <div class="swatches" id="swatches"></div>
+              <label class="swatch swatch-custom">
+                <input type="color" id="custom-color" value="#7a3ba8" aria-label="Color personalizado">
+                <span>Otro</span>
+              </label>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Intensidad <output data-for="strength" data-unit=" %"></output></span>
             <input type="range" id="strength" min="10" max="100" value="75">
           </label>
-          <button id="apply-btn" disabled>Apply dye</button>
-        </div>
+          <p class="order" data-order="dye"></p>
+          <div class="actions"><button id="apply-btn" data-icon="palette" disabled>Aplicar tinte</button></div>
+          <div class="banner" id="error-banner" hidden></div>
+        </aside>
+      </div>
+    </section>
 
-        <div class="banner" id="error-banner" hidden></div>
-
-        <div class="compare" id="compare" hidden>
-          <div class="card shot">
-            <h3>Before</h3>
-            <img id="original-image" alt="Original photo">
-          </div>
-          <div class="card shot">
-            <h3>After</h3>
-            <img id="result-image" alt="Result preview">
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" id="panel-haircut">
-        <header class="page-head">
-          <h1>Haircut</h1>
-          <p>Clipper fades and buzz cut simulated on your real hair.</p>
-        </header>
-
-        <div class="card drop-zone" id="hc-drop" tabindex="0">
-          <p class="dz-title">Drop your photo here</p>
-          <p class="dz-sub">or click to browse (JPG / PNG)</p>
-          <input type="file" id="hc-input" accept="image/*" hidden>
-        </div>
-
-        <div class="card controls">
-          <div class="style-group" id="hc-style-group">
-            <button class="style-btn active" data-hc-style="low-fade">Low fade</button>
-            <button class="style-btn" data-hc-style="mid-fade" disabled>Mid</button>
-            <button class="style-btn" data-hc-style="high-fade" disabled>High</button>
-            <button class="style-btn" data-hc-style="buzz">Buzz</button>
-          </div>
-          <label class="slider">
-            <span>Intensity</span>
-            <input type="range" id="hc-strength" min="20" max="100" value="90">
-          </label>
-          <button id="hc-btn" disabled>Apply cut</button>
-        </div>
-
-        <div class="banner" id="hc-error" hidden></div>
-
-        <div class="compare" id="hc-compare" hidden>
-          <div class="card shot">
-            <h3>Before</h3>
-            <img id="hc-original" alt="Original photo">
-          </div>
-          <div class="card shot">
-            <h3>After</h3>
-            <img id="hc-result" alt="Haircut preview">
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" id="panel-live">
-        <header class="page-head">
-          <h1>Live try-on</h1>
-          <p>Real-time webcam preview. Photo mode has better quality.</p>
-        </header>
-
-        <div class="card controls">
-          <div class="style-group">
-            <button class="style-btn active" id="live-mode-dye">Hair dye</button>
-            <button class="style-btn" id="live-mode-beard">Beard</button>
-            <button class="style-btn" id="live-mode-mesh">Face mesh</button>
-            <button class="style-btn" id="live-mode-physics">Beard physics</button>
-          </div>
-          <div class="swatches" id="live-swatches"></div>
-          <div class="style-group" id="live-styles" hidden>
-            <button class="style-btn active" data-live-style="full">Full</button>
-            <button class="style-btn" data-live-style="goatee">Goatee</button>
-            <button class="style-btn" data-live-style="mustache">Mustache</button>
-            <button class="style-btn" data-live-style="stubble">Stubble</button>
-          </div>
-          <label class="slider">
-            <span>Intensity</span>
-            <input type="range" id="live-strength" min="20" max="100" value="75">
-          </label>
-          <label class="slider" id="live-length-field" hidden>
-            <span>Beard length</span>
-            <input type="range" id="live-length" min="40" max="200" value="100">
-          </label>
-          <button id="live-btn">Start camera</button>
-        </div>
-        <p class="hint" id="live-physics-hint" hidden>Long beard simulated with Verlet physics: turn your head quickly and watch the strands swing.</p>
-
-        <div class="banner" id="live-error" hidden></div>
-
-        <div class="card" id="live-stage" hidden>
-          <img id="live-result" alt="Live preview">
-          <div class="live-meta">
-            <span id="live-fps">-- fps</span>
-            <span id="live-status" class="live-status" hidden>Face not detected</span>
-          </div>
-        </div>
-
-        <video id="live-video" hidden autoplay playsinline muted></video>
-        <canvas id="live-canvas" hidden></canvas>
-      </section>
-
-      <section class="panel" id="panel-transfer">
-        <header class="page-head transfer-head">
-          <div>
-            <p class="eyebrow">3D hair scanning &amp; virtual try-on</p>
-            <h1>Transfering hair</h1>
-            <p>Capture your complete hairstyle, then see it in 3D on a mannequin or on your scanned face.</p>
-          </div>
-          <div class="transfer-steps" role="tablist" aria-label="Transfering hair steps">
-            <button class="transfer-step active" data-transfer-view="scan" role="tab">1. Scan Hair</button>
-            <button class="transfer-step" data-transfer-view="library" role="tab">2. Peluca Library</button>
-            <button class="transfer-step" data-transfer-view="splat" role="tab">3. 3D Peluca</button>
-          </div>
-        </header>
-
-        <div class="transfer-view active" id="transfer-scan">
-          <div class="transfer-grid">
-            <div class="card scanner-card">
-              <div class="scanner-stage" id="scan-stage">
-                <canvas id="scan-live" aria-label="Live hair scan with the face mesh" hidden></canvas>
-                <div class="scan-guide" aria-hidden="true">
-                  <span class="guide-front">FRONT</span>
-                  <span class="guide-left">↶ LEFT</span>
-                  <span class="guide-right">RIGHT ↷</span>
-                  <span class="guide-arc">180°</span>
-                </div>
-                <div class="scan-empty" id="scan-empty">Camera preview will appear here</div>
-              </div>
-              <div class="scan-progress-row">
-                <span id="scan-progress-label">Ready to scan</span>
-                <strong id="scan-progress-value">0%</strong>
-              </div>
-              <div class="scan-progress"><span id="scan-progress-bar"></span></div>
-              <div class="scan-actions">
-                <button id="scan-start">Start Scan</button>
-                <button id="scan-stop" disabled>Cancel Scan</button>
-              </div>
-              <p class="scan-note">We will scan your head through 180° for 12 seconds: start from the left and turn to the right.</p>
+    <section class="panel" id="panel-beard">
+      <header class="page-head">
+        <h1>Barba</h1>
+        <p>Elige un estilo y la densidad. La barba se ajusta a tu cara con una malla de triángulos.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card drop-zone" id="beard-drop" tabindex="0">
+            <img class="dz-preview" alt="">
+            <span class="dz-icon" data-icon="photo-up"></span>
+            <div class="dz-text">
+              <p class="dz-title">Suelta tu foto aquí</p>
+              <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
-            <aside class="card scan-instructions">
-              <span class="step-label">CAPTURE GUIDE</span>
-              <h2>12 second scan, 180°</h2>
-              <p>We will scan your head through 180° for 12 seconds: start from the left and turn to the right.</p>
-              <div class="scan-key mesh-key"><i></i> Lines = face mesh</div>
-            </aside>
+            <span class="dz-cta">Elegir foto</span>
+            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <input type="file" id="beard-input" accept="image/*" hidden>
           </div>
-          <div class="banner" id="scan-error" hidden></div>
-          <video id="scan-video" hidden autoplay playsinline muted></video>
-          <canvas id="scan-canvas" hidden></canvas>
-        </div>
-
-        <div class="transfer-view" id="transfer-library">
-          <div class="library-heading">
-            <div><h2>Your Peluca Library</h2><p>Saved hair scans are ready to try on.</p></div>
-            <button class="quiet-button" data-transfer-view="scan">+ New scan</button>
+          <div class="compare ba result" id="beard-compare" hidden>
+            <figure class="shot"><img id="beard-original" alt="Foto original"><figcaption>Antes</figcaption></figure>
+            <figure class="shot"><img id="beard-result" alt="Foto con la barba"><figcaption>Después</figcaption></figure>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Comparar antes y después">
           </div>
-          <div class="peluca-grid" id="peluca-grid"></div>
-          <div class="library-empty" id="library-empty">No pelucas yet. Complete a scan to save your first hair asset.</div>
-        </div>
-
-        <div class="transfer-view" id="transfer-tryon">
-          <div class="tryon-layout">
-            <div class="card tryon-card">
-              <div class="tryon-stage" id="tryon-stage">
-                <video id="tryon-video" autoplay playsinline muted></video>
-                <div class="tryon-placeholder" id="tryon-placeholder">Start the camera to meet Person B</div>
-                <canvas class="tryon-mesh" id="tryon-mesh" aria-label="Volumetric 3D hair mesh"></canvas>
-                <div class="rotation-badge" id="rotation-badge">0°</div>
-                <div class="pose-badge" id="pose-badge">Waiting for camera</div>
-              </div>
-              <p class="drag-hint">Drag the view to rotate the peluca synchronously.</p>
-              <div class="tryon-actions">
-                <button id="tryon-camera">Start Person B camera</button>
-                <button id="rotate-left">↶ Rotate Left</button>
-                <button id="rotate-right">Rotate Right ↷</button>
-                <button id="switch-peluca">Switch Peluca</button>
-              </div>
-            </div>
-            <aside class="card tryon-summary">
-              <span class="step-label">SELECTED ASSET</span>
-              <img id="selected-peluca-preview" alt="Selected peluca preview">
-              <h2 id="selected-peluca-name">Choose a peluca</h2>
-              <p id="selected-peluca-date">Return to the library to select a saved scan.</p>
-            </aside>
+          <div class="result-bar" data-tool="beard">
+            <button type="button" class="quiet-button" data-save data-icon="bookmark-plus">Guardar</button>
+            <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
+            <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
           </div>
-          <div class="banner" id="tryon-error" hidden></div>
+          <div class="card mesh-card" id="beard-mesh-card" hidden>
+            <h3>Malla de Delaunay</h3>
+            <img id="beard-mesh-img" alt="Malla de Delaunay sobre la cara">
+          </div>
         </div>
-
-        <div class="transfer-view" id="transfer-splat">
-          <div class="splat-sources">
-            <div class="card splat-source">
-              <span class="step-label">FROM YOUR SCAN</span>
-              <h2 id="hair3d-peluca-name">No peluca selected</h2>
-              <p>Every captured angle is lifted into 3D and merged into one Gaussian peluca.</p>
-              <button id="hair3d-scan" disabled>Build from scan</button>
-            </div>
-            <div class="card drop-zone splat-source" id="hair3d-drop" tabindex="0">
-              <p class="dz-title">Or drop a hair photo</p>
-              <p class="dz-sub">One front photo, like the 3D Mirror (JPG / PNG)</p>
-              <input type="file" id="hair3d-input" accept="image/*" hidden>
-            </div>
-            <div class="card splat-source">
-              <span class="step-label">YOUR FACE</span>
-              <h2 id="face3d-status">No face scanned yet</h2>
-              <p>A 7 second scan like the 3D Mirror: look straight, then slowly turn left and right.</p>
-              <div class="face-scan-stage" id="face3d-stage" hidden>
-                <canvas id="face3d-live" aria-label="Live face scan"></canvas>
-                <div class="pose-badge" id="face3d-hint">Get ready...</div>
-              </div>
-              <button id="face3d-scan">Scan my face (7 s)</button>
-              <video id="face3d-video" hidden autoplay playsinline muted></video>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Estilo</span>
+            <div class="style-group options pics" id="style-group">
+              <button class="style-btn active" data-style="full"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+              <button class="style-btn" data-style="goatee"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+              <button class="style-btn" data-style="mustache"><img src="assets/samples/estilo-mustache.jpg" alt=""><span>Bigote</span></button>
+              <button class="style-btn" data-style="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
             </div>
           </div>
-
-          <div class="card controls">
-            <label class="check">
-              <input type="checkbox" id="hair3d-mannequin" checked>
-              <span>Show head</span>
-            </label>
-            <label class="check">
-              <input type="checkbox" id="hair3d-myface" disabled>
-              <span>Use my face</span>
-            </label>
-            <label class="check">
-              <input type="checkbox" id="hair3d-auto" checked>
-              <span>Auto rotate</span>
-            </label>
-            <label class="check">
-              <input type="checkbox" id="hair3d-splats">
-              <span>Show individual splats</span>
-            </label>
-            <button class="quiet-button" id="hair3d-reset">Reset view</button>
-            <button class="quiet-button" id="hair3d-ply" disabled>Download .ply</button>
-            <button class="quiet-button" id="hair3d-photos" disabled>Download scan photos</button>
-          </div>
-
-          <div class="card wig-studio" id="wig-studio" hidden>
-            <div class="wig-tool">
-              <span class="step-label">COLOR</span>
-              <div class="wig-row">
-                <div class="swatches" id="wig-swatches"></div>
-                <label class="custom-color">
-                  <span>Custom</span>
-                  <input type="color" id="wig-color" value="#8a5a3b">
-                </label>
-                <label class="slider">
-                  <span>Intensity</span>
-                  <input type="range" id="wig-strength" min="0" max="100" value="85">
-                </label>
-                <button class="quiet-button" id="wig-original">Original color</button>
-              </div>
-            </div>
-            <div class="wig-tool">
-              <span class="step-label">SCISSORS</span>
-              <div class="wig-row">
-                <button id="wig-scissors" aria-pressed="false">✂ Scissors</button>
-                <label class="slider">
-                  <span>Blade size</span>
-                  <input type="range" id="wig-brush" min="8" max="90" value="28">
-                </label>
-                <label class="slider">
-                  <span>Length</span>
-                  <input type="range" id="wig-length" min="0" max="100" value="100">
-                </label>
-                <button class="quiet-button" id="wig-tips">Trim tips</button>
-                <button class="quiet-button" id="wig-bald">Shave bald</button>
-                <button class="quiet-button" id="wig-undo" disabled>Undo</button>
-                <button class="quiet-button" id="wig-reset">Restore hair</button>
-              </div>
-              <p class="hint" id="wig-hint">Turn on the scissors and paint over the peluca to cut that part. Hold Shift and drag to rotate while cutting.</p>
-            </div>
-          </div>
-
-          <div class="banner" id="hair3d-error" hidden></div>
-
-          <div class="card mirror-stage" id="hair3d-stage" hidden>
-            <canvas id="hair3d-canvas" aria-label="3D Gaussian peluca viewer"></canvas>
-            <div class="brush-ring" id="wig-ring" hidden></div>
-            <div class="live-meta">
-              <span id="hair3d-stats">--</span>
-              <span id="hair3d-fps"></span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" id="panel-beard">
-        <header class="page-head">
-          <h1>Beard</h1>
-          <p>Try beard styles fitted to your face with Delaunay-tracked landmarks.</p>
-        </header>
-
-        <div class="card drop-zone" id="beard-drop" tabindex="0">
-          <p class="dz-title">Drop your photo here</p>
-          <p class="dz-sub">or click to browse (JPG / PNG)</p>
-          <input type="file" id="beard-input" accept="image/*" hidden>
-        </div>
-
-        <div class="card controls">
-          <div class="style-group" id="style-group">
-            <button class="style-btn active" data-style="full">Full</button>
-            <button class="style-btn" data-style="goatee">Goatee</button>
-            <button class="style-btn" data-style="mustache">Mustache</button>
-            <button class="style-btn" data-style="stubble">Stubble</button>
-          </div>
-          <label class="slider">
-            <span>Density</span>
+          <label class="field">
+            <span class="field-label">Densidad <output data-for="beard-strength" data-unit=" %"></output></span>
             <input type="range" id="beard-strength" min="20" max="100" value="90">
           </label>
           <label class="check">
+            <span>Mostrar la malla de triángulos</span>
             <input type="checkbox" id="beard-mesh">
-            <span>Show Delaunay mesh</span>
           </label>
-          <button id="beard-btn" disabled>Apply beard</button>
-        </div>
+          <p class="order" data-order="beard"></p>
+          <div class="actions"><button id="beard-btn" data-icon="moustache" disabled>Aplicar barba</button></div>
+          <div class="banner" id="beard-error" hidden></div>
+        </aside>
+      </div>
+    </section>
 
-        <div class="banner" id="beard-error" hidden></div>
-
-        <div class="compare" id="beard-compare" hidden>
-          <div class="card shot">
-            <h3>Before</h3>
-            <img id="beard-original" alt="Original photo">
-          </div>
-          <div class="card shot" id="beard-mesh-card" hidden>
-            <h3>Delaunay mesh</h3>
-            <img id="beard-mesh-img" alt="Delaunay mesh">
-          </div>
-          <div class="card shot">
-            <h3>After</h3>
-            <img id="beard-result" alt="Beard preview">
-          </div>
-        </div>
-      </section>
-      <section class="panel" id="panel-splats">
-        <header class="page-head">
-          <h1>How many Gaussians are you?</h1>
-          <p>Your photo rebuilt from 2D Gaussian splats, fitted from scratch with gradient descent. Watch the face emerge.</p>
-        </header>
-
-        <div class="card drop-zone" id="splat-drop" tabindex="0">
-          <p class="dz-title">Drop your photo here</p>
-          <p class="dz-sub">or click to browse (JPG / PNG)</p>
-          <input type="file" id="splat-input" accept="image/*" hidden>
-        </div>
-
-        <div class="card controls">
-          <div class="style-group">
-            <button class="style-btn active" data-splat-view="render">Smooth</button>
-            <button class="style-btn" data-splat-view="ellipses">Ellipses</button>
-          </div>
-          <div class="style-group">
-            <button class="style-btn active" data-splat-beard="none">No beard</button>
-            <button class="style-btn" data-splat-beard="full">Full</button>
-            <button class="style-btn" data-splat-beard="goatee">Goatee</button>
-            <button class="style-btn" data-splat-beard="stubble">Stubble</button>
-          </div>
-          <label class="check">
-            <input type="checkbox" id="splat-crop" checked>
-            <span>Crop to face</span>
-          </label>
-          <label class="check">
-            <input type="checkbox" id="splat-guess">
-            <span>Guess mode</span>
-          </label>
-          <button id="splat-btn" disabled>Start</button>
-        </div>
-
-        <div class="card guess-bar" id="splat-guess-bar" hidden>
-          <span id="splat-guess-text">Press the button as soon as you recognize the face. Fewer Gaussians, more points.</span>
-          <button id="splat-guess-btn" disabled>I recognize it!</button>
-          <strong id="splat-score"></strong>
-        </div>
-
-        <div class="banner" id="splat-error" hidden></div>
-
-        <div class="splat-grid" id="splat-grid"></div>
-      </section>
-      <section class="panel" id="panel-speedrun">
-        <header class="page-head">
-          <h1>Barber Speedrun</h1>
-          <p>You get a full beard. Shave it down to the target style in 30 seconds. Point with your index finger to cut, open your hand to move without cutting (or hold the mouse button on the image).</p>
-        </header>
-
-        <div class="card controls">
-          <div class="style-group">
-            <button class="style-btn active" data-game-target="goatee">Goatee</button>
-            <button class="style-btn" data-game-target="mustache">Mustache</button>
-            <button class="style-btn" data-game-target="chinstrap">Chinstrap</button>
-          </div>
-          <label class="check">
-            <input type="checkbox" id="game-hand" checked>
-            <span>Use my hand</span>
-          </label>
-          <label class="name-field">
-            <span>Barber</span>
-            <input type="text" id="game-name" maxlength="16" placeholder="your name">
-          </label>
-          <button id="game-camera">Start camera</button>
-          <button id="game-start" disabled>Start round</button>
-        </div>
-
-        <div class="banner" id="game-error" hidden></div>
-
-        <div class="game-layout">
-          <div class="card game-stage" id="game-stage" hidden>
-            <div class="game-hud">
-              <span>Time <strong id="game-time">30.0</strong></span>
-              <span>Score <strong id="game-score">0</strong></span>
-              <span>Shaved <strong id="game-clean">0%</strong></span>
-              <span>Target kept <strong id="game-keep">100%</strong></span>
-              <span id="game-tool" class="live-status" hidden>No clipper detected</span>
+    <section class="panel" id="panel-haircut">
+      <header class="page-head">
+        <h1>Corte</h1>
+        <p>Degradado bajo o rapado sobre tu pelo real. Los otros degradados están en desarrollo.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card drop-zone" id="hc-drop" tabindex="0">
+            <img class="dz-preview" alt="">
+            <span class="dz-icon" data-icon="photo-up"></span>
+            <div class="dz-text">
+              <p class="dz-title">Suelta tu foto aquí</p>
+              <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
             </div>
-            <div class="game-view">
-              <img id="game-result" alt="Barber Speedrun game view" draggable="false">
-              <div class="game-overlay" id="game-overlay" hidden></div>
-            </div>
-            <p class="game-final" id="game-final" hidden></p>
+            <span class="dz-cta">Elegir foto</span>
+            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <input type="file" id="hc-input" accept="image/*" hidden>
           </div>
-          <aside class="card leaderboard">
-            <h3>Leaderboard</h3>
-            <ol id="game-board"></ol>
-            <p class="hint">How the score works: shaved (off-target hair removed) x kept (target hair untouched) x 1000.</p>
+          <div class="compare ba result" id="hc-compare" hidden>
+            <figure class="shot"><img id="hc-original" alt="Foto original"><figcaption>Antes</figcaption></figure>
+            <figure class="shot"><img id="hc-result" alt="Foto con el corte"><figcaption>Después</figcaption></figure>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Comparar antes y después">
+          </div>
+          <div class="result-bar" data-tool="haircut">
+            <button type="button" class="quiet-button" data-save data-icon="bookmark-plus">Guardar</button>
+            <button type="button" class="quiet-button" data-download data-icon="download">Descargar</button>
+            <button type="button" class="quiet-button" data-ficha data-icon="receipt">Ficha para tu barbero</button>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Corte</span>
+            <div class="style-group options" id="hc-style-group">
+              <button class="style-btn active" data-hc-style="low-fade">Degradado bajo</button>
+              <button class="style-btn" data-hc-style="buzz">Rapado</button>
+              <button class="style-btn" data-hc-style="mid-fade" disabled>Degradado medio</button>
+              <button class="style-btn" data-hc-style="high-fade" disabled>Degradado alto</button>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Intensidad <output data-for="hc-strength" data-unit=" %"></output></span>
+            <input type="range" id="hc-strength" min="20" max="100" value="90">
+          </label>
+          <p class="order" data-order="haircut"></p>
+          <div class="actions"><button id="hc-btn" data-icon="razor-electric" disabled>Aplicar corte</button></div>
+          <div class="banner" id="hc-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-live">
+      <header class="page-head">
+        <h1>En vivo</h1>
+        <p>Cada cuadro de la cámara se procesa en el servidor, así que va más lento que con una foto.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card stage-empty">
+            <span class="dz-icon" data-icon="camera-off"></span>
+            <p class="dz-title">Cámara apagada</p>
+            <p class="dz-sub">Elige un modo y enciéndela desde el panel.</p>
+          </div>
+          <div class="card stage-card result" id="live-stage" hidden>
+            <img id="live-result" alt="Vista en vivo">
+            <div class="live-meta">
+              <span id="live-fps">-- fps</span>
+              <span id="live-status" class="live-status" hidden>No se detecta una cara</span>
+            </div>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Modo</span>
+            <div class="style-group options">
+              <button class="style-btn active" id="live-mode-dye">Tinte</button>
+              <button class="style-btn" id="live-mode-beard">Barba</button>
+              <button class="style-btn" id="live-mode-mesh">Malla facial</button>
+              <button class="style-btn" id="live-mode-physics">Física de barba</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field-label">Color</span>
+            <div class="swatches" id="live-swatches"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Estilo</span>
+            <div class="style-group options pics" id="live-styles" hidden>
+              <button class="style-btn active" data-live-style="full"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+              <button class="style-btn" data-live-style="goatee"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+              <button class="style-btn" data-live-style="mustache"><img src="assets/samples/estilo-mustache.jpg" alt=""><span>Bigote</span></button>
+              <button class="style-btn" data-live-style="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Intensidad <output data-for="live-strength" data-unit=" %"></output></span>
+            <input type="range" id="live-strength" min="20" max="100" value="75">
+          </label>
+          <label class="field" id="live-length-field" hidden>
+            <span class="field-label">Largo de la barba <output data-for="live-length" data-unit=" %"></output></span>
+            <input type="range" id="live-length" min="40" max="200" value="100">
+          </label>
+          <p class="hint" id="live-physics-hint" hidden>Barba larga con física de Verlet. Gira la cabeza rápido y los pelos se mueven.</p>
+          <div class="actions"><button id="live-btn" data-icon="camera">Encender cámara</button></div>
+          <div class="banner" id="live-error" hidden></div>
+        </aside>
+      </div>
+      <video id="live-video" hidden autoplay playsinline muted></video>
+      <canvas id="live-canvas" hidden></canvas>
+    </section>
+
+    <section class="panel" id="panel-transfer">
+      <header class="page-head transfer-head">
+        <div>
+          <h1>Peluca 3D</h1>
+          <p>Escanea tu peinado con la cámara y míralo en 3D sobre un maniquí o sobre tu cara.</p>
+        </div>
+        <div class="transfer-steps" role="tablist" aria-label="Pasos de la peluca 3D">
+          <button class="transfer-step active" data-transfer-view="scan" role="tab">1 · Escanear</button>
+          <button class="transfer-step" data-transfer-view="library" role="tab">2 · Mis pelucas</button>
+          <button class="transfer-step" data-transfer-view="splat" role="tab">3 · Peluca 3D</button>
+        </div>
+      </header>
+
+      <div class="transfer-view active" id="transfer-scan">
+        <div class="workspace">
+          <div class="card scanner-card">
+            <div class="scanner-stage" id="scan-stage">
+              <canvas id="scan-live" aria-label="Escaneo del pelo en vivo con la malla facial" hidden></canvas>
+              <div class="scan-guide" aria-hidden="true">
+                <span class="guide-front">FRENTE</span>
+                <span class="guide-left">IZQ.</span>
+                <span class="guide-right">DER.</span>
+                <span class="guide-arc">180°</span>
+              </div>
+              <div class="scan-empty" id="scan-empty">Aquí aparecerá tu cámara</div>
+            </div>
+            <div class="scan-progress-row">
+              <span id="scan-progress-label">Listo para escanear</span>
+              <strong id="scan-progress-value">0%</strong>
+            </div>
+            <div class="scan-progress"><span id="scan-progress-bar"></span></div>
+          </div>
+          <aside class="card inspector ticket scan-instructions">
+            <span class="step-label">Cómo escanear</span>
+            <h2>12 segundos, 180°</h2>
+            <p>Empieza mirando a la izquierda y gira despacio hacia la derecha. Mantén toda la cabeza dentro de la guía.</p>
+            <div class="scan-key mesh-key"><i></i> Las líneas son la malla facial</div>
+            <div class="actions">
+              <button id="scan-start" data-icon="scan">Empezar escaneo</button>
+              <button id="scan-stop" disabled>Cancelar</button>
+            </div>
+            <div class="banner" id="scan-error" hidden></div>
           </aside>
         </div>
+        <video id="scan-video" hidden autoplay playsinline muted></video>
+        <canvas id="scan-canvas" hidden></canvas>
+      </div>
 
-        <video id="game-video" hidden autoplay playsinline muted></video>
-        <canvas id="game-canvas" hidden></canvas>
-      </section>
-      <section class="panel" id="panel-mirror">
-        <header class="page-head">
-          <h1>3D Mirror</h1>
-          <p>Your head as tens of thousands of 3D Gaussians, built from one photo and the 3D face mesh, rendered with our own WebGL Gaussian Splatting viewer. Drag to rotate, scroll to zoom.</p>
-        </header>
-
-        <div class="card drop-zone" id="mirror-drop" tabindex="0">
-          <p class="dz-title">Drop your photo here</p>
-          <p class="dz-sub">or click to browse (JPG / PNG)</p>
-          <input type="file" id="mirror-input" accept="image/*" hidden>
+      <div class="transfer-view" id="transfer-library">
+        <div class="library-heading">
+          <div><h2>Mis pelucas</h2><p>Escaneos de esta sesión.</p></div>
+          <button class="quiet-button" data-transfer-view="scan" data-icon="scan">Nuevo escaneo</button>
         </div>
+        <div class="peluca-grid" id="peluca-grid"></div>
+        <div class="library-empty" id="library-empty">Todavía no hay pelucas. Haz un escaneo para guardar la primera.</div>
+      </div>
 
-        <div class="card controls">
-          <div class="style-group">
-            <button class="style-btn active" data-mirror-beard="none">No beard</button>
-            <button class="style-btn" data-mirror-beard="full">Full</button>
-            <button class="style-btn" data-mirror-beard="goatee">Goatee</button>
-            <button class="style-btn" data-mirror-beard="stubble">Stubble</button>
-          </div>
-          <label class="check">
-            <input type="checkbox" id="mirror-auto" checked>
-            <span>Auto rotate</span>
-          </label>
-          <label class="check">
-            <input type="checkbox" id="mirror-splats">
-            <span>Show individual splats</span>
-          </label>
-          <button class="quiet-button" id="mirror-reset">Reset view</button>
-          <button id="mirror-btn" disabled>Build 3D head</button>
-          <button class="quiet-button" id="mirror-ply" disabled>Download .ply</button>
-        </div>
-
-        <div class="banner" id="mirror-error" hidden></div>
-
-        <div class="card mirror-stage" id="mirror-stage" hidden>
-          <canvas id="mirror-canvas" aria-label="3D Gaussian head viewer"></canvas>
-          <div class="live-meta">
-            <span id="mirror-stats">--</span>
-            <span id="mirror-fps"></span>
-          </div>
-        </div>
-      </section>
-      <section class="panel" id="panel-lab">
-        <header class="page-head">
-          <h1>3D Lab (beta)</h1>
-          <p>Experimental. Scan your head from several angles with the webcam, then watch a live 3D Gaussian avatar that follows your face. Drag the 3D view to look at yourself from the side.</p>
-        </header>
-
-        <div class="card controls">
-          <button id="lab-camera">Start camera</button>
-          <button id="lab-scan" disabled>Scan (7 s)</button>
-          <label class="quiet-button lab-upload">
-            Or upload photos
-            <input type="file" id="lab-files" accept="image/*" multiple hidden>
-          </label>
-          <div class="style-group">
-            <button class="style-btn active" data-lab-beard="none">No beard</button>
-            <button class="style-btn" data-lab-beard="full">Full</button>
-            <button class="style-btn" data-lab-beard="goatee">Goatee</button>
-            <button class="style-btn" data-lab-beard="stubble">Stubble</button>
-          </div>
-          <button id="lab-build" disabled>Build head</button>
-          <button id="lab-live" disabled>Live avatar</button>
-        </div>
-
-        <div class="banner" id="lab-error" hidden></div>
-
-        <div class="lab-layout">
-          <div class="card lab-side">
-            <div class="lab-preview">
-              <video id="lab-video" autoplay playsinline muted></video>
-              <div class="lab-prompt" id="lab-prompt" hidden></div>
+      <div class="transfer-view" id="transfer-tryon">
+        <div class="workspace">
+          <div class="card tryon-card">
+            <div class="tryon-stage" id="tryon-stage">
+              <video id="tryon-video" autoplay playsinline muted></video>
+              <div class="tryon-placeholder" id="tryon-placeholder">Enciende la cámara para ver a la persona B</div>
+              <canvas class="tryon-mesh" id="tryon-mesh" aria-label="Malla 3D volumétrica del pelo"></canvas>
+              <div class="rotation-badge" id="rotation-badge">0°</div>
+              <div class="pose-badge" id="pose-badge">Esperando la cámara</div>
             </div>
-            <p class="hint" id="lab-frames">No scan yet.</p>
-            <table class="lab-metrics" id="lab-metrics" hidden>
-              <thead><tr><th>PSNR (dB)</th><th>Training views</th><th>Held-out view</th></tr></thead>
-              <tbody></tbody>
-            </table>
+            <p class="drag-hint">Arrastra la vista para girar la peluca.</p>
           </div>
+          <aside class="card inspector ticket tryon-summary">
+            <span class="step-label">Peluca elegida</span>
+            <img id="selected-peluca-preview" alt="Vista previa de la peluca elegida">
+            <h2 id="selected-peluca-name">Elige una peluca</h2>
+            <p id="selected-peluca-date">Vuelve a Mis pelucas para elegir un escaneo.</p>
+            <div class="actions">
+              <button id="tryon-camera">Encender cámara de la persona B</button>
+              <div class="actions-row">
+                <button id="rotate-left">Girar a la izq.</button>
+                <button id="rotate-right">Girar a la der.</button>
+              </div>
+              <button id="switch-peluca">Cambiar peluca</button>
+            </div>
+            <div class="banner" id="tryon-error" hidden></div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="transfer-view" id="transfer-splat">
+        <div class="workspace">
+          <div class="stage-col">
+            <div class="card stage-empty">
+              <span class="dz-icon" data-icon="rotate-3d"></span>
+              <p class="dz-title">Todavía no hay peluca 3D</p>
+              <p class="dz-sub">Constrúyela desde tu escaneo o desde una foto de pelo.</p>
+            </div>
+            <div class="card mirror-stage result" id="hair3d-stage" hidden>
+              <canvas id="hair3d-canvas" aria-label="Visor 3D de la peluca de gaussianas"></canvas>
+              <div class="brush-ring" id="wig-ring" hidden></div>
+              <div class="live-meta">
+                <span id="hair3d-stats">--</span>
+                <span id="hair3d-fps"></span>
+              </div>
+            </div>
+            <div class="card wig-studio" id="wig-studio" hidden>
+              <div class="wig-tool">
+                <span class="field-label">Color</span>
+                <div class="swatches" id="wig-swatches"></div>
+                <div class="wig-row">
+                  <label class="custom-color">
+                    <input type="color" id="wig-color" value="#8a5a3b" aria-label="Color personalizado de la peluca">
+                    <span>Otro color</span>
+                  </label>
+                  <label class="field grow">
+                    <span class="field-label">Intensidad <output data-for="wig-strength" data-unit=" %"></output></span>
+                    <input type="range" id="wig-strength" min="0" max="100" value="85">
+                  </label>
+                  <button class="quiet-button" id="wig-original" data-icon="refresh">Color original</button>
+                </div>
+              </div>
+              <div class="wig-tool">
+                <span class="field-label">Tijeras</span>
+                <div class="wig-row">
+                  <button id="wig-scissors" aria-pressed="false" data-icon="scissors">Tijeras</button>
+                  <label class="field grow">
+                    <span class="field-label">Grosor <output data-for="wig-brush" data-unit=" px"></output></span>
+                    <input type="range" id="wig-brush" min="8" max="90" value="28">
+                  </label>
+                  <label class="field grow">
+                    <span class="field-label">Largo <output data-for="wig-length" data-unit=" %"></output></span>
+                    <input type="range" id="wig-length" min="0" max="100" value="100">
+                  </label>
+                </div>
+                <div class="wig-row">
+                  <button class="quiet-button" id="wig-tips">Cortar puntas</button>
+                  <button class="quiet-button" id="wig-bald" data-icon="razor-electric">Rapar</button>
+                  <button class="quiet-button" id="wig-undo" disabled>Deshacer</button>
+                  <button class="quiet-button" id="wig-reset" data-icon="refresh">Restaurar pelo</button>
+                </div>
+                <p class="hint" id="wig-hint">Activa las tijeras y pinta sobre la peluca para cortar esa parte. Mantén Shift y arrastra para girar mientras cortas.</p>
+              </div>
+            </div>
+          </div>
+          <aside class="inspector-col">
+            <div class="card inspector ticket">
+              <span class="step-label">Desde tu escaneo</span>
+              <h2 id="hair3d-peluca-name">Ninguna peluca elegida</h2>
+              <p class="field-note">Cada ángulo capturado se lleva a 3D y se une en una sola peluca de gaussianas.</p>
+              <div class="actions"><button id="hair3d-scan" disabled>Construir desde el escaneo</button></div>
+            </div>
+            <div class="card drop-zone compact" id="hair3d-drop" tabindex="0">
+              <img class="dz-preview" alt="">
+              <div class="dz-text">
+                <p class="dz-title">O suelta una foto de pelo</p>
+                <p class="dz-sub">Una foto de frente, como en el Espejo 3D</p>
+              </div>
+              <input type="file" id="hair3d-input" accept="image/*" hidden>
+            </div>
+            <div class="card inspector ticket">
+              <span class="step-label">Tu cara</span>
+              <h2 id="face3d-status">Todavía no escaneas tu cara</h2>
+              <p class="field-note">Siete segundos: mira de frente y gira despacio a cada lado.</p>
+              <div class="face-scan-stage" id="face3d-stage" hidden>
+                <canvas id="face3d-live" aria-label="Escaneo de la cara en vivo"></canvas>
+                <div class="pose-badge" id="face3d-hint">Prepárate…</div>
+              </div>
+              <div class="actions"><button class="quiet-button" id="face3d-scan">Escanear mi cara (7 s)</button></div>
+              <video id="face3d-video" hidden autoplay playsinline muted></video>
+            </div>
+            <div class="card inspector ticket">
+              <span class="step-label">Vista</span>
+              <label class="check"><span>Mostrar cabeza</span><input type="checkbox" id="hair3d-mannequin" checked></label>
+              <label class="check"><span>Usar mi cara</span><input type="checkbox" id="hair3d-myface" disabled></label>
+              <label class="check"><span>Rotación automática</span><input type="checkbox" id="hair3d-auto" checked></label>
+              <label class="check"><span>Ver cada gaussiana</span><input type="checkbox" id="hair3d-splats"></label>
+              <div class="actions">
+                <button class="quiet-button" id="hair3d-reset" data-icon="refresh">Reiniciar vista</button>
+                <div class="actions-row">
+                  <button class="quiet-button" id="hair3d-ply" disabled>Descargar .ply</button>
+                  <button class="quiet-button" id="hair3d-photos" disabled>Fotos del escaneo</button>
+                </div>
+              </div>
+              <div class="banner" id="hair3d-error" hidden></div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-mirror">
+      <header class="page-head">
+        <h1>Espejo 3D</h1>
+        <p>Arma tu cabeza en 3D con unas 50 000 gaussianas a partir de una sola foto. Arrastra para girarla y usa la rueda para acercarte.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card drop-zone" id="mirror-drop" tabindex="0">
+            <img class="dz-preview" alt="">
+            <span class="dz-icon" data-icon="photo-up"></span>
+            <div class="dz-text">
+              <p class="dz-title">Suelta tu foto aquí</p>
+              <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
+            </div>
+            <span class="dz-cta">Elegir foto</span>
+            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <input type="file" id="mirror-input" accept="image/*" hidden>
+          </div>
+          <div class="card mirror-stage result" id="mirror-stage" hidden>
+            <canvas id="mirror-canvas" aria-label="Visor 3D de la cabeza de gaussianas"></canvas>
+            <div class="live-meta">
+              <span id="mirror-stats">--</span>
+              <span id="mirror-fps"></span>
+            </div>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Barba</span>
+            <div class="style-group options pics">
+              <button class="style-btn active" data-mirror-beard="none"><img src="assets/samples/estilo-none.jpg" alt=""><span>Sin barba</span></button>
+              <button class="style-btn" data-mirror-beard="full"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+              <button class="style-btn" data-mirror-beard="goatee"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+              <button class="style-btn" data-mirror-beard="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
+            </div>
+          </div>
+          <label class="check"><span>Rotación automática</span><input type="checkbox" id="mirror-auto" checked></label>
+          <label class="check"><span>Ver cada gaussiana</span><input type="checkbox" id="mirror-splats"></label>
+          <div class="actions">
+            <button id="mirror-btn" data-icon="cube-plus" disabled>Construir cabeza 3D</button>
+            <div class="actions-row">
+              <button class="quiet-button" id="mirror-reset" data-icon="refresh">Reiniciar vista</button>
+              <button class="quiet-button" id="mirror-ply" disabled>Descargar .ply</button>
+            </div>
+          </div>
+          <div class="banner" id="mirror-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-lab">
+      <header class="page-head">
+        <h1>Laboratorio 3D</h1>
+        <p>En prueba. Escanea tu cabeza desde varios ángulos y mira un avatar 3D que sigue tu cara. Arrastra la vista para verte de perfil.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
           <div class="card lab-stage">
-            <canvas id="lab-canvas" aria-label="Live 3D Gaussian avatar"></canvas>
+            <canvas id="lab-canvas" aria-label="Avatar 3D de gaussianas en vivo"></canvas>
             <div class="live-meta">
               <div class="style-group">
-                <button class="style-btn active" data-lab-view="0">Front</button>
+                <button class="style-btn active" data-lab-view="0">Frente</button>
                 <button class="style-btn" data-lab-view="0.6">3/4</button>
-                <button class="style-btn" data-lab-view="1.15">Side</button>
+                <button class="style-btn" data-lab-view="1.15">Perfil</button>
               </div>
               <span id="lab-stats">--</span>
             </div>
           </div>
         </div>
-        <canvas id="lab-capture" hidden></canvas>
-      </section>
-    </main>
-  </div>
+        <aside class="card inspector ticket lab-side">
+          <div class="field">
+            <span class="field-label">Captura</span>
+            <div class="lab-preview">
+              <video id="lab-video" autoplay playsinline muted></video>
+              <div class="lab-prompt" id="lab-prompt" hidden></div>
+            </div>
+            <span class="field-note" id="lab-frames">Todavía no hay escaneo.</span>
+          </div>
+          <div class="actions">
+            <div class="actions-row">
+              <button class="quiet-button" id="lab-camera">Encender cámara</button>
+              <button class="quiet-button" id="lab-scan" disabled>Escanear (7 s)</button>
+            </div>
+            <label class="quiet-button lab-upload" data-icon="upload">
+              O sube fotos
+              <input type="file" id="lab-files" accept="image/*" multiple hidden>
+            </label>
+          </div>
+          <div class="field">
+            <span class="field-label">Barba</span>
+            <div class="style-group options pics">
+              <button class="style-btn active" data-lab-beard="none"><img src="assets/samples/estilo-none.jpg" alt=""><span>Sin barba</span></button>
+              <button class="style-btn" data-lab-beard="full"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+              <button class="style-btn" data-lab-beard="goatee"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+              <button class="style-btn" data-lab-beard="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
+            </div>
+          </div>
+          <div class="actions">
+            <button id="lab-build" data-icon="cube-plus" disabled>Construir cabeza</button>
+            <button class="quiet-button" id="lab-live" disabled>Avatar en vivo</button>
+          </div>
+          <table class="lab-metrics" id="lab-metrics" hidden>
+            <thead><tr><th>PSNR (dB)</th><th>Entrenamiento</th><th>Vista de prueba</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="banner" id="lab-error" hidden></div>
+        </aside>
+      </div>
+      <canvas id="lab-capture" hidden></canvas>
+    </section>
+
+    <section class="panel" id="panel-speedrun">
+      <header class="page-head">
+        <h1>Contrarreloj</h1>
+        <p>Tienes 30 segundos para afeitar la barba hasta dejar el estilo objetivo. Corta apuntando con el índice frente a la cámara, o mantén presionado el mouse sobre la imagen.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card stage-empty">
+            <span class="dz-icon" data-icon="stopwatch"></span>
+            <p class="dz-title">Cámara apagada</p>
+            <p class="dz-sub">Enciéndela, elige el objetivo y empieza la ronda.</p>
+          </div>
+          <div class="card game-stage result" id="game-stage" hidden>
+            <div class="game-hud">
+              <span>Tiempo <strong id="game-time">30.0</strong></span>
+              <span>Puntaje <strong id="game-score">0</strong></span>
+              <span>Afeitado <strong id="game-clean">0%</strong></span>
+              <span>Objetivo intacto <strong id="game-keep">100%</strong></span>
+              <span id="game-tool" class="live-status" hidden>No se detecta la máquina</span>
+            </div>
+            <div class="game-view">
+              <img id="game-result" alt="Vista del juego Contrarreloj" draggable="false">
+              <div class="game-overlay" id="game-overlay" hidden></div>
+            </div>
+            <p class="game-final" id="game-final" hidden></p>
+          </div>
+        </div>
+        <aside class="inspector-col">
+          <div class="card inspector ticket">
+            <div class="field">
+              <span class="field-label">Objetivo</span>
+              <div class="style-group options three">
+                <button class="style-btn active" data-game-target="goatee">Candado</button>
+                <button class="style-btn" data-game-target="mustache">Bigote</button>
+                <button class="style-btn" data-game-target="chinstrap">Collar</button>
+              </div>
+            </div>
+            <label class="field">
+              <span class="field-label">Nombre del barbero</span>
+              <input class="text-input" type="text" id="game-name" maxlength="16" placeholder="Tu nombre">
+            </label>
+            <label class="check"><span>Cortar con la mano</span><input type="checkbox" id="game-hand" checked></label>
+            <div class="actions">
+              <button class="quiet-button" id="game-camera">Encender cámara</button>
+              <button id="game-start" disabled>Empezar ronda</button>
+            </div>
+            <div class="banner" id="game-error" hidden></div>
+          </div>
+          <div class="card leaderboard">
+            <h3>Puntajes</h3>
+            <ol id="game-board"></ol>
+            <p class="hint">Puntaje = afeitado × objetivo intacto × 1000.</p>
+          </div>
+        </aside>
+      </div>
+      <video id="game-video" hidden autoplay playsinline muted></video>
+      <canvas id="game-canvas" hidden></canvas>
+    </section>
+
+    <section class="panel" id="panel-splats">
+      <header class="page-head">
+        <h1>Gaussianas</h1>
+        <p>Tu foto rehecha con 20, 60, 200, 600 y 2000 gaussianas 2D. En modo adivinanza, detenlo apenas reconozcas la cara: con menos gaussianas ganas más puntos.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card drop-zone" id="splat-drop" tabindex="0">
+            <img class="dz-preview" alt="">
+            <span class="dz-icon" data-icon="photo-up"></span>
+            <div class="dz-text">
+              <p class="dz-title">Suelta tu foto aquí</p>
+              <p class="dz-sub">o elige una desde tu equipo (JPG o PNG)</p>
+            </div>
+            <span class="dz-cta">Elegir foto</span>
+            <button type="button" class="dz-sample" data-sample data-icon="photo">Usar la foto de ejemplo</button>
+            <input type="file" id="splat-input" accept="image/*" hidden>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Vista</span>
+            <div class="style-group options">
+              <button class="style-btn active" data-splat-view="render">Suave</button>
+              <button class="style-btn" data-splat-view="ellipses">Elipses</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field-label">Barba</span>
+            <div class="style-group options pics">
+              <button class="style-btn active" data-splat-beard="none"><img src="assets/samples/estilo-none.jpg" alt=""><span>Sin barba</span></button>
+              <button class="style-btn" data-splat-beard="full"><img src="assets/samples/estilo-full.jpg" alt=""><span>Completa</span></button>
+              <button class="style-btn" data-splat-beard="goatee"><img src="assets/samples/estilo-goatee.jpg" alt=""><span>Candado</span></button>
+              <button class="style-btn" data-splat-beard="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
+            </div>
+          </div>
+          <label class="check"><span>Recortar a la cara</span><input type="checkbox" id="splat-crop" checked></label>
+          <label class="check"><span>Modo adivinanza</span><input type="checkbox" id="splat-guess"></label>
+          <div class="actions"><button id="splat-btn" data-icon="player-play" disabled>Empezar</button></div>
+          <div class="banner" id="splat-error" hidden></div>
+        </aside>
+      </div>
+      <div class="card guess-bar" id="splat-guess-bar" hidden>
+        <span id="splat-guess-text">Toca el botón apenas reconozcas la cara. Menos gaussianas, más puntos.</span>
+        <button id="splat-guess-btn" disabled>La reconozco</button>
+        <strong id="splat-score"></strong>
+      </div>
+      <div class="splat-grid" id="splat-grid"></div>
+    </section>
+
+    <section class="panel" id="panel-looks">
+      <header class="page-head looks-head">
+        <div>
+          <h1>Mis looks</h1>
+          <p>Se guardan solo en este navegador. Toca una foto para ver el antes.</p>
+        </div>
+        <button type="button" class="quiet-button" id="looks-clear" data-icon="trash" hidden>Borrar todos</button>
+      </header>
+      <div class="looks-grid" id="looks-grid"></div>
+      <div class="card stage-empty looks-empty" id="looks-empty">
+        <span class="dz-icon" data-icon="bookmarks"></span>
+        <p class="dz-title">No hay looks guardados</p>
+        <p class="dz-sub">Después de aplicar una barba, un tinte o un corte, toca «Guardar».</p>
+        <div class="hero-actions center"><button type="button" data-go="beard" data-icon="moustache">Ir a Barba</button></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">Fresh · Proyecto de CS4016 Computación Gráfica, UTEC · Kalos Lazo, Sofía Herrera y Gianpier Segovia</footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" data-icon="check" hidden></div>
+
   <script src="js/splat3d.js"></script>
   <script src="js/app.js"></script>
   <script src="js/lab.js"></script>
+  <script src="js/ui.js"></script>
 </body>
 </html>

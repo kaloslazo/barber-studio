@@ -139,20 +139,20 @@
       live = false;
       stream.getTracks().forEach((track) => track.stop());
       stream = null;
-      cameraBtn.textContent = "Start camera";
+      cameraBtn.textContent = "Encender cámara";
       scanBtn.disabled = true;
-      liveBtn.textContent = "Live avatar";
+      liveBtn.textContent = "Avatar en vivo";
       return;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, facingMode: "user" }, audio: false });
       video.srcObject = stream;
       await video.play();
-      cameraBtn.textContent = "Stop camera";
+      cameraBtn.textContent = "Apagar cámara";
       scanBtn.disabled = false;
       liveBtn.disabled = !viewer;
     } catch (error) {
-      showError(`Camera unavailable: ${error.message}`);
+      showError(`No se pudo abrir la cámara: ${error.message}`);
     }
   });
 
@@ -161,9 +161,9 @@
     scanBtn.disabled = true;
     frames = [];
     const plan = [
-      ["Look straight at the camera", 2],
-      ["Slowly turn your head LEFT", 3],
-      ["Slowly turn your head RIGHT", 3],
+      ["Mira de frente a la cámara", 2],
+      ["Gira la cabeza despacio a la IZQUIERDA", 3],
+      ["Gira la cabeza despacio a la DERECHA", 3],
     ];
     prompt.hidden = false;
     for (const [text, shots] of plan) {
@@ -171,10 +171,10 @@
       for (let k = 0; k < shots; k++) {
         await sleep(780);
         frames.push(await grab(1024, 0.92));
-        framesText.textContent = `${frames.length} views captured`;
+        framesText.textContent = `${frames.length} vistas capturadas`;
       }
     }
-    prompt.textContent = "Done!";
+    prompt.textContent = "¡Listo!";
     await sleep(600);
     prompt.hidden = true;
     scanBtn.disabled = false;
@@ -183,7 +183,7 @@
 
   filesInput.addEventListener("change", () => {
     frames = Array.from(filesInput.files).slice(0, 16);
-    framesText.textContent = `${frames.length} photos selected`;
+    framesText.textContent = `${frames.length} fotos elegidas`;
     buildBtn.disabled = frames.length === 0;
   });
 
@@ -191,7 +191,7 @@
     const body = metricsTable.querySelector("tbody");
     body.innerHTML = "";
     const held = metrics.held_out_psnr || {};
-    [["Single view color", "single_view"], ["Multi-view fusion", "fused"], ["Fusion + optimization", "optimized"]].forEach(([label, key]) => {
+    [["Color de una vista", "single_view"], ["Fusión multivista", "fused"], ["Fusión + optimización", "optimized"]].forEach(([label, key]) => {
       const row = document.createElement("tr");
       row.innerHTML = `<td>${label}</td><td>${metrics.train_psnr[key]}</td><td>${held[key] ?? "—"}</td>`;
       body.appendChild(row);
@@ -204,7 +204,7 @@
     errorBanner.hidden = true;
     buildBtn.disabled = true;
     buildBtn.classList.add("loading");
-    buildBtn.textContent = "Building (~15 s)...";
+    buildBtn.textContent = "Construyendo (~15 s)…";
     const started = performance.now();
     try {
       const formData = new FormData();
@@ -213,7 +213,7 @@
       const response = await fetch(`${LAB_API}/lab/build`, { method: "POST", body: formData });
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error.detail || `Request failed: ${response.status}`);
+        throw new Error(error.detail || `La solicitud falló (${response.status})`);
       }
       const model = await response.json();
       if (!viewer) {
@@ -224,14 +224,14 @@
       viewer.setView(0, 0.05, 1.9);
       showMetrics(model.metrics);
       const seconds = ((performance.now() - started) / 1000).toFixed(1);
-      stats.textContent = `${model.count.toLocaleString()} anchored Gaussians (${model.beard.toLocaleString()} beard) · ${model.metrics.views} views · built in ${seconds}s`;
+      stats.textContent = `${model.count.toLocaleString()} gaussianas ancladas (${model.beard.toLocaleString()} de barba) · ${model.metrics.views} vistas · lista en ${seconds} s`;
       liveBtn.disabled = !stream;
     } catch (error) {
       showError(error.message);
     } finally {
       buildBtn.disabled = false;
       buildBtn.classList.remove("loading");
-      buildBtn.textContent = "Build head";
+      buildBtn.textContent = "Construir cabeza";
     }
   });
 
@@ -252,7 +252,7 @@
         }
         const now = performance.now();
         if (now - liveClock > 1000) {
-          stats.textContent = `Live avatar · ${((liveCount * 1000) / (now - liveClock)).toFixed(1)} fps · ${viewer.count.toLocaleString()} Gaussians`;
+          stats.textContent = `Avatar en vivo · ${((liveCount * 1000) / (now - liveClock)).toFixed(1)} fps · ${viewer.count.toLocaleString()} gaussianas`;
           liveCount = 0;
           liveClock = now;
         }
@@ -268,7 +268,7 @@
   liveBtn.addEventListener("click", () => {
     if (!viewer || !stream) return;
     live = !live;
-    liveBtn.textContent = live ? "Stop avatar" : "Live avatar";
+    liveBtn.textContent = live ? "Detener avatar" : "Avatar en vivo";
     if (live) liveLoop();
   });
 })();

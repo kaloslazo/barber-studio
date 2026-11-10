@@ -299,7 +299,7 @@ class SplatViewer {
       this.lastSortKey = key;
     }
     gl.viewport(0, 0, width, height);
-    gl.clearColor(0.97, 0.965, 0.955, 1);
+    gl.clearColor(0.98, 0.98, 0.973, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);

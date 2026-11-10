@@ -26,7 +26,7 @@ def test_health():
 def test_root_serves_frontend():
     response = client.get("/")
     assert response.status_code == 200
-    assert b"BarberStudio" in response.content
+    assert b"Fresh" in response.content
 
 
 def test_preview_returns_image():
