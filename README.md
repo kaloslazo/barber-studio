@@ -77,7 +77,7 @@ Most models are NOT in git (size). Set them up as follows:
 
 - `backend/models/face_landmarker.task` — MediaPipe FaceLandmarker (3.6 MB, **included in the repo**).
 - `backend/models/hand_landmarker.task` — MediaPipe HandLandmarker for Barber Speedrun (7.8 MB, **included in the repo**; source: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`). Without it the game falls back to the mouse.
-- `backend/models/hair_best.pt` — train it with `backend/training/barberstudio_colab.ipynb` (Colab, ~3.5h on a free T4).
+- `backend/models/hair_best.pt` — train it with `backend/training/barberstudio_colab.ipynb` (Colab, ~3.5h on a free T4). With it and `requirements-yolo.txt` installed, the Dye panel shows a "YOLO propio / MediaPipe" switch and reports how much both masks agree (IoU). The Docker image installs `requirements-yolo.txt` (CPU torch) and picks the weights up from `backend/models`.
 - `backend/models/lbfmodel.yaml` + `backend/models/yunet.onnx` — legacy fallback landmarks; download links in `backend/training/` scripts.
 
 Without them, the app falls back to provisional masks.
@@ -88,6 +88,7 @@ Install order matters to avoid an OpenCV conflict pulled by ultralytics:
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 pip install -r requirements-training.txt
+pip install -r requirements-yolo.txt
 pip install --force-reinstall "opencv-contrib-python>=4.9,<5"
 ```
 

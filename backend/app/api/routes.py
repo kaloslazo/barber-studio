@@ -54,9 +54,21 @@ def encode_jpeg(image, quality=88):
     return Response(content=encoded.tobytes(), media_type="image/jpeg")
 
 
+HAIR_MODELS = ("auto", "yolo", "mediapipe")
+
+
 @router.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "yolo": pipeline.yolo_available}
+
+
+@router.post("/face-shape")
+async def face_shape(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    result = await run_in_threadpool(pipeline.face_shape, image_bgr)
+    if result is None:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    return result
 
 
 @router.post("/preview")
@@ -70,16 +82,29 @@ async def dye(
     image: UploadFile = File(...),
     color: str = Form("#7a3ba8"),
     strength: float = Form(0.75),
+    beard: bool = Form(False),
+    beard_style: str = Form(""),
+    model: str = Form("auto"),
 ):
+    if model not in HAIR_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown hair model: {model}")
+    if beard_style and beard_style not in STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown beard style: {beard_style}")
     image_bgr = decode_image(await image.read())
+    info = {}
     try:
-        result = pipeline.apply_hair_dye(image_bgr, color, strength)
+        result = pipeline.apply_hair_dye(image_bgr, color, strength, beard=beard, model=model, info=info, beard_style=beard_style or None)
     except ValueError as error:
         status = 422 if str(error).startswith("No hair") else 400
         raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
-    return encode_png(result)
+    response = encode_png(result)
+    response.headers["X-Hair-Model"] = info.get("model", "mediapipe")
+    if "agreement" in info:
+        response.headers["X-Mask-Agreement"] = f"{info['agreement']:.3f}"
+    response.headers["X-Beard-Dyed"] = "1" if info.get("beard") else "0"
+    return response
 
 
 @router.post("/beard")

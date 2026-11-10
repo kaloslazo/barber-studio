@@ -14,6 +14,11 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install -r backend/requirements.txt
 
+COPY backend/requirements-yolo.txt backend/requirements-yolo.txt
+RUN pip install -r backend/requirements-yolo.txt \
+    && pip uninstall -y opencv-python opencv-python-headless \
+    && pip install --force-reinstall --no-deps "opencv-contrib-python>=4.9,<5"
+
 COPY backend/app backend/app
 COPY backend/models backend/models
 COPY frontend frontend

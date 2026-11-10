@@ -76,6 +76,7 @@
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     syncing = false;
+    if (!chaining) requestFit(file);
     if (chipImg.src) URL.revokeObjectURL(chipImg.src);
     chipImg.src = URL.createObjectURL(file);
     chipText.textContent = "Tu foto";
@@ -388,35 +389,78 @@
     return button ? button.textContent.trim() : "";
   }
 
+  const BEARD_NOTES = {
+    full: "Peine 4 (12 mm) parejo; cuello y mejillas a navaja",
+    goatee: "Peine 3 en bigote y mentón; mejillas a 0",
+    mustache: "Tijera en el bigote; el resto a 0",
+    stubble: "Máquina 1 (3 mm) en toda la barba",
+  };
+  const CUT_NOTES = {
+    "low-fade": "Máquina 0 en patillas y nuca, 1 y 2 hacia arriba; tijera arriba",
+    "mid-fade": "Máquina 0 hasta la sien, 1 y 2 encima; tijera arriba",
+    "high-fade": "Máquina 0 hasta lo alto de los lados, 1 en la unión; tijera arriba",
+    taper: "Máquina 1 en patillas y nuca, 2 y 3 a los lados; tijera arriba",
+    undercut: "Máquina 0,5 pareja en lados y nuca, sin degradar; arriba largo",
+    "hard-part": "Degradado medio (0 a 2) y raya marcada a navaja al costado",
+    crew: "Máquina 2 a los lados y 4 arriba, más largo adelante",
+  };
+
+  function buzzNote(level) {
+    if (level >= 85) return "Máquina 1 (3 mm) en toda la cabeza";
+    if (level >= 60) return "Máquina 2 (6 mm) en toda la cabeza";
+    return "Máquina 3 (9 mm) en toda la cabeza";
+  }
+
+  function toHex(color) {
+    const parts = (color.match(/\d+/g) || []).slice(0, 3).map(Number);
+    if (parts.length !== 3) return "";
+    return `#${parts.map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+  }
+
   function describe(tool) {
     if (tool === "dye") {
       const custom = document.querySelector("#panel-dye .swatch-custom.selected");
-      const picked = document.querySelector("#swatches .swatch.selected span");
-      const color = custom ? byId("custom-color").value.toUpperCase() : (picked ? picked.textContent : "Negro");
+      const picked = document.querySelector("#swatches .swatch.selected");
+      const color = custom ? byId("custom-color").value.toUpperCase() : (picked ? picked.querySelector("span").textContent : "Negro");
+      const hex = custom ? color : (picked ? toHex(picked.querySelector("i").style.background) : "");
       const level = byId("strength").value;
+      const beard = byId("dye-beard").checked;
+      const order = `${custom ? `Color ${color}` : color} al ${level} %${beard ? ", con barba" : ""}`;
+      const note = [hex && `Referencia ${hex}`, beard && "incluye la barba"].filter(Boolean).join(" · ");
       return {
         title: custom ? "Tinte personalizado" : `Tinte ${color.toLowerCase()}`,
-        order: `${custom ? `Color ${color}` : color} al ${level} %`,
-        details: [["Servicio", "Tinte"], ["Color", color], ["Intensidad", `${level} %`]],
+        order,
+        note,
+        details: [["Tinte", order, note]],
         meta: `Intensidad ${level} %`,
       };
     }
     if (tool === "beard") {
-      const style = activeText("#style-group .style-btn.active") || "Completa";
+      const active = document.querySelector("#style-group .style-btn.active");
+      const style = active ? active.textContent.trim() : "Completa";
       const level = byId("beard-strength").value;
+      const order = `${style}, densidad ${level} %`;
+      const note = BEARD_NOTES[active ? active.dataset.style : "full"] || "";
       return {
         title: `Barba ${style.toLowerCase()}`,
-        order: `${style}, densidad ${level} %`,
-        details: [["Servicio", "Barba"], ["Estilo", style], ["Densidad", `${level} %`]],
+        style: active ? active.dataset.style : "full",
+        order,
+        note,
+        details: [["Barba", order, note]],
         meta: `Densidad ${level} %`,
       };
     }
-    const cut = activeText("#hc-style-group .style-btn.active") || "Degradado bajo";
-    const level = byId("hc-strength").value;
+    const active = document.querySelector("#hc-style-group .style-btn.active");
+    const cut = active ? active.textContent.trim() : "Degradado bajo";
+    const key = active ? active.dataset.hcStyle : "low-fade";
+    const level = Number(byId("hc-strength").value);
+    const order = `${cut} al ${level} %`;
+    const note = key === "buzz" ? buzzNote(level) : CUT_NOTES[key] || "";
     return {
       title: cut,
-      order: `${cut} al ${level} %`,
-      details: [["Servicio", "Corte"], ["Corte", cut], ["Intensidad", `${level} %`]],
+      order,
+      note,
+      details: [["Corte", order, note]],
       meta: `Intensidad ${level} %`,
     };
   }
@@ -439,12 +483,12 @@
         lastResult[tool] = { ...own, before: before.dataset.original || before.src, after };
         return;
       }
-      const steps = [...chain.steps, { tool, title: own.title, order: own.order }];
+      const steps = [...chain.steps, { tool, title: own.title, order: own.order, note: own.note, style: own.style }];
       lastResult[tool] = {
         title: steps.map((step) => step.title).join(" + "),
         order: own.order,
         meta: steps.map((step) => SERVICE[step.tool]).join(" + "),
-        details: steps.map((step) => [SERVICE[step.tool], step.order]),
+        details: steps.map((step) => [SERVICE[step.tool], step.order, step.note]),
         before: chain.origin,
         after,
       };
@@ -519,6 +563,16 @@
       const next = text.replace(rule[0], rule[1]);
       if (next !== text) banner.textContent = next;
     }).observe(banner, { childList: true, characterData: true, subtree: true });
+  });
+
+  fetch("/api/health").then((response) => response.json()).then((health) => {
+    byId("dye-model-field").hidden = !health.yolo;
+  }).catch(() => null);
+
+  $$("[data-dye-model]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $$("[data-dye-model]").forEach((other) => other.classList.toggle("active", other === button));
+    });
   });
 
   const STORE = "barberstudio-looks-v1";
@@ -649,7 +703,8 @@
     drawPanel(ctx, before, 72, 284, panelW, 540, "Antes");
     drawPanel(ctx, after, 72 + panelW + 24, 284, panelW, 540, "Después");
     let y = 900;
-    look.details.forEach(([label, value]) => {
+    const noted = look.details.some((row) => row[2]);
+    look.details.forEach(([label, value, note]) => {
       ctx.fillStyle = "#6A6A69";
       ctx.font = '600 18px Figtree, Arial, sans-serif';
       ctx.fillText(label.toUpperCase(), 72, y);
@@ -657,15 +712,20 @@
       ctx.font = '40px "Libre Caslon Display", Georgia, serif';
       ctx.textAlign = "right";
       ctx.fillText(value, W - 72, y + 6);
+      if (note) {
+        ctx.fillStyle = "#6A6A69";
+        ctx.font = '500 21px Figtree, Arial, sans-serif';
+        ctx.fillText(note, W - 72, y + 42);
+      }
       ctx.textAlign = "left";
       ctx.strokeStyle = "#BDBDBA";
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.moveTo(72, y + 34);
-      ctx.lineTo(W - 72, y + 34);
+      ctx.moveTo(72, y + (noted ? 64 : 34));
+      ctx.lineTo(W - 72, y + (noted ? 64 : 34));
       ctx.stroke();
       ctx.setLineDash([]);
-      y += 84;
+      y += noted ? 104 : 84;
     });
     ctx.fillStyle = "#0A0A0A";
     ctx.fillRect(72, H - 120, W - 144, 3);
@@ -718,6 +778,8 @@
       note.hidden = !chain;
       if (chain) note.querySelector("strong").textContent = chain.steps.map((step) => step.title).join(" + ");
     });
+    const beardStep = chain ? [...chain.steps].reverse().find((step) => step.tool === "beard") : null;
+    byId("panel-dye").dataset.beardStyle = beardStep ? beardStep.style : "";
   }
 
   async function chainTo(tool, target) {
@@ -728,7 +790,7 @@
       chain = { origin: URL.createObjectURL(origin), originBlob: origin, steps: [] };
     }
     const own = describe(tool);
-    chain.steps = [...chain.steps, { tool, title: own.title, order: own.order }];
+    chain.steps = [...chain.steps, { tool, title: own.title, order: own.order, note: own.note, style: own.style }];
     const name = `${slug(chain.steps.map((step) => step.title).join(" "))}.jpg`;
     chaining = true;
     try {
@@ -763,6 +825,54 @@
     sharePhoto(file, null);
     toast("Volviste a tu foto original");
   });
+
+  const FIT_PANELS = [
+    { panel: "panel-beard", key: "beard", group: "#style-group", attr: "style" },
+    { panel: "panel-haircut", key: "haircut", group: "#hc-style-group", attr: "hcStyle" },
+  ];
+  let fit = null;
+  let fitRequest = 0;
+
+  function renderFit() {
+    FIT_PANELS.forEach(({ panel, key, group, attr }) => {
+      const card = document.querySelector(`#${panel} [data-fit]`);
+      const buttons = $$(`${group} .style-btn`);
+      buttons.forEach((button) => delete button.dataset.fit);
+      card.hidden = !fit;
+      if (!fit) return;
+      card.querySelector("[data-fit-label]").textContent = fit.label.toLowerCase();
+      card.querySelector("[data-fit-why]").textContent = fit.why;
+      const picks = card.querySelector("[data-fit-picks]");
+      picks.textContent = "";
+      fit[key].forEach((style) => {
+        const target = buttons.find((button) => button.dataset[attr] === style);
+        if (!target) return;
+        target.dataset.fit = "";
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "fit-pick";
+        chip.textContent = target.textContent.trim();
+        chip.addEventListener("click", () => target.click());
+        picks.append(chip);
+      });
+    });
+  }
+
+  async function requestFit(file) {
+    const ticket = ++fitRequest;
+    fit = null;
+    renderFit();
+    const form = new FormData();
+    form.append("image", file);
+    try {
+      const response = await fetch("/api/face-shape", { method: "POST", body: form });
+      if (!response.ok || ticket !== fitRequest) return;
+      fit = await response.json();
+      renderFit();
+    } catch (error) {
+      fit = null;
+    }
+  }
 
   function lookCard(look, compact) {
     const card = document.createElement("article");

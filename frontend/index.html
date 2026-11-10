@@ -81,8 +81,8 @@
           <div class="carta-col">
             <h3>Estilos</h3>
             <button class="carta-row" type="button" data-go="beard"><span class="carta-icon" data-icon="moustache"></span><span class="carta-name">Barba</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Completa, candado, bigote o tres días.</span></button>
-            <button class="carta-row" type="button" data-go="dye"><span class="carta-icon" data-icon="palette"></span><span class="carta-name">Tinte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Siete colores o uno a tu elección.</span></button>
-            <button class="carta-row" type="button" data-go="haircut"><span class="carta-icon" data-icon="razor-electric"></span><span class="carta-name">Corte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Degradado bajo, medio, alto o rapado.</span></button>
+            <button class="carta-row" type="button" data-go="dye"><span class="carta-icon" data-icon="palette"></span><span class="carta-name">Tinte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Siete colores o uno a tu elección, también en la barba.</span></button>
+            <button class="carta-row" type="button" data-go="haircut"><span class="carta-icon" data-icon="razor-electric"></span><span class="carta-name">Corte</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Degradados, taper, undercut, raya marcada, crew cut o rapado.</span></button>
             <button class="carta-row" type="button" data-go="live"><span class="carta-icon" data-icon="video"></span><span class="carta-name">En vivo</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Tinte, barba y física con la cámara.</span></button>
           </div>
           <div class="carta-col">
@@ -112,7 +112,7 @@
     <section class="panel" id="panel-dye">
       <header class="page-head">
         <h1>Tinte</h1>
-        <p>Elige un color y la intensidad. Se aplica solo sobre el pelo.</p>
+        <p>Elige un color y la intensidad. Se aplica sobre el pelo y, si quieres, también sobre la barba.</p>
       </header>
       <div class="workspace">
         <div class="stage-col">
@@ -156,9 +156,21 @@
             <span class="field-label">Intensidad <output data-for="strength" data-unit=" %"></output></span>
             <input type="range" id="strength" min="10" max="100" value="75">
           </label>
+          <label class="check">
+            <span>Teñir también la barba</span>
+            <input type="checkbox" id="dye-beard">
+          </label>
+          <div class="field" id="dye-model-field" hidden>
+            <span class="field-label">Detección del pelo</span>
+            <div class="style-group options" id="dye-model">
+              <button class="style-btn active" data-dye-model="yolo">YOLO propio</button>
+              <button class="style-btn" data-dye-model="mediapipe">MediaPipe</button>
+            </div>
+          </div>
           <p class="chain-note" data-chain-note hidden><span>Sobre tu look: <strong></strong></span><button type="button" class="link-button" data-unchain>Volver a la foto original</button></p>
           <p class="order" data-order="dye"></p>
           <div class="actions"><button id="apply-btn" data-icon="palette" disabled>Aplicar tinte</button></div>
+          <p class="model-note" id="dye-model-note" hidden></p>
           <div class="banner" id="error-banner" hidden></div>
         </aside>
       </div>
@@ -197,6 +209,11 @@
           <div class="chain-bar" data-tool="beard"><span class="chain-label">Sobre este resultado</span><button type="button" class="quiet-button" data-chain="dye" data-icon="palette">Agregar tinte</button><button type="button" class="quiet-button" data-chain="haircut" data-icon="razor-electric">Agregar corte</button></div>
         </div>
         <aside class="card inspector ticket">
+          <div class="fit-card" data-fit hidden>
+            <p class="fit-head"><span class="fit-icon" data-icon="user-scan"></span><span>Tu cara: <strong data-fit-label></strong></span></p>
+            <p class="fit-why" data-fit-why></p>
+            <div class="fit-picks" data-fit-picks></div>
+          </div>
           <div class="field">
             <span class="field-label">Estilo</span>
             <div class="style-group options pics" id="style-group">
@@ -225,7 +242,7 @@
     <section class="panel" id="panel-haircut">
       <header class="page-head">
         <h1>Corte</h1>
-        <p>Degradado bajo, medio o alto, o rapado, sobre tu pelo real. En los degradados el pelo de arriba se mantiene.</p>
+        <p>Ocho cortes sobre tu pelo real. En los degradados, el taper, el undercut y la raya, el pelo de arriba se mantiene.</p>
       </header>
       <div class="workspace">
         <div class="stage-col">
@@ -255,12 +272,21 @@
           <div class="chain-bar" data-tool="haircut"><span class="chain-label">Sobre este resultado</span><button type="button" class="quiet-button" data-chain="beard" data-icon="moustache">Agregar barba</button><button type="button" class="quiet-button" data-chain="dye" data-icon="palette">Agregar tinte</button></div>
         </div>
         <aside class="card inspector ticket">
+          <div class="fit-card" data-fit hidden>
+            <p class="fit-head"><span class="fit-icon" data-icon="user-scan"></span><span>Tu cara: <strong data-fit-label></strong></span></p>
+            <p class="fit-why" data-fit-why></p>
+            <div class="fit-picks" data-fit-picks></div>
+          </div>
           <div class="field">
             <span class="field-label">Corte</span>
             <div class="style-group options" id="hc-style-group">
               <button class="style-btn active" data-hc-style="low-fade">Degradado bajo</button>
               <button class="style-btn" data-hc-style="mid-fade">Degradado medio</button>
               <button class="style-btn" data-hc-style="high-fade">Degradado alto</button>
+              <button class="style-btn" data-hc-style="taper">Taper</button>
+              <button class="style-btn" data-hc-style="undercut">Undercut</button>
+              <button class="style-btn" data-hc-style="hard-part">Raya marcada</button>
+              <button class="style-btn" data-hc-style="crew">Crew cut</button>
               <button class="style-btn" data-hc-style="buzz">Rapado</button>
             </div>
           </div>

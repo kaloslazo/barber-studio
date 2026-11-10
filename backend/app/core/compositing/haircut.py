@@ -4,16 +4,20 @@ import numpy as np
 from app.core.segmentation.mp_segmenter import BACKGROUND, BODY_SKIN, CLOTHES, FACE_SKIN, HAIR
 
 STYLES = {
-    "low-fade": (0.10, -0.12),
-    "mid-fade": (-0.08, -0.30),
-    "high-fade": (-0.24, -0.46),
+    "low-fade": {"skin": 0.10, "short": -0.12},
+    "mid-fade": {"skin": -0.08, "short": -0.30},
+    "high-fade": {"skin": -0.24, "short": -0.46},
+    "taper": {"skin": 0.24, "short": 0.0, "floor": 0.35},
+    "undercut": {"skin": 0.30, "short": 0.30, "floor": 0.22, "ceiling": 0.22, "edge": 0.02},
+    "hard-part": {"skin": -0.08, "short": -0.30, "edge": 0.03, "part": True},
+    "crew": {"crew": True},
     "buzz": None,
 }
 DISABLED_STYLES = ()
 
 WORK_FACE_WIDTH = 420.0
 SKULL_SIDE = 0.55
-SHORT_DENSITY = 0.82
+SHORT_DENSITY = 0.92
 
 
 def _smoothstep(x):
@@ -187,17 +191,37 @@ def _parts(image_bgr, hair_mask, geometry, probabilities):
     }
 
 
-def _layout(x, y, style, short, wobble):
+def _layout(x, y, style, short, wobble, front, top):
     """Where the cut keeps the original hair (`keep`) and how dense the
-    short hair grows everywhere else (`density`)."""
-    if STYLES[style] is None:
-        return np.zeros_like(x), np.full_like(x, short)
-    skin_line, top_line = STYLES[style]
+    short hair grows everywhere else (`density`).
+
+    The top is the band over the forehead that widens toward the crown;
+    the sides are the rest. Fades go from bare skin at `skin` to short
+    hair at `short`; a taper never reaches skin (`floor`); the undercut
+    shaves the sides flat (`ceiling`) under a hard edge; the hard part
+    adds a shaved line where the top meets one side; the crew cut keeps
+    everything short but a bit longer on top."""
+    spec = STYLES[style]
+    none = np.zeros_like(x)
+    if spec is None:
+        return none, np.full_like(x, short), none, none
     reach = 0.36 + 0.16 * _smoothstep((-0.40 - y) / 0.25)
-    sides = _smoothstep((np.abs(x) - reach + 0.015 * wobble) / 0.07)
+    edge = spec.get("edge", 0.07)
+    sides = _smoothstep((np.abs(x) - reach + 0.015 * wobble) / edge)
+    if spec.get("crew"):
+        return 0.3 * (1.0 - sides), short * (0.8 + 0.35 * (1.0 - sides)), none, none
     keep = 1.0 - sides
-    density = short * np.sqrt(_smoothstep((skin_line - y) / (skin_line - top_line)))
-    return keep, density
+    rise = _smoothstep((spec["skin"] - y) / max(spec["skin"] - spec["short"], 1e-3))
+    floor = spec.get("floor", 0.0)
+    ceiling = spec.get("ceiling", 1.0)
+    density = short * np.minimum(floor + (1.0 - floor) * np.sqrt(rise), ceiling)
+    line = beyond = none
+    if spec.get("part"):
+        part = reach - 0.09
+        along = _smoothstep((y - top - 0.06) / 0.05) * _smoothstep((front + 0.04 - y) / 0.04)
+        line = np.exp(-(((x - part) / 0.011) ** 4)) * along * (x > 0)
+        beyond = _smoothstep((x - part - 0.012 + 0.006 * wobble) / 0.015) * (y > top + 0.04) * (x > 0)
+    return keep, density, line, beyond
 
 
 def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortness):
@@ -209,10 +233,12 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
     rng = np.random.default_rng(seed)
     wobble = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), fw * 0.02)
     wobble /= wobble.std() + 1e-6
-    keep, density = _layout(x, y, style, SHORT_DENSITY * (1.1 - 0.4 * shortness), wobble)
     front = _front_hairline(x, y, geometry, parts["face_skin"])
     crown = _column_top(x, y, parts["hair"] + parts["skin"] > 0.5, front)
     top = float(np.clip(max(front - 0.33, crown + 0.03), -0.9, -0.55))
+    keep, density, line, beyond = _layout(x, y, style, SHORT_DENSITY * (1.1 - 0.4 * shortness), wobble, front, top)
+    if STYLES[style] is not None and STYLES[style].get("crew"):
+        top = min(top, max(top - 0.035, crown + 0.01))
 
     face = _face(shape, geometry)
     hair = (parts["hair"] > 0.25).astype(np.uint8)
@@ -224,13 +250,23 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
     person = (parts["background"] < 0.5).astype(np.float32)
     head = cv2.dilate(_skull(x, y, top), _kernel(fw * 0.05)) * cv2.dilate(person, _kernel(fw * 0.01))
     head = _blur(head, fw * 0.004)
+    crew = STYLES[style] is not None and STYLES[style].get("crew")
+    if crew:
+        keep = keep * head
+    shaved = line * head
+    keep = keep * (1.0 - shaved) * (1.0 - beyond * head)
+    density = density * (1.0 - shaved)
     cut = keep < 0.5
 
-    remove = (hair_wide & cut & (head < 0.5)).astype(np.uint8)
+    loose = cv2.dilate((parts["hair"] > 0.08).astype(np.uint8), _kernel(fw * 0.02)) > 0
+    loose &= (face == 0) & (parts["skin"] < 0.5)
+    remove = ((hair_wide | loose) & cut & (head < 0.5)).astype(np.uint8)
+    near = cv2.dilate(remove, _kernel(fw * 0.08)) > 0
     known = ((parts["background"] > 0.6) | (parts["rest"] > 0.7)) & (remove == 0) & ~hair_wide
+    known &= ~near | (parts["background"] > 0.9) | (parts["rest"] > 0.9)
     plate = pull_push(original, known.astype(np.float32))
     band = cv2.dilate(remove, _kernel(fw * 0.2)) > 0
-    difference = np.abs(original - plate).sum(axis=2)
+    difference = np.abs(original - _blur(plate, fw * 0.015)).sum(axis=2)
     strands = band & (difference > 30) & (parts["skin"] < 0.4) & (parts["rest"] < 0.5) & cut & (head < 0.5)
     strands &= face == 0
     if strands.any():
@@ -238,7 +274,10 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
         known &= remove == 0
         plate = pull_push(original, known.astype(np.float32))
     grain = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), 0.6)
-    plate += grain[..., None] * 1.5
+    grain /= grain.std() + 1e-6
+    detail = (original - _blur(original, 1.5)).mean(axis=2)
+    texture = np.sqrt(pull_push(np.repeat((detail * detail)[..., None], 3, axis=2), known.astype(np.float32))[..., 0])
+    plate += (grain * np.clip(texture, 0.5, 12.0))[..., None]
     removal = _blur(remove.astype(np.float32), max(0.8, fw * 0.003))
 
     light = _light(image_bgr, face > 0, x)
@@ -249,7 +288,7 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
         skin_known = face > 0
     skin_weight = skin_known.astype(np.float32)
     skin = pull_push(original, skin_weight)
-    scalp = skin + grain[..., None] * 2.0
+    scalp = skin + grain[..., None] * 1.2
 
     inner = cv2.erode(face, _kernel(fw * 0.03)) > 0
     reskin = cv2.dilate(hair, _kernel(fw * 0.11)) > 0

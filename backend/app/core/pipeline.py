@@ -19,6 +19,8 @@ from app.core.detection.face_detector import FaceDetector
 from app.core.detection.landmarks import LandmarkDetector
 from app.core.detection.one_euro import OneEuroFilter
 from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
+from app.core.geometry.face_shape import face_shape
+from app.core.segmentation.facial_hair import facial_hair_alpha
 from app.core.segmentation.hair_region import provisional_hair_mask
 from app.core.segmentation.mask_refiner import refine_hair_mask
 from app.core.segmentation.transfer_mask import head_geometry, head_window, transfer_mask
@@ -121,28 +123,67 @@ class StylePipeline:
         mask, alpha = transfer_mask(image_bgr, geometry, probabilities, fallback)
         return (mask, alpha) if soft else mask
 
-    def dye_alpha(self, image_bgr, face, live=False):
-        if self.segmenter is not None:
-            mask = self.hair_mask(image_bgr, face)
-            span = max(1, int(np.ptp(np.where(mask > 0)[0])) if mask.any() else 1)
-            return inside_feather(mask, max(4.0, min(25.0, span / 40.0)))
-        points = self._landmarks(image_bgr, face, live=live)
-        mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True)
-        if mask.any():
-            return alpha
-        return None
+    @property
+    def yolo_available(self):
+        return self.segmenter is not None
 
-    def apply_hair_dye(self, image_bgr, hex_color, strength=0.75, live=False):
+    def dye_alpha(self, image_bgr, face, live=False, model="auto", info=None, beard=False, beard_style=None):
+        """Soft mask to dye. `model` picks the hair segmenter: the team's
+        fine-tuned YOLO or MediaPipe ("auto" uses YOLO when its weights are
+        installed, never in live mode). `info` gets the model used and, for
+        YOLO, how much its mask agrees with MediaPipe's (IoU)."""
+        info = info if info is not None else {}
+        points = self._landmarks(image_bgr, face, live=live)
+        mp_mask, mp_alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True)
+        use_yolo = self.segmenter is not None and not live and model in ("auto", "yolo")
+        alpha = None
+        if use_yolo:
+            raw = self.segmenter.hair_mask(image_bgr)
+            if raw is not None and (raw > 0).any():
+                yolo = refine_hair_mask(image_bgr, raw)
+                union = np.count_nonzero((yolo > 0) | (mp_mask > 0))
+                info["model"] = "yolo"
+                info["agreement"] = np.count_nonzero((yolo > 0) & (mp_mask > 0)) / union if union else 0.0
+                span = max(1, int(np.ptp(np.where(yolo > 0)[0])))
+                alpha = inside_feather(yolo, max(4.0, min(25.0, span / 40.0)))
+        if alpha is None and mp_mask.any():
+            info["model"] = "mediapipe"
+            alpha = mp_alpha
+        if beard and points is not None and not live:
+            geometry = self._head_geometry(points, face)
+            probabilities = self._part_probabilities(image_bgr, geometry)
+            facial = facial_hair_alpha(image_bgr, points, probabilities, beard_style)
+            if facial.max() > 0.2:
+                info["beard"] = True
+                alpha = facial if alpha is None else np.maximum(alpha, facial)
+        return alpha
+
+    def apply_hair_dye(self, image_bgr, hex_color, strength=0.75, live=False, beard=False, model="auto", info=None, beard_style=None):
         hex_to_hsv(hex_color)
         face = self.detector.largest_face(image_bgr)
         if face is None:
             return None
-        alpha = self.dye_alpha(image_bgr, face, live=live)
+        alpha = self.dye_alpha(image_bgr, face, live=live, model=model, info=info, beard=beard, beard_style=beard_style)
         if alpha is None:
             if live:
                 return image_bgr
             raise ValueError("No hair detected in the image")
         return apply_dye(image_bgr, alpha, hex_color, strength)
+
+    def face_shape(self, image_bgr):
+        h, w = image_bgr.shape[:2]
+        if max(h, w) > 1024:
+            scale = 1024 / max(h, w)
+            image_bgr = cv2.resize(image_bgr, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        if self.landmark_detector is None:
+            try:
+                self.landmark_detector = LandmarkDetector()
+            except FileNotFoundError:
+                return None
+        mesh = self.landmark_detector.mesh3d(image_bgr)
+        if mesh is None:
+            return None
+        return face_shape(mesh)
 
     def apply_haircut(self, image_bgr, style="low-fade", strength=0.9):
         face = self.detector.largest_face(image_bgr)
