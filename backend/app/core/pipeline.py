@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 
 from app.core.coloring.dye import apply_dye, hex_to_hsv
+from app.core.compositing.alpha import inside_feather
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
 from app.core.compositing.beard_physics import BeardPhysics
@@ -120,23 +121,40 @@ class StylePipeline:
         mask, alpha = transfer_mask(image_bgr, geometry, probabilities, fallback)
         return (mask, alpha) if soft else mask
 
-    def apply_hair_dye(self, image_bgr, hex_color, strength=0.75):
-        target_hsv = hex_to_hsv(hex_color)
+    def dye_alpha(self, image_bgr, face, live=False):
+        if self.segmenter is not None:
+            mask = self.hair_mask(image_bgr, face)
+            span = max(1, int(np.ptp(np.where(mask > 0)[0])) if mask.any() else 1)
+            return inside_feather(mask, max(4.0, min(25.0, span / 40.0)))
+        points = self._landmarks(image_bgr, face, live=live)
+        mask, alpha = self.transfer_hair_mask(image_bgr, face, points, soft=True)
+        if mask.any():
+            return alpha
+        return None
+
+    def apply_hair_dye(self, image_bgr, hex_color, strength=0.75, live=False):
+        hex_to_hsv(hex_color)
         face = self.detector.largest_face(image_bgr)
         if face is None:
             return None
-        mask = self.hair_mask(image_bgr, face)
-        return apply_dye(image_bgr, mask, target_hsv, strength)
+        alpha = self.dye_alpha(image_bgr, face, live=live)
+        if alpha is None:
+            if live:
+                return image_bgr
+            raise ValueError("No hair detected in the image")
+        return apply_dye(image_bgr, alpha, hex_color, strength)
 
     def apply_haircut(self, image_bgr, style="low-fade", strength=0.9):
         face = self.detector.largest_face(image_bgr)
         if face is None:
             return None
         points = self._landmarks(image_bgr, face)
-        hair_mask = self.transfer_hair_mask(image_bgr, face, points)
-        return apply_haircut(
-            image_bgr, hair_mask, face, points, style, strength,
-        )
+        geometry = self._head_geometry(points, face)
+        probabilities = self._part_probabilities(image_bgr, geometry)
+        hair_mask = self.transfer_hair_mask(image_bgr, face, points, probabilities=probabilities, geometry=geometry)
+        if not hair_mask.any():
+            raise ValueError("No hair detected in the image")
+        return apply_haircut(image_bgr, hair_mask, geometry, style, strength, probabilities)
 
     def _live_points(self, image_bgr):
         points = self._landmarks(image_bgr, None, live=True)

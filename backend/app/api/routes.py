@@ -16,7 +16,6 @@ from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.detection.landmarks import MODELS_DIR
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
-from app.core.compositing.haircut import DISABLED_STYLES as HAIRCUT_DISABLED
 from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
 from app.core.splatting.face3d import face_scan_debug_image
@@ -70,7 +69,8 @@ async def dye(
     try:
         result = pipeline.apply_hair_dye(image_bgr, color, strength)
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        status = 422 if str(error).startswith("No hair") else 400
+        raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
     return encode_png(result)
@@ -99,18 +99,14 @@ async def haircut(
     style: str = Form("low-fade"),
     strength: float = Form(0.9),
 ):
-    if style in HAIRCUT_DISABLED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Style '{style}' is temporarily disabled during low-fade validation",
-        )
     if style not in HAIRCUT_STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown haircut style: {style}")
     image_bgr = decode_image(await image.read())
     try:
         result = pipeline.apply_haircut(image_bgr, style, strength)
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        status = 422 if str(error).startswith("No hair") else 400
+        raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
     return encode_png(result)
@@ -375,7 +371,10 @@ async def live(
     elif mode == "mesh":
         result = pipeline.face_mesh(image_bgr)
     else:
-        result = pipeline.apply_hair_dye(image_bgr, color, strength)
+        try:
+            result = pipeline.apply_hair_dye(image_bgr, color, strength, live=True)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
     response = encode_jpeg(result if result is not None else image_bgr)
     response.headers["X-Face-Found"] = "0" if result is None else "1"
     return response

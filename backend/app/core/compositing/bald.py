@@ -21,7 +21,9 @@ class BaldRenderer:
     plate learned from previous frames, or inpainted where the plate has
     never seen the scene."""
 
-    def __init__(self):
+    def __init__(self, work_face_width=WORK_FACE_WIDTH, inpaint_width=320.0):
+        self.work_face_width = work_face_width
+        self.inpaint_width = inpaint_width
         self.plate = None
         self.plate_valid = None
         self.skin = None
@@ -105,7 +107,7 @@ class BaldRenderer:
 
     def _inpaint(self, image_bgr, region):
         h, w = image_bgr.shape[:2]
-        scale = min(1.0, 320.0 / w)
+        scale = min(1.0, self.inpaint_width / w)
         size = (max(1, int(w * scale)), max(1, int(h * scale)))
         small = cv2.resize(image_bgr, size, interpolation=cv2.INTER_AREA)
         small_mask = cv2.resize(region, size, interpolation=cv2.INTER_NEAREST)
@@ -137,7 +139,7 @@ class BaldRenderer:
             y1 = min(image_bgr.shape[0], max(y1, rows.max() + pad + 1))
         window = (slice(y0, y1), slice(x0, x1))
         crop = image_bgr[window]
-        scale = min(1.0, WORK_FACE_WIDTH / geometry["face_w"])
+        scale = min(1.0, self.work_face_width / geometry["face_w"])
         size = (max(8, int(round((x1 - x0) * scale))), max(8, int(round((y1 - y0) * scale))))
 
         def shrink(layer, interpolation=cv2.INTER_AREA):

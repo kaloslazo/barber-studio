@@ -108,60 +108,65 @@ def test_haircut_invalid_style_returns_400():
     assert response.status_code == 400
 
 
-def test_haircut_disabled_style_returns_400():
-    response = client.post(
-        "/api/haircut",
-        files=to_upload(make_test_image()),
-        data={"style": "mid-fade"},
-    )
-    assert response.status_code == 400
-    assert "disabled" in response.json()["detail"]
+def test_haircut_all_styles_are_enabled():
+    for style in ("low-fade", "mid-fade", "high-fade", "buzz"):
+        response = client.post(
+            "/api/haircut",
+            files=to_upload(make_test_image()),
+            data={"style": style},
+        )
+        assert response.status_code == 422
 
 
 def _haircut_fixture():
-    import cv2
-
     from app.core.compositing.haircut import apply_haircut
+    from app.core.segmentation.transfer_mask import head_geometry
 
     rng = np.random.default_rng(3)
     image = rng.integers(0, 255, (240, 320, 3), dtype=np.uint8)
     mask = np.zeros((240, 320), np.uint8)
     mask[40:120, 110:210] = 255
-    face_box = (90, 100, 140, 110)
-    return image, mask, face_box, apply_haircut
+    geometry = head_geometry(None, (90, 100, 140, 110))
+    return image, mask, geometry, apply_haircut
 
 
 def test_haircut_zero_strength_is_identity():
-    image, mask, face_box, apply_haircut = _haircut_fixture()
-    result = apply_haircut(image, mask, face_box, None, "low-fade", 0.0)
+    image, mask, geometry, apply_haircut = _haircut_fixture()
+    result = apply_haircut(image, mask, geometry, "low-fade", 0.0)
     assert np.array_equal(result, image)
 
 
-def test_haircut_does_not_touch_pixels_outside_hair():
-    image, mask, face_box, apply_haircut = _haircut_fixture()
-    result = apply_haircut(image, mask, face_box, None, "low-fade", 1.0)
-    far_outside = np.zeros_like(mask)
-    far_outside[160:230, 10:80] = 255
-    assert np.array_equal(result[far_outside > 0], image[far_outside > 0])
+def test_haircut_does_not_touch_pixels_far_from_hair():
+    image, mask, geometry, apply_haircut = _haircut_fixture()
+    result = apply_haircut(image, mask, geometry, "buzz", 1.0)
+    assert np.array_equal(result[160:230, 10:80], image[160:230, 10:80])
 
 
-def test_haircut_fade_never_touches_face_hull():
-    image, mask, face_box, apply_haircut = _haircut_fixture()
-    from app.core.compositing.haircut import _face_guard
+def test_haircut_never_touches_the_face():
+    import cv2
 
-    result = apply_haircut(image, mask, face_box, None, "low-fade", 1.0)
-    guard = _face_guard(image.shape, None, face_box)
-    guard_area = guard > 0
-    if guard_area.sum():
-        assert np.array_equal(result[guard_area], image[guard_area])
+    image, mask, geometry, apply_haircut = _haircut_fixture()
+    face = np.zeros(mask.shape, np.uint8)
+    cv2.fillPoly(face, [geometry["polygon"]], 255)
+    face = cv2.erode(face, np.ones((9, 9), np.uint8))
+    for style in ("low-fade", "buzz"):
+        result = apply_haircut(image, mask, geometry, style, 1.0)
+        assert np.array_equal(result[face > 0], image[face > 0])
 
 
-def test_haircut_buzz_disabled_raises():
-    image, mask, face_box, apply_haircut = _haircut_fixture()
+def test_haircut_buzz_changes_the_hair():
+    image, mask, geometry, apply_haircut = _haircut_fixture()
+    result = apply_haircut(image, mask, geometry, "buzz", 1.0)
+    changed = np.abs(result.astype(int) - image.astype(int)).sum(axis=2) > 0
+    assert changed[mask > 0].mean() > 0.5
+
+
+def test_haircut_unknown_style_raises():
     import pytest
 
+    image, mask, geometry, apply_haircut = _haircut_fixture()
     with pytest.raises(ValueError):
-        apply_haircut(image, mask, face_box, None, "buzz", 1.0)
+        apply_haircut(image, mask, geometry, "mohawk", 1.0)
 
 
 def test_live_physics_returns_image_even_without_face():

@@ -2499,6 +2499,130 @@ body[data-group="inicio"] .drop-zone:hover {
   color: var(--green);
 }
 
+.dz-alt {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.drop-zone.has-photo .dz-alt,
+.stage-col:has(> .result:not([hidden])) > .drop-zone .dz-alt {
+  display: none;
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+.cam-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(10, 10, 10, 0.6);
+}
+
+.cam-box {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+
+.cam-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cam-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  font-size: 32px;
+  line-height: 1;
+}
+
+.cam-stage {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 20px;
+  background: var(--stage);
+}
+
+.cam-stage video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.cam-guide {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: 44%;
+  height: 80%;
+  transform: translate(-50%, -50%);
+  border: 2px dashed rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cam-count {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 10, 0.25);
+  color: var(--on-stage);
+  font-family: var(--font-display);
+  font-size: 140px;
+}
+
+.cam-tip {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.cam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .cam-box {
+    padding: 16px;
+  }
+
+  .cam-stage {
+    aspect-ratio: 3 / 4;
+  }
+
+  .cam-guide {
+    width: 64%;
+    height: 66%;
+  }
+
+  .cam-actions button {
+    flex: 1 1 auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

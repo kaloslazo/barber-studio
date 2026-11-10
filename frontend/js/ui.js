@@ -126,6 +126,101 @@
     useSample(button.closest("#panel-inicio") ? "beard" : null);
   }));
 
+  const camModal = byId("cam-modal");
+  const camVideo = byId("cam-video");
+  const camCount = byId("cam-count");
+  const camShot = byId("cam-shot");
+  const camError = byId("cam-error");
+  let camStream = null;
+  let camTimer = null;
+  let camGo = null;
+
+  function closeCamera() {
+    clearInterval(camTimer);
+    camTimer = null;
+    camCount.hidden = true;
+    if (camStream) camStream.getTracks().forEach((track) => track.stop());
+    camStream = null;
+    camVideo.srcObject = null;
+    camModal.hidden = true;
+    document.body.classList.remove("modal-open");
+    camShot.disabled = false;
+  }
+
+  async function openCamera(goTo) {
+    camGo = goTo;
+    camError.hidden = true;
+    camShot.disabled = true;
+    camModal.hidden = false;
+    document.body.classList.add("modal-open");
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: "user" },
+        audio: false,
+      });
+      camVideo.srcObject = camStream;
+      await camVideo.play();
+      camShot.disabled = false;
+      camShot.focus();
+    } catch (error) {
+      camError.textContent = `No se pudo abrir la cámara: ${error.message}`;
+      camError.hidden = false;
+    }
+  }
+
+  function capture() {
+    const width = camVideo.videoWidth;
+    const height = camVideo.videoHeight;
+    if (!width || !height) {
+      closeCamera();
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(camVideo, 0, 0, width, height);
+    canvas.toBlob((blob) => {
+      closeCamera();
+      if (!blob) return;
+      sharePhoto(new File([blob], "foto-camara.jpg", { type: "image/jpeg" }), null);
+      if (camGo) go(camGo);
+      toast("Foto tomada. Ya está en todas las herramientas");
+    }, "image/jpeg", 0.92);
+  }
+
+  camShot.addEventListener("click", () => {
+    if (camTimer) return;
+    let left = 3;
+    camShot.disabled = true;
+    camCount.textContent = left;
+    camCount.hidden = false;
+    camTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        camCount.textContent = left;
+        return;
+      }
+      clearInterval(camTimer);
+      camTimer = null;
+      capture();
+    }, 1000);
+  });
+  byId("cam-cancel").addEventListener("click", closeCamera);
+  byId("cam-close").addEventListener("click", closeCamera);
+  camModal.addEventListener("click", (event) => {
+    if (event.target === camModal) closeCamera();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !camModal.hidden) closeCamera();
+  });
+  $$("[data-camera]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openCamera(button.closest("#panel-inicio") ? "beard" : null);
+  }));
+
   $$(".drop-zone").forEach((zone) => {
     const input = zone.querySelector('input[type="file"]');
     const preview = zone.querySelector(".dz-preview");
@@ -285,22 +380,23 @@
   });
 
   const MESSAGES = [
-    [/^Invalid image file/i, "El archivo no es una imagen válida."],
-    [/^Failed to encode result/i, "No se pudo generar el resultado."],
-    [/^No face detected/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
-    [/^Unknown beard style: (.*)/i, "Estilo de barba desconocido: $1"],
-    [/temporarily disabled/i, "Ese corte todavía no está disponible."],
-    [/^Unknown haircut style: (.*)/i, "Corte desconocido: $1"],
-    [/^Face landmarker model not found/i, "Falta el modelo de puntos faciales en el servidor."],
-    [/^No hair or face detected/i, "No encontramos pelo ni cara en la foto."],
-    [/^Frames and scan angles must match/i, "Las capturas y los ángulos no coinciden."],
-    [/^Scan your face first/i, "Primero escanea tu cara en «Tu cara», dentro de Peluca 3D."],
-    [/^No hair detected in the captures/i, "No encontramos pelo en las capturas."],
-    [/^count must be between/i, "La cantidad debe estar entre 10 y 5000."],
-    [/^Unknown target: (.*)/i, "Objetivo desconocido: $1"],
-    [/^Unknown live mode: (.*)/i, "Modo en vivo desconocido: $1"],
-    [/^Send between 1 and 16 frames/i, "Envía entre 1 y 16 fotos."],
-    [/^No face found in the scan frames/i, "No encontramos tu cara en las capturas."],
+    [/^Invalid image file.*$/i, "El archivo no es una imagen válida."],
+    [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz."],
+    [/^Failed to encode result.*$/i, "No se pudo generar el resultado."],
+    [/^No face detected.*$/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
+    [/^Unknown beard style: (.*)$/i, "Estilo de barba desconocido: $1"],
+    [/^.*temporarily disabled.*$/i, "Ese corte todavía no está disponible."],
+    [/^Unknown haircut style: (.*)$/i, "Corte desconocido: $1"],
+    [/^Face landmarker model not found.*$/i, "Falta el modelo de puntos faciales en el servidor."],
+    [/^No hair or face detected.*$/i, "No encontramos pelo ni cara en la foto."],
+    [/^Frames and scan angles must match.*$/i, "Las capturas y los ángulos no coinciden."],
+    [/^Scan your face first.*$/i, "Primero escanea tu cara en «Tu cara», dentro de Peluca 3D."],
+    [/^No hair detected in the captures.*$/i, "No encontramos pelo en las capturas."],
+    [/^count must be between.*$/i, "La cantidad debe estar entre 10 y 5000."],
+    [/^Unknown target: (.*)$/i, "Objetivo desconocido: $1"],
+    [/^Unknown live mode: (.*)$/i, "Modo en vivo desconocido: $1"],
+    [/^Send between 1 and 16 frames.*$/i, "Envía entre 1 y 16 fotos."],
+    [/^No face found in the scan frames.*$/i, "No encontramos tu cara en las capturas."],
     [/^(Failed to fetch|Load failed|NetworkError.*)$/i, "No hay conexión con el servidor."],
     [/^No se pudo abrir la cámara: .*(permission|denied|notallowed).*/i, "No se pudo abrir la cámara: no diste permiso."],
     [/^No se pudo abrir la cámara: .*(notfound|not found|device).*/i, "No se pudo abrir la cámara: no encontramos ninguna."],
