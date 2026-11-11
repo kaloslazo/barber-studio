@@ -44,8 +44,11 @@ def build(name):
             box |= pymupdf.Rect(rect[1])
         box = pymupdf.Rect(box.x0 - PAD, box.y0 - PAD, box.x1 + PAD, box.y1 + PAD) & page.rect
         page.set_cropbox(box)
-        for folder in (ROOT / "report" / "figures", ROOT / "slides" / "figures"):
-            source.save(folder / f"diagrama_{name}.pdf", garbage=3, deflate=True)
+        for folder in (ROOT / "report" / "figures", ROOT / "slides" / "figures", ROOT / "paper" / "figures"):
+            target = folder / f"diagrama_{name}.pdf"
+            if folder.parent.name == "paper" and not target.exists():
+                continue
+            source.save(target, garbage=3, deflate=True)
         for folder in (ROOT / "docs" / "diagramas", ROOT / "frontend" / "assets" / "diagramas"):
             folder.mkdir(parents=True, exist_ok=True)
             page.get_pixmap(dpi=220).save(folder / f"{name}.png")

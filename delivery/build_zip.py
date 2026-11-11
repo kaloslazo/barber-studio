@@ -63,7 +63,7 @@ DIAGRAMS = [
 
 VIDEOS = ["video-corto.mp4", "video-largo.mp4"]
 VIDEO_LIMITS = {"video-corto.mp4": 90, "video-largo.mp4": 1200}
-CODE_EXCLUDE = ("report/", "slides/", "delivery/")
+CODE_EXCLUDE = ("report/", "slides/", "delivery/", "paper/")
 
 
 def copy_tree(src, dst, names):
@@ -121,7 +121,7 @@ def video_seconds(path):
 
 def main():
     problems = []
-    for needed in [ROOT / "report" / "main.pdf", ROOT / "slides" / "main.pdf"]:
+    for needed in [ROOT / "report" / "main.pdf", ROOT / "slides" / "main.pdf", ROOT / "paper" / "main.pdf"]:
         if not needed.exists():
             sys.exit(f"Falta {needed.relative_to(ROOT)}: compílalo primero (ver su README).")
 
@@ -132,7 +132,9 @@ def main():
     pdf_dir = OUT / "documentación-en-pdf"
     pdf_dir.mkdir()
     shutil.copy2(ROOT / "report" / "main.pdf", pdf_dir / "informe.pdf")
+    shutil.copy2(ROOT / "paper" / "main.pdf", pdf_dir / "resumen-paper.pdf")
     copy_tree(ROOT / "report", OUT / "documentacion-en-latex", ["main.tex", "references.bib", "sections", "figures", "diagramas", "README.md"])
+    copy_tree(ROOT / "paper", OUT / "documentacion-en-latex" / "resumen-paper", ["main.tex", "references.bib", "figures", "README.md"])
 
     shutil.copy2(DELIVERY / "titulo.txt", OUT / "titulo.txt")
     shutil.copy2(DELIVERY / "descripcion-breve.txt", OUT / "descripcion-breve.txt")

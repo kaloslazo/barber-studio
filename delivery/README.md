@@ -4,6 +4,7 @@ Arma el `.zip` con la estructura que piden los lineamientos del proyecto final d
 
 ```
 documentación-en-pdf/informe.pdf
+documentación-en-pdf/resumen-paper.pdf
 documentacion-en-latex/
 titulo.txt
 descripcion-breve.txt
