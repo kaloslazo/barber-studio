@@ -49,6 +49,8 @@ El servidor está escrito en Python con FastAPI \cite{fastapi}, OpenCV \cite{bra
   \item \textbf{Módulos} (\archivo{core/*}): cada técnica vive en su propio paquete, sin depender de la API, y es lo que prueban los tests unitarios.
 \end{itemize}
 
+\textbf{Un solo proceso, a propósito.} El modo en vivo, la prueba de la peluca y el juego guardan estado entre cuadros: el ancla de la cara, el color del pelo y la ronda en curso. Por eso el servidor corre un único proceso de \texttt{uvicorn}; con dos, cada cuadro caía en uno distinto y el juego alternaba entre dos partidas. Cada llamada al \emph{pipeline} se ejecuta en un hilo aparte detrás de un candado, así el servidor sigue respondiendo mientras procesa una foto y los modelos nunca se usan desde dos hilos a la vez.
+
 \subsection{Interfaz}
 
 La interfaz no usa \emph{frameworks} ni compilación:
