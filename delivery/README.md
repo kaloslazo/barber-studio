@@ -35,3 +35,5 @@ El código se toma del último commit (`HEAD`). Hay que hacer commit de los camb
 - `titulo.txt` y `descripcion-breve.txt`: van tal cual al `.zip`.
 - `pagina-web/index.html`: plantilla de la página. El script completa la descripción, la galería y las animaciones.
 - `build_zip.py`: arma la carpeta `dist/entrega-cs4016-fresh/` y el `.zip`.
+- `guion-video-corto.md`: guion del pitch de 1:30, con tiempos, pantalla y narración.
+- `guion-video-largo.md`: guion del video de 20 minutos, por bloques y por integrante, con lo que cada uno tiene que explicar.
