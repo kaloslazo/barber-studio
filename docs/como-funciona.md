@@ -4,7 +4,7 @@ Fresh no genera una cara nueva. Mide la geometría de la cara y del pelo de la p
 
 Los modelos preentrenados responden una sola pregunta: dónde están la cara, el pelo y la mano. Todo lo demás es código del equipo: la malla, el tinte, los cortes, la física, las gaussianas y el visor 3D. En el núcleo hay unas 4000 líneas de algoritmos gráficos propios y unas 600 que llaman a modelos.
 
-Los diagramas usan las etapas reales del programa sobre un retrato de dominio público de la NASA. La explicación completa, con fórmulas y decisiones, está en el informe (`report/`). Para usar la aplicación paso a paso, ver la [guía de uso](guia-de-uso.md).
+Los diagramas usan las etapas reales del programa sobre un retrato de dominio público de la NASA. La explicación completa, con fórmulas y decisiones, está en el informe (`report/`). Para usar la aplicación paso a paso, ver la [guía de uso](guia-de-uso.md). La misma explicación está dentro de la app, en Inicio → Cómo funciona.
 
 ## Pipeline general
 
@@ -23,7 +23,7 @@ Los diagramas usan las etapas reales del programa sobre un retrato de dominio p�
 - **Un solo proceso de FastAPI sirve la interfaz y la API.** Los endpoints solo validan la entrada y llaman al pipeline.
 - **Cada llamada al pipeline pasa por `work()`.** Corre en un hilo aparte, detrás de un candado. El servidor sigue respondiendo mientras procesa una foto, y los modelos nunca se usan desde dos hilos a la vez.
 - **Un solo proceso, a propósito.** El modo en vivo, la peluca y el juego guardan estado entre cuadros. Con dos procesos, ese estado se partía.
-- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban los 53 tests de GitHub Actions.
+- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban los 54 tests de GitHub Actions.
 
 ## Qué se usa para cada cosa
 

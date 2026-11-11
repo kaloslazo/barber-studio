@@ -22,6 +22,7 @@ Los resultados salen mejor con una foto de frente, con luz pareja, fondo liso y 
 - **Subir foto**, **Tomar foto** o **usa la foto de ejemplo**. La foto queda cargada en todas las herramientas, así que se sube una sola vez.
 - Arriba se elige el grupo: **Estilos**, **3D**, **Juegos** o **Mis looks**. En el celular esa barra queda abajo.
 - La lista de herramientas indica si cada una usa una foto o la cámara.
+- **Cómo funciona por dentro** (o la pestaña **Cómo funciona** junto a Inicio) abre los diagramas de cada herramienta y la tabla de qué se usa para cada cosa.
 
 ## Barba
 

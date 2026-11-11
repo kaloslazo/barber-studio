@@ -27,7 +27,7 @@ Porque inventa la cara completa: cambia la identidad, la piel y la luz, y necesi
 La API responde 422 y la interfaz muestra el mensaje. En vivo se reutilizan los últimos puntos hasta tres cuadros, desplazados por correlación de fase. Sin puntos no hay malla, así que no se aplica ningún estilo: es la única dependencia fuerte.
 
 **¿Cómo saben que funciona?**
-Con 53 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
+Con 54 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
 
 **¿Por qué todo en CPU?**
 Es una restricción del proyecto: que cualquiera lo reproduzca con `docker compose up`, sin GPU. Todo está vectorizado con NumPy. La GPU solo se usa en el navegador, para el visor 3D.

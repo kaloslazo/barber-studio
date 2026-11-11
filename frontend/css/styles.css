@@ -3170,6 +3170,143 @@ button.is-working::before {
   line-height: 1.45;
 }
 
+.docs-block + .docs-block {
+  margin-top: calc(48px * var(--space-scale));
+}
+
+.docs-figure {
+  margin: 20px 0 0;
+  padding: 16px;
+  background: var(--raised);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.docs-figure img {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  height: auto;
+}
+
+.docs-steps,
+.docs-points {
+  max-width: 78ch;
+  margin: 22px 0 0;
+  padding-left: 1.2em;
+  font-size: 15.5px;
+  line-height: 1.55;
+}
+
+.docs-steps li,
+.docs-points li {
+  margin: 6px 0;
+}
+
+.docs-steps strong {
+  font-weight: 600;
+}
+
+.docs-tabs {
+  margin-top: 20px;
+}
+
+.docs-tool[hidden] {
+  display: none;
+}
+
+.docs-tool-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0 32px;
+}
+
+.docs-tool-foot .docs-points {
+  flex: 1 1 420px;
+}
+
+.docs-tool-foot .quiet-button {
+  margin-top: 22px;
+}
+
+.docs-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+
+.docs-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 14.5px;
+}
+
+.docs-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-strong);
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.docs-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.docs-table code,
+.docs-points code {
+  font-size: 12.5px;
+}
+
+.docs-origin {
+  display: inline-block;
+  padding: 3px 11px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.docs-origin.is-model {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.docs-more {
+  margin: 18px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.docs-more a {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .docs-figure {
+    padding: 10px;
+  }
+
+  .docs-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .docs-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .docs-tabs .transfer-step {
+    flex: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

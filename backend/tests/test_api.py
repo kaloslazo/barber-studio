@@ -31,6 +31,13 @@ def test_root_serves_frontend():
     assert b"Fresh" in response.content
 
 
+def test_frontend_is_revalidated():
+    for path in ("/", "/css/styles.css", "/js/ui.js"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache"
+
+
 def test_preview_returns_image():
     response = client.post("/api/preview", files=to_upload(make_test_image()))
     assert response.status_code == 200
