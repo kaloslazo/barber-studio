@@ -23,7 +23,7 @@ Los diagramas usan las etapas reales del programa sobre un retrato de dominio p�
 - **Un solo proceso de FastAPI sirve la interfaz y la API.** Los endpoints solo validan la entrada y llaman al pipeline.
 - **Cada llamada al pipeline pasa por `work()`.** Corre en un hilo aparte, detrás de un candado. El servidor sigue respondiendo mientras procesa una foto, y los modelos nunca se usan desde dos hilos a la vez.
 - **Un solo proceso, a propósito.** El modo en vivo, la peluca y el juego guardan estado entre cuadros. Con dos procesos, ese estado se partía.
-- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban los 53 tests de GitHub Actions.
+- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban los 54 tests de GitHub Actions.
 
 ## Qué se usa para cada cosa
 
