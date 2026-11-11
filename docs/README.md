@@ -1,9 +1,11 @@
 # Documentación — BarberStudio
 
-Notas de trabajo escritas durante el desarrollo (octubre de 2026): cada una describe un módulo como quedó en ese momento, así que los conteos de pruebas y los nombres de pantallas pueden ser viejos. El estado actual está en el [README](../README.md) de la raíz y en el informe ([`report/`](../report)). Los guiones de los videos de la entrega están en [`delivery/`](../delivery).
+Los dos primeros documentos están al día (noviembre de 2026). El resto son notas de trabajo escritas durante el desarrollo (octubre de 2026): cada una describe un módulo como quedó en ese momento, así que los conteos de pruebas y los nombres de pantallas pueden ser viejos. El estado actual está en el [README](../README.md) de la raíz y en el informe ([`report/`](../report)). Los guiones de los videos de la entrega están en [`delivery/`](../delivery).
 
 | Documento | Para qué sirve |
 |---|---|
+| [`como-funciona.md`](como-funciona.md) | **Empieza aquí.** Qué se usa para cada cosa, con un diagrama del pipeline de cada herramienta y la arquitectura |
+| [`guia-de-uso.md`](guia-de-uso.md) | Guía de uso de cada pantalla, con capturas |
 | [`beard_overview.md`](beard_overview.md) | **Barba, versión simple:** el flujo paso a paso, con qué entra, qué sale y de dónde sale cada cosa |
 | [`beard_technical.md`](beard_technical.md) | **Barba, versión técnica:** cada pieza con su archivo, fórmulas, decisiones, mediciones del modo en vivo y diferencias con el plan |
 | [`features_overview.md`](features_overview.md) | **Opciones nuevas, versión simple:** barba con física (P2), "¿Cuántas gaussianas sos?" (P3), Barber Speedrun (P4) y Espejo 3D (P5) |

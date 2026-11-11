@@ -1,7 +1,15 @@
 \subsection{Física de la barba}
 \label{sec:fisica}
 
-En el modo en vivo, la barba larga se simula con física (\archivo{compositing/beard_physics.py}).
+En el modo en vivo, la barba larga se simula con física (\archivo{compositing/beard_physics.py}). La figura~\ref{fig:diag-vivo} muestra el recorrido de un cuadro.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_vivo.pdf}
+  \caption{Pipeline del modo en vivo con física: seguimiento, anclaje baricéntrico, Verlet con restricciones de distancia y render con gaussianas.}
+  \label{fig:diag-vivo}
+\end{figure}
+
 
 \textbf{Modelo.} Cada hebra es una cadena de cuatro partículas, y hay una hebra por cada 30 píxeles de la región (hasta 2600):
 \begin{itemize}
@@ -31,7 +39,15 @@ En una secuencia con vaivén y un tirón brusco, el retraso de las puntas llega 
 \subsection{Gaussianas 2D: ``¿Cuántas gaussianas eres?''}
 \label{sec:gauss2d}
 
-\archivo{splatting/gaussian_image.py} reconstruye un retrato con $N$ gaussianas 2D, al estilo de GaussianImage \cite{zhang2024}, sin bibliotecas de diferenciación automática.
+\archivo{splatting/gaussian_image.py} reconstruye un retrato con $N$ gaussianas 2D, al estilo de GaussianImage \cite{zhang2024}, sin bibliotecas de diferenciación automática. La figura~\ref{fig:diag-gaussianas} resume el ciclo de optimización.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_gaussianas.pdf}
+  \caption{Ajuste de gaussianas 2D: inicialización por importancia y un ciclo de render, error, gradientes analíticos y Adam.}
+  \label{fig:diag-gaussianas}
+\end{figure}
+
 
 \textbf{Representación.} Cada gaussiana tiene un centro $\mu_i$, un peso RGB $c_i$ y el factor de Cholesky de la inversa de su covarianza, $L=\begin{psmallmatrix}l_1&0\\l_2&l_3\end{psmallmatrix}$. Con $\Sigma^{-1}=LL^\top$, la covarianza es siempre definida positiva. Con $u=l_1d_x+l_2d_y$ y $v=l_3d_y$:
 \begin{equation}
@@ -64,7 +80,15 @@ La interfaz lo convierte en un juego: el retrato aparece con 20, 60, 200, 600 y 
 \subsection{Espejo 3D con \emph{Gaussian Splatting}}
 \label{sec:espejo}
 
-El espejo convierte una foto en una cabeza de unas 100\,000 gaussianas 3D que se puede girar. Implementa, desde cero, el paso de \emph{render} de 3DGS \cite{kerbl2023}. Las gaussianas no se entrenan desde varias vistas: se construyen a partir de una sola foto y de la malla 3D de MediaPipe.
+El espejo convierte una foto en una cabeza de entre 110\,000 y 170\,000 gaussianas 3D, según la foto, que se puede girar. Implementa, desde cero, el paso de \emph{render} de 3DGS \cite{kerbl2023}. Las gaussianas no se entrenan desde varias vistas: se construyen a partir de una sola foto y de la malla 3D de MediaPipe. La figura~\ref{fig:diag-espejo} separa lo que ocurre en el servidor y en el navegador.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_espejo.pdf}
+  \caption{Pipeline del espejo 3D: el servidor construye las gaussianas y el navegador las proyecta, ordena y mezcla en WebGL2.}
+  \label{fig:diag-espejo}
+\end{figure}
+
 
 \textbf{Construcción} (\archivo{splatting/head3d.py}).
 \begin{enumerate}
@@ -100,7 +124,15 @@ Las gaussianas se ordenan de atrás hacia adelante con un \emph{counting sort} d
 \subsection{Peluca 3D multivista}
 \label{sec:peluca}
 
-La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en una peluca de gaussianas. Esa peluca se puede ver sobre un maniquí, sobre la cara escaneada o sobre otra persona en vivo (\archivo{splatting/hair3d.py}, \archivo{splatting/face3d.py}, \archivo{compositing/bald.py}).
+La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en una peluca de gaussianas. Esa peluca se puede ver sobre un maniquí, sobre la cara escaneada o sobre otra persona en vivo (\archivo{splatting/hair3d.py}, \archivo{splatting/face3d.py}, \archivo{compositing/bald.py}). La figura~\ref{fig:diag-peluca} resume el proceso.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_peluca.pdf}
+  \caption{Pipeline de la peluca 3D. El esquema del centro es un corte visto desde arriba: cada cámara limita el pelo a una franja y la intersección (celeste) envuelve la forma real (amarillo).}
+  \label{fig:diag-peluca}
+\end{figure}
+
 
 \textbf{Escaneo.} Durante 12 segundos la persona gira la cabeza unos 180°, y se guardan capturas con el ángulo de giro estimado. En cada captura, la máscara de pelo se obtiene combinando el segmentador, la distancia de color al pelo y una elipse de la cabeza (\archivo{segmentation/transfer_mask.py}).
 
@@ -139,7 +171,15 @@ En cada cuadro de la cámara, la malla nueva reconstruye el marco de cada trián
 \subsection{Contrarreloj: el juego de afeitado}
 \label{sec:juego}
 
-La persona tiene 30 segundos para afeitar una barba con física hasta dejar un estilo objetivo: candado, bigote o collar (\archivo{game/speedrun.py}). La ``máquina'' puede ser el mouse o la punta del dedo índice, detectada con el modelo de mano de MediaPipe; corta solo con el índice extendido y el dedo medio doblado.
+La persona tiene 30 segundos para afeitar una barba con física hasta dejar un estilo objetivo: candado, bigote o collar (\archivo{game/speedrun.py}). La ``máquina'' puede ser el mouse o la punta del dedo índice, detectada con el modelo de mano de MediaPipe; corta solo con el índice extendido y el dedo medio doblado. La figura~\ref{fig:diag-juego} resume una ronda.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_juego.pdf}
+  \caption{Pipeline del Contrarreloj: la mano corta las hebras dentro de la cápsula entre dos cuadros y el puntaje premia afeitar fuera del objetivo sin tocarlo.}
+  \label{fig:diag-juego}
+\end{figure}
+
 
 \textbf{Detección del corte.} A 10~cuadros por segundo, el dedo salta decenas de píxeles entre cuadros, así que probar si toca un punto dejaría pelos sin cortar. En su lugar, se cortan las hebras cuya raíz o primer nodo está a menos de $r=0{,}05\,w$ del segmento recorrido $\overline{p_0p_1}$:
 \begin{equation}

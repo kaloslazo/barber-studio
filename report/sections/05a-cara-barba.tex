@@ -78,7 +78,15 @@ Cada forma lleva una recomendación de cortes y barbas, basada en la práctica d
 \subsection{Barba con plantillas reales}
 \label{sec:barba}
 
-La barba no se dibuja desde cero: se ajusta una plantilla real a la cara de la persona.
+La barba no se dibuja desde cero: se ajusta una plantilla real a la cara de la persona. La figura~\ref{fig:diag-barba} resume el proceso.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_barba.pdf}
+  \caption{Pipeline de la barba: puntos, malla de Delaunay, plantilla deformada por triángulo, región y composición.}
+  \label{fig:diag-barba}
+\end{figure}
+
 
 \textbf{Plantillas.} \archivo{backend/training/harvest_beards.py} recorre CelebAMask-HQ una sola vez y procesa cada foto así:
 \begin{enumerate}

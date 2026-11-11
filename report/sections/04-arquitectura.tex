@@ -5,38 +5,8 @@ Fresh es una aplicación cliente--servidor. El mismo proceso de Python sirve la 
 
 \begin{figure}[ht]
 \centering
-\begin{tikzpicture}[
-  box/.style={draw, rounded corners=3pt, align=center, font=\small, minimum height=0.9cm, inner sep=4pt, fill=white},
-  layer/.style={draw=gray!60, rounded corners=4pt, fill=gray!8, inner sep=6pt},
-  arrow/.style={-{Stealth[length=2.2mm]}, thick}
-]
-\node[box, text width=3.2cm] (ui) {Interfaz web\\\footnotesize HTML, CSS, JS nativo};
-\node[box, text width=3.2cm, right=0.6cm of ui] (webgl) {Visor 3D\\\footnotesize WebGL2 propio};
-\node[box, text width=3.2cm, right=0.6cm of webgl] (cam) {Cámara\\\footnotesize getUserMedia};
-\begin{scope}[on background layer]
-  \node[layer, fit=(ui)(webgl)(cam), label={[font=\small\bfseries]above:Navegador}] (front) {};
-\end{scope}
-
-\node[box, text width=11.2cm, below=1.4cm of webgl] (api) {API FastAPI (\archivo{backend/app/api/routes.py}): \emph{endpoints} delgados, decodifican la imagen y la limitan a 2048~px};
-\node[box, text width=11.2cm, below=0.5cm of api] (pipe) {Orquestación (\archivo{core/pipeline.py}): detecta la cara, calcula puntos y geometría, y llama a cada módulo};
-
-\node[box, text width=2.2cm, below=0.7cm of pipe, xshift=-4.6cm] (det) {detection\\\footnotesize cara, puntos, mano};
-\node[box, text width=2.2cm, right=0.25cm of det] (seg) {segmentation\\\footnotesize pelo, barba};
-\node[box, text width=2.2cm, right=0.25cm of seg] (geo) {geometry\\\footnotesize Delaunay, warp, forma};
-\node[box, text width=2.2cm, right=0.25cm of geo] (comp) {compositing\\\footnotesize barba, corte, física};
-\node[box, text width=2.2cm, below=0.35cm of det] (col) {coloring\\\footnotesize tinte CIELAB};
-\node[box, text width=2.2cm, right=0.25cm of col] (spl) {splatting\\\footnotesize gaussianas 2D y 3D};
-\node[box, text width=2.2cm, right=0.25cm of spl] (game) {game, lab\\\footnotesize juego, avatar};
-\node[box, text width=2.2cm, right=0.25cm of game] (models) {models\\\footnotesize MediaPipe, YOLO};
-\begin{scope}[on background layer]
-  \node[layer, fit=(api)(pipe)(det)(comp)(col)(models), label={[font=\small\bfseries]right:Servidor}] (back) {};
-\end{scope}
-
-\draw[arrow] ([xshift=-1.2cm]front.south) -- node[left, font=\footnotesize] {foto, parámetros} ([xshift=-1.2cm]api.north);
-\draw[arrow] ([xshift=1.2cm]api.north) -- node[right, font=\footnotesize] {imagen PNG o gaussianas} ([xshift=1.2cm]front.south);
-\draw[arrow] (api) -- (pipe);
-\end{tikzpicture}
-\caption{Arquitectura de Fresh. El navegador envía la foto y los parámetros; el servidor devuelve la imagen procesada, o los datos de las gaussianas para que el visor WebGL2 las dibuje.}
+\includegraphics[width=\linewidth]{diagrama_arquitectura.pdf}
+\caption{Arquitectura de Fresh. El navegador envía la foto y los parámetros; un único proceso de FastAPI, dentro de un contenedor Docker, pasa cada llamada por \texttt{work()} al pipeline y devuelve la imagen procesada o las gaussianas que dibuja el visor WebGL2.}
 \label{fig:arquitectura}
 \end{figure}
 

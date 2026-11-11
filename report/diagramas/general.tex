@@ -1,0 +1,65 @@
+\documentclass{article}
+\input{estilo}
+\begin{document}
+\begin{tikzpicture}
+
+\node[foto] (in) at (0, -0.1) {\includegraphics[width=1.7cm]{foto.jpg}};
+\node[nota, below=3pt of in] {Foto o cámara};
+
+\node[foto] (pts) at (2.75, 1.05) {\includegraphics[width=1.45cm]{puntos.jpg}};
+\node[nota, below=2pt of pts] (ptslabel) {478 $\rightarrow$ 68 puntos};
+\node[foto] (seg) at (2.75, -1.35) {\includegraphics[width=1.45cm]{segmentacion.jpg}};
+\node[nota, below=2pt of seg] (seglabel) {pelo, piel y fondo};
+\node[grupo=model, fit=(pts)(ptslabel)(seg)(seglabel)] (g1) {};
+\node[titulo=muted] at (g1.north west) {Modelos};
+
+\node[foto] (mesh) at (5.65, 1.05) {\includegraphics[width=1.45cm]{malla.jpg}};
+\node[nota, below=2pt of mesh] (meshlabel) {Delaunay (Fortune)};
+\node[foto] (frame) at (5.65, -1.35) {\includegraphics[width=1.45cm]{marco.jpg}};
+\node[nota, below=2pt of frame] (framelabel) {marco de la cabeza};
+\node[grupo=blue, fit=(mesh)(meshlabel)(frame)(framelabel)] (g2) {};
+\node[titulo=blue] at (g2.north west) {Geometría};
+
+\foreach \name/\text/\tono [count=\i] in {
+  barba/Barba: warp por triángulo/red,
+  tinte/Tinte en CIELAB/red,
+  corte/Corte: pull-push y Lambert/red,
+  forma/Forma de cara: malla 3D/red,
+  vivo/En vivo: Verlet y PBD/red,
+  espejo/Espejo 3D: EWA en WebGL2/blue,
+  peluca/Peluca 3D: envolvente visual/blue,
+  gauss/Gaussianas 2D: Adam/yellow,
+  juego/Contrarreloj: cápsula/yellow} {
+  \node[caja=\tono, anchor=west] (t\name) at (8.15, {2.82 - 0.58 * \i}) {\text};
+}
+\node[grupo=red, fit=(tbarba)(tjuego)] (g3) {};
+\node[titulo=red] at (g3.north west) {Algoritmos de cada herramienta};
+
+\node[foto] (o1) at (13.55, 0.78) {\includegraphics[width=1.2cm]{barba.jpg}};
+\node[foto] (o2) at (14.85, 0.78) {\includegraphics[width=1.2cm]{tinte.jpg}};
+\node[foto] (o3) at (13.55, -0.92) {\includegraphics[width=1.2cm]{corte.jpg}};
+\node[foto] (o4) at (14.85, -0.92) {\includegraphics[width=1.2cm]{gaussianas.jpg}};
+\node[nota, below=2pt of o3.south east] (olabel) {imagen o gaussianas 3D};
+\node[grupo=green, fit=(o1)(o2)(o3)(o4)(olabel)] (g4) {};
+\node[titulo=green] at (g4.north west) {Resultado};
+
+\coordinate (mid) at (0, -0.1);
+\draw[flecha] (in.east) -- (g1.west |- mid);
+\draw[flecha] (g1.east |- mid) -- (g2.west |- mid);
+\coordinate (fan) at ($(g2.east |- mid) + (0.3, 0)$);
+\draw[line width=0.7pt, ink] (g2.east |- mid) -- (fan);
+\foreach \name in {barba, tinte, corte, forma, vivo, espejo, peluca, gauss, juego} {
+  \draw[flecha, line width=0.5pt] (fan) to[out=0, in=180, looseness=0.9] (t\name.west);
+}
+\draw[flecha] (g3.east |- mid) -- (g4.west |- mid);
+
+\coordinate (base) at ($(g3.south) + (0, -0.06)$);
+\draw[llave=muted] (g1.west |- base) -- (g1.east |- base)
+  node[midway, below=9pt, llavetexto=muted] {Preentrenados:\\solo ubican};
+\draw[llave=ink] (g2.west |- base) -- (g3.east |- base)
+  node[midway, below=9pt, llavetexto=ink] {Implementado por el equipo};
+\draw[llave=green] (g4.west |- base) -- (g4.east |- base)
+  node[midway, below=9pt, llavetexto=green] {Salida};
+
+\end{tikzpicture}
+\end{document}

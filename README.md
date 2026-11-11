@@ -107,6 +107,13 @@ The UI loads two things from the internet: the Google fonts (with local fallback
 | `POST /api/game/start` | Starts a Speedrun round. Field: `target` (`goatee`/`mustache`/`chinstrap`) |
 | `POST /api/game/frame` | One game frame. Fields: `image`, `pointer_x`, `pointer_y`, `pointer_down`, `use_hand`. Returns JSON (image + score) |
 
+## Documentation
+
+- [`docs/como-funciona.md`](docs/como-funciona.md): how each tool works, with a pipeline diagram per tool and the architecture (Spanish).
+- [`docs/guia-de-uso.md`](docs/guia-de-uso.md): user guide with screenshots (Spanish).
+
+![Pipeline](docs/diagramas/general.png)
+
 ## Course deliverables
 
 - `report/`: LaTeX report (Spanish), see its README to build `main.pdf`.

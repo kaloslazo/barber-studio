@@ -1,0 +1,41 @@
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{sansmath}
+\AtBeginDocument{\sansmath}
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage[paperwidth=19cm,paperheight=14cm,margin=0.4cm]{geometry}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,fit,calc,arrows.meta,backgrounds,decorations.pathreplacing}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\graphicspath{{img/}}
+
+\definecolor{ink}{HTML}{0A0A0A}
+\definecolor{muted}{HTML}{6A6A69}
+\definecolor{line}{HTML}{BDBDBA}
+\definecolor{red}{HTML}{E03A3A}
+\definecolor{blue}{HTML}{2E6FE0}
+\definecolor{yellow}{HTML}{D9A11A}
+\definecolor{green}{HTML}{23A06A}
+\definecolor{model}{HTML}{8C8C8A}
+
+\tikzset{
+  every picture/.style={font=\sffamily\small, line cap=round, line join=round},
+  flecha/.style={-{Stealth[length=2.3mm,width=1.7mm]}, line width=0.7pt, draw=ink},
+  grupo/.style={draw=#1, dash pattern=on 3pt off 2pt, line width=0.8pt, rounded corners=2pt, inner sep=6pt},
+  titulo/.style={font=\sffamily\small\bfseries, text=#1, anchor=south west, inner sep=1pt},
+  foto/.style={inner sep=0pt, outer sep=0pt, draw=ink, line width=0.5pt},
+  caja/.style={draw=ink, line width=0.5pt, fill=#1, text=white, font=\sffamily\scriptsize\bfseries,
+    text width=3.75cm, minimum height=0.46cm, align=center, inner sep=1.5pt},
+  nota/.style={font=\sffamily\scriptsize, text=muted, align=center, inner sep=1pt},
+  etapa/.style={font=\sffamily\footnotesize\bfseries, text=ink, align=center, inner sep=1pt},
+  paso/.style={draw=ink, line width=0.5pt, fill=#1, text=ink, font=\sffamily\scriptsize, align=center,
+    inner sep=3pt, minimum height=0.95cm, text width=2.35cm},
+  paso/.default=white,
+  grupofondo/.style={draw=#1, line width=0.8pt, fill=#1!6, rounded corners=3pt, inner sep=7pt},
+  llave/.style={decorate, decoration={brace, mirror, amplitude=5pt, raise=2pt}, line width=0.7pt, draw=#1},
+  llavetexto/.style={font=\sffamily\small\bfseries, text=#1, align=center},
+}

@@ -29,7 +29,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 2. Arquitectura y producto (Kalos, 1:30)
 
-**Pantalla:** lámina «Arquitectura», luego la terminal con `docker compose up -d --build app` y el navegador en `localhost:8000`.
+**Pantalla:** láminas «Arquitectura» y «El pipeline completo», luego la terminal con `docker compose up -d --build app` y el navegador en `localhost:8000`.
 
 **Decir:**
 - un solo proceso de FastAPI sirve la interfaz y la API;
@@ -53,7 +53,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 4. Barba con plantillas reales (Gianpier, 2:00)
 
-**Pantalla:** lámina de la barba y la app aplicando los cuatro estilos.
+**Pantalla:** lámina «Barba: el proceso», la lámina de la barba y la app aplicando los cuatro estilos.
 
 **Tiene que quedar claro:**
 - las 10 plantillas salen de CelebAMask-HQ, con su alfa de pelo y su tono de piel;
@@ -63,7 +63,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 5. Modo en vivo y física (Gianpier, 1:30)
 
-**Pantalla:** En vivo → Barba, luego «Física de barba», moviendo la cabeza.
+**Pantalla:** lámina «En vivo: el proceso», luego En vivo → Barba y «Física de barba», moviendo la cabeza.
 
 **Tiene que quedar claro:**
 - seguimiento en video y filtro One-Euro contra el temblor;
@@ -73,7 +73,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 6. Tinte en CIELAB y YOLO propio (Kalos, 1:45)
 
-**Pantalla:** Tinte con la foto de ejemplo; cambiar entre «YOLO propio» y «MediaPipe» y mostrar la nota de coincidencia.
+**Pantalla:** lámina «Tinte: el proceso», luego Tinte con la foto de ejemplo; cambiar entre «YOLO propio» y «MediaPipe» y mostrar la nota de coincidencia.
 
 **Tiene que quedar claro:**
 - por qué CIELAB y no HSV: separa la luminosidad del color, así un pelo negro puede quedar rubio;
@@ -83,7 +83,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 7. Motor de cortes, combinación y forma de cara (Kalos, 2:30)
 
-**Pantalla:** lámina «Cortar el pelo» (Telea frente a pull-push), luego Corte con 2 o 3 estilos, la combinación barba + tinte + corte y la ficha.
+**Pantalla:** lámina «Corte: el proceso», la lámina «Cortar el pelo» (Telea frente a pull-push), luego Corte con 2 o 3 estilos, la combinación barba + tinte + corte y la ficha.
 
 **Tiene que quedar claro:**
 - el problema: hay que quitar pelo y reconstruir lo que había detrás;
@@ -95,7 +95,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 8. Gaussianas 2D (Gianpier, 1:15)
 
-**Pantalla:** Juegos → Gaussianas con el modo de adivinar; cambiar a «Elipses».
+**Pantalla:** lámina «Gaussianas 2D: el proceso», luego Juegos → Gaussianas con el modo de adivinar; cambiar a «Elipses».
 
 **Tiene que quedar claro:**
 - cada gaussiana tiene centro, color y el factor de Cholesky de la inversa de la covarianza (por qué así queda siempre válida);
@@ -104,7 +104,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 9. Espejo 3D (Gianpier, 1:30)
 
-**Pantalla:** 3D → Espejo 3D con barba completa; girar, «Ver cada gaussiana», descargar el `.ply`.
+**Pantalla:** lámina «Espejo 3D: el proceso», luego 3D → Espejo 3D con barba completa; girar, «Ver cada gaussiana», descargar el `.ply`.
 
 **Tiene que quedar claro:**
 - gaussianas construidas desde una foto y la malla 3D (discos tangentes por área 3D, hebras de barba, relieve del entorno); no es un 3DGS entrenado;
@@ -114,7 +114,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 10. Peluca 3D y laboratorio (Sofía, 2:00)
 
-**Pantalla:** 3D → Peluca 3D: escaneo de 12 s, Mis pelucas, la peluca 3D; usar color, largo y tijeras. Luego el laboratorio.
+**Pantalla:** lámina «Peluca 3D: el proceso», luego 3D → Peluca 3D: escaneo de 12 s, Mis pelucas, la peluca 3D; usar color, largo y tijeras. Luego el laboratorio.
 
 **Tiene que quedar claro:**
 - la máscara de pelo de cada captura y el ángulo de giro;
@@ -126,7 +126,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 
 ## 11. Contrarreloj (Sofía, 1:00)
 
-**Pantalla:** Juegos → Contrarreloj; jugar una ronda con el dedo.
+**Pantalla:** lámina «Contrarreloj: el proceso», luego Juegos → Contrarreloj; jugar una ronda con el dedo.
 
 **Tiene que quedar claro:**
 - la máquina corta con el índice extendido y el medio doblado;

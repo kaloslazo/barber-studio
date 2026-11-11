@@ -1,0 +1,57 @@
+\documentclass{article}
+\input{estilo}
+\begin{document}
+\begin{tikzpicture}
+
+\node[foto] (in) at (0, 1.75) {\includegraphics[width=1.55cm]{foto.jpg}};
+\node[nota, below=2pt of in] (inl) {una foto};
+\node[foto] (mesh) at (2.4, 1.75) {\includegraphics[width=1.55cm]{e_malla3d.jpg}};
+\node[nota, below=2pt of mesh] (meshl) {478 puntos con\\profundidad};
+\node[paso, text width=3.5cm, minimum height=1.75cm] (build) at (5.75, 1.75) {%
+  \textbf{Gaussianas 3D}\\[2pt]
+  discos tangentes por área 3D:\\[1pt]
+  $\Sigma = R\,\mathrm{diag}(s^2, s^2, (0{,}4s)^2)\,R^\top$\\[1pt]
+  más hebras de barba y relieve};
+\node[paso, text width=2.6cm, minimum height=1.75cm] (ply) at (9.85, 1.75) {%
+  \textbf{Exportar \texttt{.ply}}\\[2pt]
+  escala en logaritmo,\\cuaternión, armónico\\de grado 0 y opacidad\\en logit};
+\begin{scope}[on background layer]
+  \node[grupofondo=muted, fit=(in)(inl)(mesh)(meshl)(build)(ply)] (server) {};
+\end{scope}
+\node[titulo=muted] at (server.north west) {Servidor $\cdot$ Python};
+
+\node[paso, text width=3.3cm, minimum height=1.6cm] (vertex) at (1.1, -2.05) {%
+  \textbf{Vertex shader}\\[2pt]
+  $\Sigma_{2D} = J W \Sigma W^\top J^\top + 0{,}3\,I$\\[1pt]
+  cuadrilátero de $\pm3\sigma$};
+\node[paso, text width=2.55cm, minimum height=1.6cm] (sort) at (4.6, -2.05) {%
+  \textbf{Counting sort}\\[2pt]
+  65\,536 casillas de\\profundidad, $O(N+K)$};
+\node[paso, text width=2.55cm, minimum height=1.6cm] (frag) at (7.75, -2.05) {%
+  \textbf{Fragment shader}\\[2pt]
+  $\alpha = a\,e^{-r^2/2}$,\\de atrás hacia adelante};
+\begin{scope}[on background layer]
+  \node[grupofondo=blue, fit=(vertex)(sort)(frag)] (browser) {};
+\end{scope}
+\node[titulo=blue, anchor=south east] at (browser.north east) {Navegador $\cdot$ WebGL2};
+
+\node[foto] (o1) at (10.55, -2.05) {\includegraphics[width=1.3cm]{e_frente.jpg}};
+\node[foto] (o2) at (11.95, -2.05) {\includegraphics[width=1.3cm]{e_splats.jpg}};
+\node[foto] (o3) at (13.35, -2.05) {\includegraphics[width=1.3cm]{e_giro.jpg}};
+\node[nota, below=1pt of o1] (l1) {de frente};
+\node[nota, below=1pt of o2] {cada gaussiana};
+\node[nota, below=1pt of o3] {girada};
+\node[grupo=green, fit=(o1)(o3)(l1)] (out) {};
+\node[titulo=green] at (out.north west) {Resultado};
+
+\draw[flecha] (in) -- (mesh);
+\draw[flecha] (mesh) -- (build);
+\draw[flecha] (build) -- (ply);
+\coordinate (gap) at ($(server.south)!0.5!(browser.north)$);
+\draw[flecha] (build.south) |- (gap) -| node[pos=0.25, above=1pt, nota, font=\sffamily\scriptsize\bfseries] {110\,000 a 170\,000 gaussianas} (vertex.north);
+\draw[flecha] (vertex) -- (sort);
+\draw[flecha] (sort) -- (frag);
+\draw[flecha] (browser.east |- frag) -- (out.west |- frag);
+
+\end{tikzpicture}
+\end{document}

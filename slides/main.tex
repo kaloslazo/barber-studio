@@ -125,22 +125,10 @@
 
 \begin{frame}{Arquitectura}
   \centering
-  \begin{tikzpicture}[
-    box/.style={draw=line, fill=white, rounded corners=3pt, align=center, font=\small, minimum height=1cm, inner sep=5pt},
-    arrow/.style={-{Stealth[length=2mm]}, thick, color=muted}
-  ]
-    \node[box, text width=3.2cm] (ui) {\textbf{Navegador}\\\footnotesize HTML/JS nativo, WebGL2};
-    \node[box, text width=3.4cm, right=1.2cm of ui] (api) {\textbf{API FastAPI}\\\footnotesize endpoints delgados};
-    \node[box, text width=3.4cm, right=1.2cm of api] (core) {\textbf{core/}\\\footnotesize geometría, color, composición, splatting, física};
-    \node[box, text width=3.4cm, below=0.9cm of core] (models) {\textbf{Modelos}\\\footnotesize MediaPipe (puntos, segmentación) y YOLO propio};
-    \draw[arrow] (ui) -- node[above, font=\footnotesize, color=muted] {foto} (api);
-    \draw[arrow] (api) -- (core);
-    \draw[arrow] (core) -- (models);
-    \draw[arrow] (api.south) |- node[pos=0.75, below, font=\footnotesize, color=muted] {PNG o gaussianas} ([yshift=-2.2cm]ui.south) -- (ui.south);
-  \end{tikzpicture}
-  \vspace{1em}
-
-  \nota{Un solo proceso sirve la interfaz y la API. Se levanta con \texttt{docker compose up}.}
+  \vfill
+  \includegraphics[width=0.96\linewidth]{diagrama_arquitectura.pdf}
+  \vfill
+  \nota{Un solo proceso sirve la interfaz y la API; cada llamada al pipeline corre en un hilo con candado. Se levanta con \texttt{docker compose up}.}
 \end{frame}
 
 \begin{frame}{Qué es nuestro y qué no}
@@ -167,6 +155,14 @@
       \end{itemize}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{El pipeline completo}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_general.pdf}
+  \vfill
+  \nota{En gris, lo que viene de modelos preentrenados. Todo lo demás lo escribió el equipo.}
 \end{frame}
 
 \begin{frame}{Temas del curso que aplicamos}
@@ -227,6 +223,14 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Barba: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_barba.pdf}
+  \vfill
+  \nota{La misma triangulación en la plantilla y en la cara: cada triángulo tiene su propia transformación afín.}
+\end{frame}
+
 \begin{frame}{Barba con plantillas reales}
   \begin{itemize}
     \item 10 barbas reales de CelebAMask-HQ, cada una con sus 83 puntos.
@@ -236,6 +240,14 @@
   \vspace{0.6em}
   \centering
   \includegraphics[width=0.92\linewidth]{barba_estilos.jpg}
+\end{frame}
+
+\begin{frame}{Tinte: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_tinte.pdf}
+  \vfill
+  \nota{En CIELAB el brillo y el color van separados; por eso un pelo negro puede quedar rubio.}
 \end{frame}
 
 \begin{frame}{Tinte en CIELAB}
@@ -258,6 +270,14 @@
       \includegraphics[width=\linewidth]{tinte_modelos.jpg}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Corte: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_corte.pdf}
+  \vfill
+  \nota{Todo se mide en anchos de cabeza, así los mismos parámetros sirven para cualquier foto.}
 \end{frame}
 
 \begin{frame}{Cortar el pelo: primero hay que quitarlo}
@@ -325,6 +345,14 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{En vivo: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_vivo.pdf}
+  \vfill
+  \nota{Las raíces siguen la piel con coordenadas baricéntricas; Verlet y PBD mueven las puntas.}
+\end{frame}
+
 \begin{frame}{Barba con física}
   \begin{columns}[T]
     \begin{column}{0.48\textwidth}
@@ -345,6 +373,14 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Gaussianas 2D: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_gaussianas.pdf}
+  \vfill
+  \nota{Los gradientes y Adam están escritos a mano, sin PyTorch.}
+\end{frame}
+
 \begin{frame}{¿Cuántas gaussianas eres?}
   \begin{itemize}
     \item Un retrato hecho solo de $N$ gaussianas 2D, ajustadas con gradientes analíticos y Adam escrito a mano.
@@ -355,11 +391,19 @@
   \includegraphics[width=0.9\linewidth]{gaussianas2d.jpg}
 \end{frame}
 
+\begin{frame}{Espejo 3D: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_espejo.pdf}
+  \vfill
+  \nota{El servidor arma las gaussianas; la GPU del navegador las proyecta, ordena y mezcla.}
+\end{frame}
+
 \begin{frame}{Espejo 3D: Gaussian Splatting en WebGL2}
   \begin{columns}[T]
     \begin{column}{0.4\textwidth}
       \begin{itemize}
-        \item Una foto + malla 3D $\rightarrow$ unas 100\,000 gaussianas.
+        \item Una foto + malla 3D $\rightarrow$ 110\,000 a 170\,000 gaussianas.
         \item Proyección EWA:
       \end{itemize}
       \[ \Sigma_{2D} = J\,W\,\Sigma\,W^\top J^\top \]
@@ -376,6 +420,14 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Peluca 3D: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_peluca.pdf}
+  \vfill
+  \nota{Cada vista acota dónde puede haber pelo; la intersección es la forma de la peluca.}
+\end{frame}
+
 \begin{frame}{Peluca 3D}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
@@ -390,6 +442,14 @@
       \includegraphics[width=\linewidth]{peluca3d.jpg}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Contrarreloj: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=\linewidth]{diagrama_juego.pdf}
+  \vfill
+  \nota{A 10 cuadros por segundo el dedo salta; la cápsula corta todo lo que quedó en el camino.}
 \end{frame}
 
 \begin{frame}{Contrarreloj}

@@ -1,0 +1,30 @@
+\documentclass{article}
+\input{estilo}
+\begin{document}
+\begin{tikzpicture}
+
+\foreach \name/\title/\note [count=\i] in {
+  foto/Foto/{entrada},
+  b_puntos/Puntos/{68 de MediaPipe y\\15 bajo el mentón},
+  b_malla/Malla/{Delaunay con\\Fortune},
+  b_plantilla/Plantilla deformada/{warp afín por triángulo\\y bilineal propia},
+  b_region/Región y borde/{polígonos, Bézier\\y borde orgánico},
+  barba/Composición/{multiply, hebras y\\alta frecuencia}} {
+  \node[foto] (s\i) at ({2.62 * (\i - 1)}, 0) {\includegraphics[width=2.05cm]{\name.jpg}};
+  \node[etapa, above=4pt of s\i] {\title};
+  \node[nota, below=3pt of s\i] (n\i) {\note};
+}
+\foreach \a/\b in {1/2, 2/3, 3/4, 4/5, 5/6} {
+  \draw[flecha] (s\a.east) -- (s\b.west);
+}
+
+\coordinate (base) at ($(n2.south) + (0, -0.06)$);
+\draw[llave=muted] (s2.west |- base) -- (s2.east |- base)
+  node[midway, below=9pt, llavetexto=muted] {Modelo};
+\draw[llave=blue] (s3.west |- base) -- (s4.east |- base)
+  node[midway, below=9pt, llavetexto=blue] {Geometría};
+\draw[llave=red] (s5.west |- base) -- (s6.east |- base)
+  node[midway, below=9pt, llavetexto=red] {Composición};
+
+\end{tikzpicture}
+\end{document}
