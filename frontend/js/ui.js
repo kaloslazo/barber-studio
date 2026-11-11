@@ -43,6 +43,17 @@
     const target = event.target.closest("[data-go]");
     if (target) go(target.dataset.go);
   });
+  const docTabs = $$("[data-doc]");
+  docTabs.forEach((tab) => tab.addEventListener("click", () => {
+    docTabs.forEach((other) => {
+      other.classList.toggle("active", other === tab);
+      other.setAttribute("aria-selected", other === tab ? "true" : "false");
+    });
+    $$("[data-doc-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.docPanel !== tab.dataset.doc;
+    });
+  }));
+
   window.addEventListener("popstate", () => {
     fromHistory = true;
     go(location.hash.slice(1) || "inicio");

@@ -28,7 +28,8 @@
   </header>
 
   <nav class="subnav" id="subnav" aria-label="Herramientas">
-    <button class="menu-item active" data-panel="inicio" data-group="inicio">Inicio</button>
+    <button class="menu-item active" data-panel="inicio" data-group="inicio" data-icon="home">Inicio</button>
+    <button class="menu-item" data-panel="docs" data-group="inicio" data-icon="route">Cómo funciona</button>
     <button class="menu-item" data-panel="beard" data-group="estilos" data-icon="moustache">Barba</button>
     <button class="menu-item" data-panel="dye" data-group="estilos" data-icon="palette">Tinte</button>
     <button class="menu-item" data-panel="haircut" data-group="estilos" data-icon="razor-electric">Corte</button>
@@ -76,6 +77,7 @@
       <section class="carta" aria-labelledby="carta-title">
         <div class="carta-head">
           <h2 id="carta-title">Herramientas</h2>
+          <button type="button" class="quiet-button" data-go="docs" data-icon="route">Cómo funciona por dentro</button>
         </div>
         <div class="carta-cols">
           <div class="carta-col">
@@ -770,6 +772,164 @@
         <strong id="splat-score"></strong>
       </div>
       <div class="splat-grid" id="splat-grid"></div>
+    </section>
+
+    <section class="panel" id="panel-docs">
+      <header class="page-head">
+        <h1>Cómo funciona</h1>
+        <p>Los modelos preentrenados solo ubican la cara, el pelo y la mano. La malla, el tinte, los cortes, la física y el 3D los calcula código del equipo. Cada diagrama muestra las etapas reales del programa sobre un retrato de dominio público de la NASA.</p>
+      </header>
+
+      <section class="docs-block" aria-labelledby="docs-general-title">
+        <div class="carta-head"><h2 id="docs-general-title">El recorrido de una foto</h2></div>
+        <figure class="docs-figure"><img src="assets/diagramas/general.png" alt="Pipeline general: foto, modelos, geometría, algoritmos de cada herramienta y resultado." loading="lazy"></figure>
+        <ol class="docs-steps">
+          <li><strong>Modelos.</strong> MediaPipe da 478 puntos de la cara, que pasan a los 68 estándar, y marca pelo, piel y fondo.</li>
+          <li><strong>Geometría.</strong> Con los puntos se arma una malla de Delaunay y un marco de la cabeza medido en anchos de cabeza.</li>
+          <li><strong>Herramientas.</strong> Cada una aplica su algoritmo sobre esa geometría.</li>
+          <li><strong>Resultado.</strong> Una imagen compuesta o, en el 3D, gaussianas que dibuja tu navegador.</li>
+        </ol>
+      </section>
+
+      <section class="docs-block" aria-labelledby="docs-tools-title">
+        <div class="carta-head"><h2 id="docs-tools-title">Cada herramienta</h2></div>
+        <div class="transfer-steps docs-tabs" role="tablist" aria-label="Herramientas">
+          <button type="button" class="transfer-step active" role="tab" aria-selected="true" data-doc="barba">Barba</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="tinte">Tinte</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="corte">Corte</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="vivo">En vivo</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="gaussianas">Gaussianas 2D</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="espejo">Espejo 3D</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="peluca">Peluca 3D</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="juego">Contrarreloj</button>
+        </div>
+        <div class="docs-tool" data-doc-panel="barba" role="tabpanel">
+          <figure class="docs-figure"><img src="assets/diagramas/barba.png" alt="Pipeline de la barba: puntos, malla de Delaunay, plantilla deformada, región y composición." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>A los 68 puntos de la cara se suman 15 bajo la mandíbula, para que la barba bajo el mentón quede dentro de la malla.</li>
+              <li>Una barba real se deforma triángulo por triángulo: afín inversa, prueba con coordenadas baricéntricas y lectura bilineal.</li>
+              <li>Tres capas: multiply deja ver la luz de la piel, las hebras de Bézier dan volumen y la alta frecuencia trae los pelos reales.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="beard" data-icon="arrow-right">Abrir Barba</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="tinte" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/tinte.png" alt="Pipeline del tinte: máscara de YOLO o MediaPipe, sombreado y detalle de la luminosidad, y fórmula en CIELAB." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>La máscara sale del YOLO del equipo o de MediaPipe; la app mide cuánto coinciden.</li>
+              <li>En CIELAB la luminosidad se separa en sombreado y detalle: la base va hacia el tinte y los mechones se conservan.</li>
+              <li>El croma baja en las sombras, como un pigmento real.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="dye" data-icon="arrow-right">Abrir Tinte</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="corte" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/corte.png" alt="Pipeline del corte: segmentación, marco de la cabeza, plan del corte, relleno pull-push y pelo corto." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>El cráneo es una superelipse ajustada a la coronilla; la línea del pelo sale de la frente visible.</li>
+              <li>Donde se quita pelo, el fondo se rellena con pull-push usando solo píxeles de fondo seguro.</li>
+              <li>El pelo corto toma el color propio y se sombrea con Lambert, con la luz estimada de la cara.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="haircut" data-icon="arrow-right">Abrir Corte</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="vivo" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/vivo.png" alt="Pipeline del modo en vivo: seguimiento, anclaje baricéntrico, física con Verlet y render con gaussianas." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>MediaPipe sigue la cara y el filtro One-Euro le quita el temblor.</li>
+              <li>Cada hebra son cuatro partículas con la raíz anclada a la piel por coordenadas baricéntricas.</li>
+              <li>Verlet mueve las partículas y una restricción de distancia (PBD) mantiene el largo.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="live" data-icon="arrow-right">Abrir En vivo</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="gaussianas" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/gaussianas.png" alt="Ciclo de optimización de gaussianas 2D: render, error, gradientes analíticos y Adam." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>La foto se rehace como suma de N gaussianas con centro, color y forma.</li>
+              <li>Gradientes analíticos y Adam escrito a mano, sin PyTorch.</li>
+              <li>El PSNR sube unos 8 dB cada vez que se multiplica por 10 el número de gaussianas.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="splats" data-icon="arrow-right">Abrir Gaussianas 2D</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="espejo" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/espejo.png" alt="Pipeline del espejo 3D: el servidor construye las gaussianas y el navegador las proyecta, ordena y mezcla." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>En el servidor, la malla 3D se cubre con discos gaussianos tangentes, repartidos por área 3D.</li>
+              <li>En el navegador, el vertex shader proyecta con EWA, un counting sort ordena de atrás hacia adelante y el fragment shader mezcla.</li>
+              <li>La cabeza se exporta a .ply, el formato de 3D Gaussian Splatting.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="mirror" data-icon="arrow-right">Abrir Espejo 3D</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="peluca" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/peluca.png" alt="Pipeline de la peluca 3D: escaneo, máscara, envolvente visual, textura y estudio." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>Cada captura guarda el ángulo de giro de la cabeza.</li>
+              <li>En cada altura, cada vista limita dónde puede haber pelo; la intersección da la forma de la peluca.</li>
+              <li>El color sale de las vistas que mejor ven cada punto y la dirección del pelo del tensor de estructura.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="transfer" data-icon="arrow-right">Abrir Peluca 3D</button>
+          </div>
+        </div>
+        <div class="docs-tool" data-doc-panel="juego" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/juego.png" alt="Pipeline del Contrarreloj: mano, cápsula entre dos cuadros, corte y puntaje." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>El índice extendido con el dedo medio doblado es la máquina.</li>
+              <li>A 10 cuadros por segundo el dedo salta: se cortan las hebras cerca del segmento entre dos cuadros.</li>
+              <li>Puntaje: 1000 × limpieza × conservación.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="speedrun" data-icon="arrow-right">Abrir Contrarreloj</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="docs-block" aria-labelledby="docs-arch-title">
+        <div class="carta-head"><h2 id="docs-arch-title">Arquitectura</h2></div>
+        <figure class="docs-figure"><img src="assets/diagramas/arquitectura.png" alt="Arquitectura: navegador, contenedor Docker con FastAPI, pipeline, módulos propios y modelos." loading="lazy"></figure>
+        <ul class="docs-points">
+          <li>Un solo proceso de FastAPI sirve esta interfaz y la API.</li>
+          <li>Cada llamada al pipeline corre en un hilo aparte detrás de un candado, así el servidor sigue respondiendo mientras procesa.</li>
+          <li>Cada técnica vive en su paquete de <code>backend/app/core/</code>, y GitHub Actions corre 53 pruebas en cada cambio.</li>
+        </ul>
+      </section>
+
+      <section class="docs-block" aria-labelledby="docs-table-title">
+        <div class="carta-head"><h2 id="docs-table-title">Qué se usa para cada cosa</h2></div>
+        <div class="docs-table-wrap">
+          <table class="docs-table">
+            <thead><tr><th>Parte</th><th>Técnica</th><th>Archivo en <code>backend/app/core/</code></th><th>Origen</th></tr></thead>
+            <tbody>
+              <tr><td>Puntos de la cara</td><td>MediaPipe Face Landmarker; 478 → 68 puntos</td><td><code>detection/landmarks.py</code></td><td><span class="docs-origin is-model">Modelo</span></td></tr>
+              <tr><td>Pelo, piel y fondo</td><td>MediaPipe multiclase</td><td><code>segmentation/mp_segmenter.py</code></td><td><span class="docs-origin is-model">Modelo</span></td></tr>
+              <tr><td>Pelo para el tinte</td><td>YOLOv8n-seg con ajuste fino del equipo</td><td><code>segmentation/yolo_segmenter.py</code></td><td><span class="docs-origin is-model">Modelo</span></td></tr>
+              <tr><td>Punta del dedo</td><td>MediaPipe Hand Landmarker</td><td><code>detection/hands.py</code></td><td><span class="docs-origin is-model">Modelo</span></td></tr>
+              <tr><td>Malla</td><td>Delaunay con el barrido de Fortune</td><td><code>geometry/delaunay_fortune.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Deformar plantillas</td><td>Afín por triángulo, baricéntricas, bilineal</td><td><code>geometry/warp.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Barba</td><td>Multiply, hebras con Bézier, alta frecuencia</td><td><code>compositing/beard.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Tinte</td><td>Luminosidad y color en CIELAB</td><td><code>coloring/dye.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Tinte de barba</td><td>Textura y tensor de estructura</td><td><code>segmentation/facial_hair.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Corte</td><td>Pull-push, cráneo superelipse, Lambert</td><td><code>compositing/haircut.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Forma de cara</td><td>Medidas en la malla 3D y desviaciones z</td><td><code>geometry/face_shape.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Física de barba</td><td>Verlet y restricciones de distancia (PBD)</td><td><code>compositing/beard_physics.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Gaussianas 2D</td><td>Gradientes analíticos y Adam</td><td><code>splatting/gaussian_image.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Espejo 3D</td><td>Proyección EWA, counting sort, WebGL2</td><td><code>splatting/head3d.py · splat3d.js</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Peluca 3D</td><td>Envolvente visual por cortes, textura multivista</td><td><code>splatting/hair3d.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Contrarreloj</td><td>Cápsula entre dos cuadros y puntaje</td><td><code>game/speedrun.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="docs-more">El informe del proyecto explica cada algoritmo con sus fórmulas y decisiones. La lista de endpoints está en la <a href="/docs" target="_blank" rel="noopener">documentación de la API</a>.</p>
+      </section>
     </section>
 
     <section class="panel" id="panel-looks">

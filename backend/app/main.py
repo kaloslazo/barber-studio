@@ -19,4 +19,11 @@ app.add_middleware(
 
 app.include_router(router)
 
-app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+class Frontend(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", Frontend(directory=str(FRONTEND_DIR), html=True), name="frontend")

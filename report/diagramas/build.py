@@ -8,7 +8,8 @@ como una página, se recorta a su contenido y se guarda como:
 
 - report/figures/diagrama_<nombre>.pdf (informe)
 - slides/figures/diagrama_<nombre>.pdf (diapositivas)
-- docs/diagramas/<nombre>.png (documentación y página web)
+- docs/diagramas/<nombre>.png (documentación y página web de la entrega)
+- frontend/assets/diagramas/<nombre>.png (página «Cómo funciona» de la app)
 """
 
 import shutil
@@ -45,9 +46,9 @@ def build(name):
         page.set_cropbox(box)
         for folder in (ROOT / "report" / "figures", ROOT / "slides" / "figures"):
             source.save(folder / f"diagrama_{name}.pdf", garbage=3, deflate=True)
-        png = ROOT / "docs" / "diagramas" / f"{name}.png"
-        png.parent.mkdir(parents=True, exist_ok=True)
-        page.get_pixmap(dpi=220).save(png)
+        for folder in (ROOT / "docs" / "diagramas", ROOT / "frontend" / "assets" / "diagramas"):
+            folder.mkdir(parents=True, exist_ok=True)
+            page.get_pixmap(dpi=220).save(folder / f"{name}.png")
         print(f"{name}: {box.width / 72 * 2.54:.1f} x {box.height / 72 * 2.54:.1f} cm")
 
 
