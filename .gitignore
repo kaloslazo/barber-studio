@@ -42,3 +42,7 @@ slides/*.nav
 slides/*.out
 slides/*.snm
 slides/*.toc
+
+# Delivery build
+dist/
+delivery/videos/
