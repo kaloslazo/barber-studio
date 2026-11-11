@@ -145,16 +145,18 @@ Física de la barba en vivo, por cuadro & 72~ms \\
 \subsection{Pruebas automáticas}
 \label{sec:pruebas}
 
-El proyecto tiene 49 pruebas con pytest, que GitHub Actions ejecuta en cada cambio:
+El proyecto tiene 53 pruebas con pytest, que GitHub Actions ejecuta en cada cambio:
 \begin{itemize}
   \item 32 de la API y de los módulos de estilo;
   \item 10 de \emph{splatting} y física;
   \item 5 de la transferencia de pelo;
+  \item 4 de la triangulación de Delaunay;
   \item 2 del laboratorio.
 \end{itemize}
 
 Entre otras cosas, verifican:
 \begin{itemize}
+  \item \textbf{Delaunay}: ningún punto cae dentro de un círculo circunscrito, hay $2n-2-h$ triángulos, una grilla da exactamente los triángulos esperados sin superposiciones, los puntos colineales no generan triángulos y Fortune contiene todos los triángulos de Bowyer--Watson;
   \item \textbf{cortes}: ningún corte toca la cara; con intensidad 0 la foto no cambia; los píxeles lejos del pelo no cambian; un estilo desconocido da error;
   \item \textbf{entradas inválidas}: sin cara, la API responde 422, y con un estilo o modelo desconocido, 400;
   \item \textbf{forma de la cara}: la clasificación es correcta en proporciones sintéticas y todas las sugerencias corresponden a estilos existentes;

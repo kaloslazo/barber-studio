@@ -1,6 +1,6 @@
 # Guion de demo — BarberStudio (≈ 8 minutos)
 
-> **Versión de octubre, reemplazada.** Los nombres de pantallas y el conteo de pruebas son de entonces (hoy son 49). Para la entrega final usar `delivery/guion-video-corto.md` y `delivery/guion-video-largo.md`.
+> **Versión de octubre, reemplazada.** Los nombres de pantallas y el conteo de pruebas son de entonces (hoy son 53). Para la entrega final usar `delivery/guion-video-corto.md` y `delivery/guion-video-largo.md`.
 
 > Para la exposición del curso CS4016. Pensado para que el profe **participe**.
 > Cada bloque dice **qué mostrar**, **qué decir** (el gancho técnico) y un **plan B**.

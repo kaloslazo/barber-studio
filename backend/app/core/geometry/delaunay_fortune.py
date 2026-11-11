@@ -1,8 +1,8 @@
 """Delaunay triangulation via Fortune's sweep-line algorithm (from scratch).
 
-This is an OPTIONAL, standalone alternative to the Bowyer-Watson implementation
-in ``delaunay.py``. The pipeline does NOT use this module; it exists to study
-Fortune's algorithm and to verify it yields the same Delaunay triangulation.
+Every mesh in the app comes from here: the beard warp, the mesh overlay, the
+3D mirror and the lab. The Bowyer-Watson version in ``delaunay.py`` stays as
+an independent check.
 
 Idea: Fortune sweeps a horizontal line downward, maintaining the "beach line"
 (the lower envelope of the parabolas of the sites already passed). Two kinds of
@@ -13,6 +13,12 @@ Every circle event is a Voronoi vertex, and the three sites whose arcs meet
 there are cocircular with an empty circumcircle: that triple IS a Delaunay
 triangle. So we simply collect the triples at valid circle events.
 
+Degenerate input (several sites on the same sweep line, four or more
+cocircular sites, as in a grid) breaks the event order, so the sites are
+moved by a fixed, tiny random offset (1e-6 of the point cloud's span) before
+the sweep, and triangles with no area in the original points (collinear or
+repeated sites) are dropped. Face points never notice it.
+
 ``delaunay_triangles(points, rect=None)`` matches the signature of the
 Bowyer-Watson version and returns a list of index triplets into ``points``.
 """
@@ -21,6 +27,8 @@ import heapq
 import math
 
 import numpy as np
+
+JITTER = 1e-6
 
 
 class _Arc:
@@ -88,6 +96,9 @@ def delaunay_triangles(points, rect=None):
     n = len(P)
     if n < 3:
         return []
+    original = P
+    span = max(float(np.ptp(P, axis=0).max()), 1.0)
+    P = P + np.random.default_rng(12345).uniform(-1.0, 1.0, P.shape) * span * JITTER
 
     triangles = []
     pq = []
@@ -201,4 +212,8 @@ def delaunay_triangles(points, rect=None):
         else:
             handle_circle(payload)
 
-    return triangles
+    def has_area(tri):
+        (ax, ay), (bx, by), (cx, cy) = original[list(tri)]
+        return abs(_cross(ax, ay, bx, by, cx, cy)) > 1e-12 * span * span
+
+    return [tri for tri in triangles if has_area(tri)]

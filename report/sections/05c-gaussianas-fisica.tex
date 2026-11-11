@@ -130,8 +130,9 @@ La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en 
 \end{figure}
 
 \subsection{Laboratorio: avatar en vivo}
+\label{sec:lab}
 
-El laboratorio (\archivo{lab/avatar.py}) escanea la cabeza desde varios ángulos y construye un avatar de gaussianas. Cada gaussiana guarda su triángulo de la malla, sus coordenadas baricéntricas, un desplazamiento y una covarianza expresados en el marco local del triángulo, cuyos ejes son dos aristas y la normal.
+El laboratorio (\archivo{lab/avatar.py}) escanea la cabeza desde varios ángulos y construye un avatar de gaussianas. Cada gaussiana guarda su triángulo de la malla, sus coordenadas baricéntricas, un desplazamiento y una covarianza expresados en el marco local del triángulo. Ese marco es ortonormal: $e_1$ es la primera arista normalizada, $n$ la normal y $e_2=n\times e_1$. Con $R=[e_1\;e_2\;n]$ y $s$ el ancho de la cara, la covarianza en el mundo es $R\,\Sigma_{\text{local}}\,R^\top s^2$.
 
 En cada cuadro de la cámara, la malla nueva reconstruye el marco de cada triángulo y la gaussiana lo sigue. Por eso el avatar copia los gestos de la persona y puede verse de perfil. Está marcado como experimental en la interfaz.
 

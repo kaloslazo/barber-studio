@@ -2,7 +2,6 @@ import cv2
 import numpy as np
 
 from app.core.compositing.alpha import inside_feather, organic_feather
-#from app.core.geometry.delaunay import delaunay_triangles
 from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.warp import warp_template
 

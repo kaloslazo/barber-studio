@@ -95,7 +95,12 @@ Quedan 10 plantillas. En tiempo de ejecución se elige, dentro del estilo pedido
   \item una cola de prioridad (\texttt{heapq}) guarda los eventos de sitio y de círculo;
   \item cada evento de círculo aporta directamente un triángulo, sin construir el diagrama de Voronoi completo.
 \end{itemize}
-También hay una implementación de Bowyer--Watson (\archivo{geometry/delaunay.py}) que da el mismo resultado; se usó para validar. La figura~\ref{fig:malla} muestra la malla sobre una cara.
+La \emph{beach line} se guarda como una lista doblemente enlazada de arcos. Cada evento cuesta $O(\log n)$ en la cola, pero ubicar el arco que queda sobre un sitio nuevo recorre la lista, así que esta versión es $O(n^2)$ en el peor caso. El $O(n\log n)$ del algoritmo original requiere guardar la \emph{beach line} en un árbol balanceado. Con 83 puntos la diferencia no se nota: la triangulación tarda unos 3~ms, menos de la mitad que Bowyer--Watson.
+Todas las mallas de la aplicación salen de esta implementación: la barba, la malla que se dibuja en pantalla, el espejo 3D y el laboratorio.
+
+\textbf{Validación.} También hay una implementación de Bowyer--Watson (\archivo{geometry/delaunay.py}) que sirve de control. Sobre siete imágenes de prueba, las dos coinciden en cuatro; en las otras tres, Fortune devuelve un triángulo más, muy fino, en el borde de la mandíbula (puntos 0, 1 y 2, casi colineales). Ese triángulo cumple la propiedad del círculo vacío: Bowyer--Watson lo pierde porque su supertriángulo es finito y descarta los triángulos del borde cuyo círculo lo toca. Las pruebas automáticas verifican, sobre nubes aleatorias, que ningún punto cae dentro de un círculo circunscrito y que hay $2n-2-h$ triángulos, con $h$ el número de vértices del casco convexo.
+
+\textbf{Casos degenerados.} Con varios puntos a la misma altura de la línea de barrido y cuatro o más puntos sobre un mismo círculo (una grilla, por ejemplo), el orden de los eventos se rompe y aparecen triángulos superpuestos. La solución es una perturbación: antes del barrido, cada punto se mueve una distancia aleatoria fija de una millonésima del tamaño de la nube (medio milésimo de píxel en una cara). Después se descartan los triángulos que no tienen área en las coordenadas originales (puntos colineales o repetidos). Con eso, una grilla de $n\times n$ da exactamente los $2n^2-2-4(n-1)$ triángulos que predice la teoría, sin superposiciones. La figura~\ref{fig:malla} muestra la malla sobre una cara.
 
 \begin{figure}[ht]
   \centering

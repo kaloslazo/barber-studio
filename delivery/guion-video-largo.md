@@ -35,7 +35,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 - un solo proceso de FastAPI sirve la interfaz y la API;
 - los endpoints son delgados; la lógica gráfica está en `backend/app/core`, un paquete por técnica;
 - la interfaz es HTML y JavaScript sin compilación; el 3D es un visor propio en WebGL2;
-- 49 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
+- 53 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
 
 **Mostrar:** subir una foto una vez y ver que queda cargada en todas las herramientas.
 
@@ -46,8 +46,10 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 **Tiene que quedar claro:**
 - MediaPipe da 478 puntos y es lo único que viene de un modelo; se convierten a los 68 puntos estándar y se agregan 15 bajo la mandíbula;
 - qué es Delaunay: ningún punto cae dentro del círculo circunscrito de un triángulo, lo que evita triángulos finos;
-- cómo funciona Fortune: línea de barrido, *beach line* de parábolas, evento de sitio y evento de círculo; cada evento de círculo da un triángulo; complejidad $O(n\log n)$;
-- se validó contra Bowyer–Watson.
+- cómo funciona Fortune: línea de barrido, *beach line* de parábolas, evento de sitio y evento de círculo; cada evento de círculo da un triángulo;
+- complejidad: el algoritmo es $O(n\log n)$ con un árbol balanceado; nuestra versión guarda la *beach line* en una lista, así que es $O(n^2)$ en el peor caso (3 ms con 83 puntos);
+- se validó contra Bowyer–Watson: Fortune encuentra un triángulo fino del borde de la mandíbula que Bowyer–Watson pierde por su supertriángulo;
+- los casos degenerados (grilla) se resuelven con una perturbación mínima de los puntos.
 
 ## 4. Barba con plantillas reales (Gianpier, 2:00)
 
@@ -136,7 +138,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 **Pantalla:** láminas «Calidad y rendimiento» y «Límites que conocemos».
 
 **Decir:**
-- se probó en 26 caras distintas; hay 49 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto;
+- se probó en 26 caras distintas; hay 53 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto;
 - límites honestos: oclusiones, pelo que tapa ojos u orejas, el espejo 3D desde una vista, unos 10 fps en vivo;
 - lo siguiente: tinte en vivo con un shader de WebGL.
 

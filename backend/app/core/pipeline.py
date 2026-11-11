@@ -18,7 +18,8 @@ from app.core.compositing.haircut import apply_haircut
 from app.core.detection.face_detector import FaceDetector
 from app.core.detection.landmarks import LandmarkDetector
 from app.core.detection.one_euro import OneEuroFilter
-from app.core.geometry.delaunay import delaunay_triangles, draw_mesh
+from app.core.geometry.delaunay import draw_mesh
+from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.face_shape import face_shape
 from app.core.segmentation.facial_hair import facial_hair_alpha
 from app.core.segmentation.hair_region import provisional_hair_mask
