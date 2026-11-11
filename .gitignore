@@ -34,3 +34,11 @@ report/*.bbl
 report/*.blg
 report/*.toc
 report/*.out
+report/*.nav
+report/*.snm
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.snm
+slides/*.toc
