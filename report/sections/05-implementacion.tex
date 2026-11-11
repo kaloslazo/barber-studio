@@ -7,7 +7,15 @@ Esta sección describe cada módulo:
   \item las decisiones que se tomaron y por qué;
   \item las limitaciones conocidas.
 \end{itemize}
-Las rutas de archivos son relativas a \archivo{backend/app/core/} salvo que se indique otra cosa.
+Las rutas de archivos son relativas a \archivo{backend/app/core/} salvo que se indique otra cosa. La figura~\ref{fig:diag-general} resume el recorrido común a todas las herramientas: los modelos ubican la cara y el pelo, el código del equipo arma la geometría y cada herramienta aplica su algoritmo. Cada subsección incluye un diagrama de su propio proceso, con las etapas reales del programa sobre un retrato de dominio público de la NASA.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_general.pdf}
+  \caption{Pipeline general de Fresh. En gris, los modelos preentrenados, que solo ubican; el resto lo implementó el equipo. Los colores de las herramientas siguen los grupos de la interfaz: Estilos (rojo), 3D (azul) y Juegos (amarillo).}
+  \label{fig:diag-general}
+\end{figure}
+
 
 \input{sections/05a-cara-barba}
 \input{sections/05b-tinte-corte}

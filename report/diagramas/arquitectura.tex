@@ -1,0 +1,48 @@
+\documentclass{article}
+\input{estilo}
+\begin{document}
+\begin{tikzpicture}
+
+\foreach \name/\title/\text [count=\i] in {
+  ui/Interfaz/{HTML, CSS y JS sin compilar},
+  webgl/Visor 3D/{WebGL2 con shaders propios},
+  cam/Cámara/{getUserMedia},
+  mpjs/MediaPipe JS/{sigue la cabeza en la peluca}} {
+  \node[paso, text width=3.1cm, minimum height=0.95cm] (b\name) at (0, {2.1 - 1.2 * (\i - 1)}) {\textbf{\title}\\\text};
+}
+\begin{scope}[on background layer]
+  \node[grupofondo=blue, fit=(bui)(bmpjs)] (browser) {};
+\end{scope}
+\node[titulo=blue] at (browser.north west) {Navegador};
+
+\node[paso, text width=3.3cm, minimum height=0.95cm] (api) at (6.3, 2.1) {\textbf{FastAPI}\\valida y limita la foto a 2048 px};
+\node[paso, text width=3.3cm, minimum height=0.95cm] (work) at (6.3, 0.9) {\textbf{work()}\\un hilo y un candado};
+\node[paso, text width=3.3cm, minimum height=0.95cm] (pipe) at (6.3, -0.3) {\textbf{StylePipeline}\\cara, puntos y geometría};
+\node[paso=model!20, text width=3.3cm, minimum height=0.95cm] (models) at (6.3, -1.5) {\textbf{Modelos}\\MediaPipe ($\times3$) y YOLOv8 propio};
+
+\foreach \name [count=\i from 0] in {detection, segmentation, geometry, coloring, compositing, splatting, game, lab} {
+  \pgfmathsetmacro{\col}{mod(\i, 2)}
+  \pgfmathsetmacro{\row}{int(\i / 2)}
+  \node[draw=ink, line width=0.5pt, fill=white, font=\sffamily\scriptsize, minimum width=1.9cm, minimum height=0.52cm, inner sep=1pt]
+    (m\i) at ({10.1 + 2.05 * \col}, {1.9 - 0.8 * \row}) {\texttt{\name}};
+}
+\node[grupo=red, fit=(m0)(m7)] (core) {};
+\node[titulo=red] at (core.north west) {\texttt{core/} $\cdot$ algoritmos propios};
+
+\begin{scope}[on background layer]
+  \node[grupofondo=muted, fit=(api)(models)(core)] (docker) {};
+\end{scope}
+\node[titulo=muted] at (docker.north west) {Contenedor Docker $\cdot$ un proceso};
+
+\draw[flecha] (browser.east |- 0, 1.0) -- node[above, nota] {foto y parámetros} (docker.west |- 0, 1.0);
+\draw[flecha] (docker.west |- 0, 0.2) -- node[below, nota] {PNG o gaussianas} (browser.east |- 0, 0.2);
+\draw[flecha] (api) -- (work);
+\draw[flecha] (work) -- (pipe);
+\draw[flecha] (pipe) -- (models);
+\draw[flecha] (pipe.east) -- (core.west |- pipe.east);
+
+\node[paso, text width=3.6cm, minimum height=0.8cm, anchor=north] (ci) at ($(core.south |- docker.south) + (0, -0.35)$) {\textbf{GitHub Actions}\\53 pruebas en cada cambio};
+\draw[flecha, dash pattern=on 2pt off 1.5pt] (ci.north) -- (core.south);
+
+\end{tikzpicture}
+\end{document}

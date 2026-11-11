@@ -1,7 +1,15 @@
 \subsection{Tinte en CIELAB}
 \label{sec:tinte}
 
-El tinte (\archivo{coloring/dye.py}) recibe una máscara suave del pelo $\alpha\in[0,1]$ y un color objetivo con componentes $(L_t,a_t,b_t)$ en CIELAB.
+El tinte (\archivo{coloring/dye.py}) recibe una máscara suave del pelo $\alpha\in[0,1]$ y un color objetivo con componentes $(L_t,a_t,b_t)$ en CIELAB. La figura~\ref{fig:diag-tinte} resume el proceso.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_tinte.pdf}
+  \caption{Pipeline del tinte: máscara de YOLO o MediaPipe, separación de la luminosidad en sombreado y detalle, y recoloreo en CIELAB.}
+  \label{fig:diag-tinte}
+\end{figure}
+
 
 \textbf{Por qué CIELAB.} En una primera versión se cambiaba el tono en HSV. Eso conserva la oscuridad del pelo, así que un pelo negro nunca podía quedar rubio. En CIELAB la luminosidad está separada del color, así que se puede mover la luminosidad base hacia la del tinte sin perder el detalle de cada mechón.
 
@@ -33,6 +41,14 @@ El corte es la pieza más compleja de la interfaz de estilos (\archivo{compositi
   \item ubicar la línea del pelo aunque haya flequillo;
   \item hacer crecer pelo corto creíble, con la luz de la foto.
 \end{enumerate}
+La figura~\ref{fig:diag-corte} muestra las etapas sobre un retrato.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{diagrama_corte.pdf}
+  \caption{Pipeline del corte (degradado medio): segmentación, marco de la cabeza con el cráneo y la línea del pelo, plan del corte, relleno con \emph{pull-push} y pelo corto sombreado.}
+  \label{fig:diag-corte}
+\end{figure}
 
 \textbf{Resolución de trabajo.} El corte se calcula sobre un recorte de la cabeza escalado para que el ancho de la cabeza mida 420~px. Al volver a la resolución original se suma de nuevo el detalle de alta frecuencia de la foto en las zonas que no cambiaron. Así una foto de 4000~px tarda lo mismo que una de 800~px y no pierde nitidez.
 

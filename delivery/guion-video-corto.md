@@ -11,7 +11,7 @@ Lo puede narrar una sola voz. En pantalla va la app real corriendo en `http://lo
 | 0:22 – 0:35 | Activar «Mostrar la malla de triángulos» | «Con los puntos de la cara armamos una malla de Delaunay con nuestro algoritmo de Fortune, y deformamos barbas reales triángulo por triángulo.» |
 | 0:35 – 0:47 | Agregar tinte → rojo, con barba. Agregar corte → Degradado medio | «El tinte trabaja en CIELAB para no perder los mechones. Para los cortes quitamos el pelo, reconstruimos lo que había detrás y hacemos crecer pelo corto con la luz de tu foto.» |
 | 0:47 – 0:55 | Mostrar «Tu cara» y la ficha para el barbero | «Te sugiere estilos según la forma de tu cara y te da una ficha para llevar a la barbería.» |
-| 0:55 – 1:10 | Espejo 3D girando, luego «Ver cada gaussiana». Corte rápido a la barba con física en vivo | «Tu cabeza en 3D, hecha de cien mil gaussianas con un visor propio en WebGL. Y una barba con física que se mueve contigo.» |
+| 0:55 – 1:10 | Espejo 3D girando, luego «Ver cada gaussiana». Corte rápido a la barba con física en vivo | «Tu cabeza en 3D, hecha de más de cien mil gaussianas con un visor propio en WebGL. Y una barba con física que se mueve contigo.» |
 | 1:10 – 1:22 | Contrarreloj: alguien afeita con el dedo | «Hasta un juego para afeitar con el dedo frente a la cámara.» |
 | 1:22 – 1:30 | Portada con el nombre y el equipo | «Fresh. Computación gráfica para elegir tu próximo corte. Kalos, Sofía y Gianpier, CS4016.» |
 

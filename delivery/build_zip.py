@@ -48,6 +48,19 @@ ANIMATIONS = [
     ("docs/captures/p4_speedrun/horowitz_chinstrap.gif", "Contrarreloj hasta el collar."),
 ]
 
+DIAGRAMS = [
+    ("general", "Pipeline general. En gris, los modelos preentrenados, que solo ubican la cara, el pelo y la mano; el resto lo implementó el equipo."),
+    ("arquitectura", "Arquitectura: el navegador y un solo proceso de FastAPI dentro de Docker."),
+    ("barba", "Barba: puntos, malla de Delaunay, plantilla deformada por triángulo y composición."),
+    ("tinte", "Tinte: máscara de YOLO o MediaPipe y recoloreo en CIELAB que conserva los mechones."),
+    ("corte", "Corte: marco de la cabeza, plan del corte, relleno pull-push y pelo corto con Lambert."),
+    ("vivo", "En vivo: seguimiento, anclaje baricéntrico y física con Verlet y PBD."),
+    ("gaussianas", "Gaussianas 2D: optimización con gradientes analíticos y Adam escrito a mano."),
+    ("espejo", "Espejo 3D: gaussianas construidas en el servidor y dibujadas con shaders propios en WebGL2."),
+    ("peluca", "Peluca 3D: envolvente visual por cortes y textura de varias vistas."),
+    ("juego", "Contrarreloj: corte por cápsula entre dos cuadros y puntaje."),
+]
+
 VIDEOS = ["video-corto.mp4", "video-largo.mp4"]
 VIDEO_LIMITS = {"video-corto.mp4": 90, "video-largo.mp4": 1200}
 CODE_EXCLUDE = ("report/", "slides/", "delivery/")
@@ -84,7 +97,12 @@ def render_page(dst):
         f'<figure><img src="../imagenes-y-videos/{Path(path).name}" alt=""><figcaption>{html.escape(caption)}</figcaption></figure>'
         for path, caption in ANIMATIONS
     )
-    page = template.replace("{{DESCRIPCION}}", description).replace("{{GALERIA}}", gallery).replace("{{ANIMACIONES}}", animations)
+    diagrams = "\n        ".join(
+        f'<figure class="wide"><img src="../imagenes-y-videos/diagrama_{name}.png" alt=""><figcaption>{html.escape(caption)}</figcaption></figure>'
+        for name, caption in DIAGRAMS
+    )
+    page = (template.replace("{{DESCRIPCION}}", description).replace("{{DIAGRAMAS}}", diagrams)
+            .replace("{{GALERIA}}", gallery).replace("{{ANIMACIONES}}", animations))
     (dst / "index.html").write_text(page, encoding="utf-8")
     return page
 
@@ -114,7 +132,7 @@ def main():
     pdf_dir = OUT / "documentación-en-pdf"
     pdf_dir.mkdir()
     shutil.copy2(ROOT / "report" / "main.pdf", pdf_dir / "informe.pdf")
-    copy_tree(ROOT / "report", OUT / "documentacion-en-latex", ["main.tex", "references.bib", "sections", "figures", "README.md"])
+    copy_tree(ROOT / "report", OUT / "documentacion-en-latex", ["main.tex", "references.bib", "sections", "figures", "diagramas", "README.md"])
 
     shutil.copy2(DELIVERY / "titulo.txt", OUT / "titulo.txt")
     shutil.copy2(DELIVERY / "descripcion-breve.txt", OUT / "descripcion-breve.txt")
@@ -127,6 +145,8 @@ def main():
         shutil.copy2(ROOT / "report" / "figures" / name, media / name)
     for path, _ in ANIMATIONS:
         shutil.copy2(ROOT / path, media / Path(path).name)
+    for name, _ in DIAGRAMS:
+        shutil.copy2(ROOT / "docs" / "diagramas" / f"{name}.png", media / f"diagrama_{name}.png")
     for name in VIDEOS:
         source = DELIVERY / "videos" / name
         if not source.exists():
