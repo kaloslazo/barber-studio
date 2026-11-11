@@ -42,6 +42,11 @@ slides/*.nav
 slides/*.out
 slides/*.snm
 slides/*.toc
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
 
 # Delivery build
 dist/

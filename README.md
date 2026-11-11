@@ -117,5 +117,6 @@ The UI loads two things from the internet: the Google fonts (with local fallback
 ## Course deliverables
 
 - `report/`: LaTeX report (Spanish), see its README to build `main.pdf`.
+- `paper/`: a 4-page paper-style summary of the report (Spanish).
 - `slides/`: Beamer slides for the final presentation.
 - `delivery/`: title, short description, offline web page, video scripts and `build_zip.py`, which builds the `.zip` the course asks for.
