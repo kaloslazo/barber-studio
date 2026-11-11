@@ -95,7 +95,14 @@ Quedan 10 plantillas. En tiempo de ejecución se elige, dentro del estilo pedido
   \item una cola de prioridad (\texttt{heapq}) guarda los eventos de sitio y de círculo;
   \item cada evento de círculo aporta directamente un triángulo, sin construir el diagrama de Voronoi completo.
 \end{itemize}
-También hay una implementación de Bowyer--Watson (\archivo{geometry/delaunay.py}) que da el mismo resultado; se usó para validar.
+También hay una implementación de Bowyer--Watson (\archivo{geometry/delaunay.py}) que da el mismo resultado; se usó para validar. La figura~\ref{fig:malla} muestra la malla sobre una cara.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.36\linewidth]{malla.jpg}
+  \caption{Malla de Delaunay calculada con el algoritmo de Fortune propio sobre los puntos de la cara.}
+  \label{fig:malla}
+\end{figure}
 
 \textbf{\emph{Warp} afín por triángulo.} \archivo{geometry/warp.py} reemplaza a las funciones de OpenCV por una versión propia. Para cada triángulo:
 \begin{enumerate}
