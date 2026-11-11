@@ -145,9 +145,9 @@ Física de la barba en vivo, por cuadro & 72~ms \\
 \subsection{Pruebas automáticas}
 \label{sec:pruebas}
 
-El proyecto tiene 47 pruebas con pytest, que GitHub Actions ejecuta en cada cambio:
+El proyecto tiene 49 pruebas con pytest, que GitHub Actions ejecuta en cada cambio:
 \begin{itemize}
-  \item 30 de la API y de los módulos de estilo;
+  \item 32 de la API y de los módulos de estilo;
   \item 10 de \emph{splatting} y física;
   \item 5 de la transferencia de pelo;
   \item 2 del laboratorio.
@@ -162,6 +162,7 @@ Entre otras cosas, verifican:
   \item \textbf{gaussianas 2D}: más gaussianas dan mayor PSNR;
   \item \textbf{física}: se asienta en reposo y se atrasa al mover la raíz;
   \item \textbf{espejo 3D}: las covarianzas son semidefinidas positivas y el \texttt{.ply} reconstruye exactamente la covarianza original;
-  \item \textbf{juego}: no corta nada con la máquina apagada.
+  \item \textbf{juego}: no corta nada con la máquina apagada y conserva su objetivo entre cuadros;
+  \item \textbf{servidor}: corre un solo proceso, para no partir el estado del modo en vivo y del juego.
 \end{itemize}
 Además, la aplicación arranca y aprueba las pruebas tanto con YOLO instalado como sin él.

@@ -35,7 +35,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 - un solo proceso de FastAPI sirve la interfaz y la API;
 - los endpoints son delgados; la lógica gráfica está en `backend/app/core`, un paquete por técnica;
 - la interfaz es HTML y JavaScript sin compilación; el 3D es un visor propio en WebGL2;
-- 47 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
+- 49 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
 
 **Mostrar:** subir una foto una vez y ver que queda cargada en todas las herramientas.
 
@@ -136,7 +136,7 @@ Cada integrante explica los módulos que hizo, según la tabla de aportes del in
 **Pantalla:** láminas «Calidad y rendimiento» y «Límites que conocemos».
 
 **Decir:**
-- se probó en 26 caras distintas; hay 47 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto;
+- se probó en 26 caras distintas; hay 49 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto;
 - límites honestos: oclusiones, pelo que tapa ojos u orejas, el espejo 3D desde una vista, unos 10 fps en vivo;
 - lo siguiente: tinte en vivo con un shader de WebGL.
 

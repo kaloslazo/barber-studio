@@ -227,6 +227,21 @@ def test_game_frame_without_face_returns_state():
     assert data["target"] == "goatee"
 
 
+def test_game_keeps_its_target_across_frames():
+    client.post("/api/game/start", data={"target": "mustache"})
+    for _ in range(5):
+        response = client.post("/api/game/frame", files=to_upload(make_test_image()), data={"use_hand": "false"})
+        assert response.json()["target"] == "mustache"
+
+
+def test_server_runs_one_process():
+    from pathlib import Path
+
+    dockerfile = (Path(__file__).resolve().parents[2] / "Dockerfile").read_text()
+    command = next(line for line in dockerfile.splitlines() if line.startswith("CMD"))
+    assert "--workers" not in command
+
+
 def test_head3d_without_face_returns_422():
     response = client.post("/api/head3d", files=to_upload(make_test_image()), data={"beard": "none"})
     assert response.status_code == 422
