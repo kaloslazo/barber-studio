@@ -1,0 +1,54 @@
+\section{Herramientas utilizadas}
+\label{sec:herramientas}
+
+La tabla~\ref{tab:herramientas} indica qué herramienta resolvió cada parte del proyecto. Donde dice ``propio'', el algoritmo está escrito por el equipo sobre operaciones básicas de NumPy.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+Herramienta & Qué resolvió \\
+\midrule
+Python 3.12 + NumPy \cite{harris2020} & Lenguaje del servidor y operaciones vectorizadas sobre imágenes. Base de todos los algoritmos propios. \\
+FastAPI \cite{fastapi} + Uvicorn & Servidor HTTP y API; también sirve la interfaz web. \\
+OpenCV \cite{bradski2000} & Lectura y escritura de imágenes, conversiones de color, desenfoques, morfología, \emph{distance transform}, clasificador de Haar, filtro guiado e \emph{inpainting} de Telea (solo como referencia de comparación). \\
+MediaPipe \cite{lugaresi2019} & Modelos preentrenados, usados solo para inferencia: malla facial de 478 puntos, segmentador multiclase y puntos de la mano. También corre en el navegador para seguir la cabeza en la prueba en vivo de la peluca. \\
+Ultralytics YOLOv8 + PyTorch \cite{jocher2023,paszke2019} & Ajuste fino y ejecución del segmentador de pelo propio (\archivo{hair_best.pt}). Es opcional: sin él, la aplicación usa MediaPipe. \\
+Google Colab & Entrenamiento de YOLO con GPU (\archivo{backend/training/barberstudio_colab.ipynb}). \\
+WebGL2 \cite{khronos2017} & Visor de gaussianas 3D en el navegador (\emph{shaders} propios). \\
+HTML, CSS y JavaScript nativos & Interfaz sin \emph{frameworks} ni compilación. \\
+pytest + GitHub Actions & 47 pruebas automáticas que se ejecutan en cada cambio. \\
+Docker & Imagen reproducible con todas las dependencias y los modelos. \\
+\LaTeX{} & Este documento. \\
+\bottomrule
+\end{tabularx}
+\caption{Herramientas y la parte del proyecto que resolvió cada una.}
+\label{tab:herramientas}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}X l@{}}
+\toprule
+Pieza & Origen \\
+\midrule
+Detección de cara (Haar), 478 puntos faciales, segmentación base, puntos de la mano & Biblioteca o modelo \\
+Segmentador de pelo YOLOv8 & Arquitectura de biblioteca, ajuste fino propio \\
+Triangulación de Delaunay (Fortune y Bowyer--Watson) & Propio \\
+\emph{Warp} afín, coordenadas baricéntricas, interpolación bilineal & Propio \\
+Composición de la barba, hebras, \emph{feather}, anclaje a la malla & Propio \\
+Tinte en CIELAB, tinte de barba, forma de la cara & Propio \\
+Motor de cortes (\emph{pull-push}, cráneo, línea del pelo, sombreado) & Propio \\
+Física de hebras (Verlet + PBD) y juego & Propio \\
+Gaussianas 2D (gradientes analíticos, Adam) & Propio \\
+Gaussianas 3D, proyección EWA, ordenamiento, exportación \texttt{.ply} & Propio \\
+Peluca multivista (\emph{visual hull} por cortes, textura, estudio) & Propio \\
+\bottomrule
+\end{tabularx}
+\caption{Qué viene de bibliotecas y qué implementó el equipo.}
+\label{tab:propio}
+\end{table}
+
+Los efectos animados de la interfaz (texto que rota, títulos que aparecen, franja de líneas) son versiones en JavaScript nativo de componentes de React Bits, con licencia MIT y \emph{Commons Clause}. Los retratos de prueba de las figuras son retratos oficiales de la NASA, de dominio público.

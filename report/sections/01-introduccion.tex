@@ -1,0 +1,45 @@
+\section{Introducción}
+
+\subsection{Problema}
+
+Cambiar de corte, dejarse la barba o teñirse el pelo son decisiones que se toman a ciegas: el resultado solo se ve cuando ya está hecho y, en el caso de un corte o un tinte, no se puede deshacer. Las aplicaciones que existen para probarse estilos suelen pegar una imagen recortada encima de la foto, sin seguir la forma de la cara ni la luz, o dependen de modelos generativos que inventan la cara completa y requieren servidores con GPU.
+
+Este proyecto aborda el problema con técnicas de computación gráfica: en lugar de generar una imagen nueva, se modela la geometría de la cara y del pelo de la persona y se componen sobre la foto original las capas necesarias (barba, color, pelo corto, piel), de forma que el resultado conserve la identidad, la iluminación y la textura de la foto.
+
+\subsection{Objetivos}
+
+\textbf{Objetivo general.} Construir un producto completo, en forma de aplicación web, que permita probar barbas, tintes y cortes de pelo sobre una foto o con la cámara, usando como núcleo algoritmos de computación gráfica implementados por el equipo.
+
+\textbf{Objetivos específicos.}
+\begin{enumerate}
+  \item Ajustar plantillas de barba real a cualquier cara mediante una malla de Delaunay propia y un \emph{warp} afín por triángulo.
+  \item Recolorear el pelo de forma creíble, respetando su textura y su iluminación.
+  \item Simular cortes de pelo cortos (degradados, \emph{taper}, \emph{undercut}, raya marcada, \emph{crew cut} y rapado) quitando el pelo original y reconstruyendo el fondo y la piel.
+  \item Representar la cara y el pelo con gaussianas en 2D y en 3D, y renderizarlas en el navegador.
+  \item Añadir interacción en tiempo real: modo en vivo con la cámara, física de la barba y un juego de afeitado.
+  \item Entregar el sistema con pruebas, integración continua, documentación y un contenedor reproducible.
+\end{enumerate}
+
+\subsection{Contribuciones}
+
+Las piezas de visión que detectan la cara y sus puntos (MediaPipe) y la segmentación base del pelo se toman de modelos preentrenados; todo lo demás es implementación propia. En particular:
+\begin{itemize}
+  \item triangulación de Delaunay con el algoritmo de barrido de Fortune, \emph{warp} afín por triángulo, prueba de interior con coordenadas baricéntricas e interpolación bilineal (sección~\ref{sec:barba});
+  \item tinte en CIELAB que separa la luminosidad base del detalle de cada mechón (sección~\ref{sec:tinte});
+  \item motor de cortes con relleno \emph{pull-push}, modelo de cráneo, línea del pelo a partir de la frente y sombreado de Lambert (sección~\ref{sec:corte});
+  \item detección de barba real por textura y tensor de estructura, y clasificación de la forma de la cara (secciones~\ref{sec:barbatinte} y~\ref{sec:forma});
+  \item gaussianas 2D ajustadas con gradientes analíticos y Adam escrito a mano, \emph{Gaussian Splatting} 3D con proyección EWA en WebGL2, exportación a \texttt{.ply} y peluca 3D multivista (secciones~\ref{sec:gauss2d} a~\ref{sec:peluca});
+  \item física de la barba con Verlet y restricciones de distancia, y el juego de afeitado con detección de corte por cápsula (secciones~\ref{sec:fisica} y~\ref{sec:juego});
+  \item ajuste fino de YOLOv8 para segmentar pelo con Figaro1k y CelebAMask-HQ (sección~\ref{sec:segmentacion}).
+\end{itemize}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\linewidth]{ui_inicio.jpg}
+  \caption{Pantalla de inicio de Fresh. La demostración de la derecha muestra un estilo de barba aplicado sobre un retrato de dominio público de la NASA.}
+  \label{fig:inicio}
+\end{figure}
+
+\subsection{Organización del documento}
+
+La sección~\ref{sec:fundamentos} resume los fundamentos teóricos. La sección~\ref{sec:metodologia} describe los requisitos y la metodología de trabajo, y la sección~\ref{sec:arquitectura}, la arquitectura del sistema. La sección~\ref{sec:implementacion} detalla cada módulo con sus algoritmos, decisiones y limitaciones. La sección~\ref{sec:herramientas} indica qué herramienta resolvió cada parte, y la sección~\ref{sec:reproduccion} explica paso a paso cómo reproducir el proyecto. Los resultados se presentan en la sección~\ref{sec:resultados}, las limitaciones en la sección~\ref{sec:limitaciones} y las conclusiones en la sección~\ref{sec:conclusiones}.

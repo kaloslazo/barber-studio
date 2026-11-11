@@ -1,0 +1,83 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla,es-nodecimaldot,es-noshorthands]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+\usepackage{cite}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{figures/}}
+\setlength{\emergencystretch}{3em}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\setlist{itemsep=0.2em,topsep=0.3em}
+\captionsetup{font=small,labelfont=bf}
+
+\definecolor{codebg}{HTML}{F4F4F2}
+\lstdefinestyle{shell}{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  framerule=0pt,
+  xleftmargin=0.6em,
+  xrightmargin=0.6em,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+\lstset{style=shell}
+
+\newcommand{\archivo}[1]{\nolinkurl{#1}}
+\makeatletter
+\g@addto@macro\UrlBreaks{\do\_}
+\makeatother
+
+\title{\textbf{Fresh: probador virtual de barbería con computación gráfica}\\[0.4em]
+\large Proyecto final de Computación Gráfica (CS4016)}
+\author{Kalos Lazo Mera \qquad Sofía Herrera \qquad Gianpier Segovia\\[0.5em]
+\small Universidad de Ingeniería y Tecnología (UTEC)}
+\date{Noviembre de 2026}
+
+\begin{document}
+
+\maketitle
+
+\input{sections/00-resumen}
+
+\tableofcontents
+\clearpage
+
+\input{sections/01-introduccion}
+\input{sections/02-fundamentos}
+\input{sections/03-metodologia}
+\input{sections/04-arquitectura}
+\input{sections/05-implementacion}
+\input{sections/06-herramientas}
+\input{sections/07-reproduccion}
+\input{sections/08-resultados}
+\input{sections/09-limitaciones}
+\input{sections/10-conclusiones}
+
+\bibliographystyle{ieeetr}
+\bibliography{references}
+
+\appendix
+\input{sections/A-anexos}
+
+\end{document}

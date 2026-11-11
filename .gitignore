@@ -26,3 +26,11 @@ models/*
 backend/training/runs/
 runs/
 results/
+
+# LaTeX build files
+report/*.aux
+report/*.log
+report/*.bbl
+report/*.blg
+report/*.toc
+report/*.out

@@ -1,0 +1,95 @@
+\section{Cómo reproducir el proyecto}
+\label{sec:reproduccion}
+
+Esta sección permite instalar y ejecutar Fresh desde cero. El código fuente completo se entrega en la carpeta \archivo{codigo-fuente/}, que contiene lo mismo que la raíz del repositorio. Los comandos se escriben en una terminal (macOS, Linux o Windows con WSL), situada en esa carpeta.
+
+\subsection{Opción A: con Docker (recomendada)}
+
+Es la forma más simple, porque instala todas las dependencias y los modelos dentro de un contenedor.
+\begin{enumerate}
+  \item Instalar Docker Desktop desde \texttt{https://www.docker.com} y abrirlo.
+  \item Construir la imagen y levantar la aplicación (la primera vez tarda varios minutos porque descarga PyTorch):
+\begin{lstlisting}
+docker compose up -d --build app
+\end{lstlisting}
+  \item Esperar a que el contenedor esté sano y abrir \texttt{http://localhost:8000} en Chrome:
+\begin{lstlisting}
+docker compose ps
+\end{lstlisting}
+  \item Para detenerla:
+\begin{lstlisting}
+docker compose down
+\end{lstlisting}
+\end{enumerate}
+
+\subsection{Opción B: con Python}
+
+\begin{enumerate}
+  \item Instalar Python 3.12 desde \texttt{https://www.python.org}.
+  \item Crear un entorno virtual e instalar las dependencias:
+\begin{lstlisting}
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+\end{lstlisting}
+  \item Opcional, para usar el YOLO propio:
+\begin{lstlisting}
+pip install -r requirements-yolo.txt
+pip uninstall -y opencv-python
+pip install --force-reinstall --no-deps "opencv-contrib-python>=4.9,<5"
+\end{lstlisting}
+  Ultralytics instala \texttt{opencv-python}, que pisa a \texttt{opencv-contrib-python} y elimina los módulos \texttt{cv2.face} y \texttt{cv2.ximgproc}. Las dos últimas líneas lo corrigen.
+  \item Iniciar el servidor desde la carpeta \archivo{backend}:
+\begin{lstlisting}
+uvicorn app.main:app --port 8000
+\end{lstlisting}
+  O, desde la raíz, \texttt{./run.sh}, que hace los pasos 2 y 4 automáticamente.
+  \item Abrir \texttt{http://localhost:8000}.
+\end{enumerate}
+
+\subsection{Modelos}
+
+Todos los modelos necesarios están en \archivo{backend/models/}:
+\begin{itemize}
+  \item \archivo{face_landmarker.task}: malla facial de MediaPipe.
+  \item \archivo{selfie_multiclass_256x256.tflite}: segmentador multiclase de MediaPipe.
+  \item \archivo{hand_landmarker.task}: puntos de la mano, para el juego.
+  \item \archivo{lbfmodel.yaml}: puntos de respaldo de OpenCV.
+  \item \archivo{hair_best.pt}: el YOLO de pelo entrenado por el equipo.
+\end{itemize}
+Si falta \archivo{hair_best.pt} o no está instalado Ultralytics, la aplicación usa MediaPipe y el selector de modelo no aparece. La interfaz carga dos recursos desde internet: las fuentes tipográficas, que tienen respaldo local si no cargan, y la versión en JavaScript de MediaPipe, que solo usa la prueba en vivo de la peluca.
+
+\subsection{Pruebas}
+
+Desde \archivo{backend}, con el entorno activado:
+\begin{lstlisting}
+python -m pytest tests -q
+\end{lstlisting}
+El resultado esperado es \texttt{47 passed}.
+
+\subsection{Reentrenar el segmentador de pelo}
+
+\begin{enumerate}
+  \item Descargar Figaro1k \cite{svanera2016} y CelebAMask-HQ \cite{lee2020} en \archivo{data/}. Las páginas de los datasets indican cómo pedir acceso; no se incluyen por tamaño y licencia.
+  \item Convertir las máscaras a polígonos de YOLO:
+\begin{lstlisting}
+python backend/training/prepare_hair_dataset.py
+\end{lstlisting}
+  \item Abrir \archivo{backend/training/barberstudio_colab.ipynb} en Google Colab, elegir una GPU T4 y ejecutar las celdas en orden. Si hay GPU local, se puede usar en su lugar:
+\begin{lstlisting}
+python backend/training/train_hair.py --epochs 60 --device cuda
+\end{lstlisting}
+  \item Copiar el mejor peso resultante a \archivo{backend/models/hair_best.pt}.
+\end{enumerate}
+
+\subsection{Usar la aplicación}
+
+\begin{enumerate}
+  \item En \emph{Inicio}, subir una foto, tomarla con la cámara o usar la foto de ejemplo. Conviene una foto de frente, con luz pareja y sin gorra.
+  \item En \emph{Estilos}, elegir \emph{Barba}, \emph{Tinte} o \emph{Corte}, ajustar el estilo y la intensidad, y aplicar.
+  \item Bajo el resultado, usar ``Agregar tinte'', ``Agregar corte'' o ``Agregar barba'' para combinarlos.
+  \item Guardar el look o descargar la ficha para el barbero.
+  \item En \emph{3D}, construir la cabeza en el \emph{Espejo 3D} o escanear una peluca en \emph{Peluca 3D}.
+  \item En \emph{Juegos}, jugar Contrarreloj con la cámara o adivinar el retrato en \emph{Gaussianas}.
+\end{enumerate}

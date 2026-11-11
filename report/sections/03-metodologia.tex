@@ -1,0 +1,82 @@
+\section{Requisitos y metodología}
+\label{sec:metodologia}
+
+\subsection{Requisitos}
+
+\textbf{Funcionales.}
+\begin{enumerate}[label=RF\arabic*.]
+  \item Cargar una foto, tomarla con la cámara o usar una foto de ejemplo, y compartirla entre todas las herramientas.
+  \item Aplicar cuatro estilos de barba con densidad ajustable.
+  \item Teñir el pelo con siete colores o un color libre y, opcionalmente, también la barba.
+  \item Aplicar ocho cortes: degradado bajo, medio y alto, \emph{taper}, \emph{undercut}, raya marcada, \emph{crew cut} y rapado.
+  \item Combinar barba, tinte y corte en un mismo resultado.
+  \item Comparar antes y después, guardar looks y generar una ficha para el barbero.
+  \item Sugerir estilos según la forma de la cara.
+  \item Mostrar la cabeza y una peluca en 3D, girables y exportables.
+  \item Probar estilos en vivo con la cámara, con física de la barba y un juego de afeitado.
+\end{enumerate}
+
+\textbf{No funcionales y restricciones.}
+\begin{enumerate}[label=RNF\arabic*.]
+  \item Sin GPU: todo el procesamiento corre en CPU.
+  \item Respuesta de menos de 2~s por foto en el contenedor, para fotos de celular de hasta 4000~px.
+  \item Interfaz sin paso de compilación (HTML, CSS y JavaScript nativos), para que el proyecto sea fácil de reproducir en el curso.
+  \item La interfaz se adapta al celular.
+  \item Reproducible con un solo comando mediante Docker.
+\end{enumerate}
+
+\subsection{Metodología}
+
+El equipo trabajó de forma iterativa e incremental, con entregas funcionales en cada iteración. Cada funcionalidad nueva siguió el mismo ciclo: propuesta escrita en \archivo{docs/}, implementación en \archivo{backend/app/core}, pruebas automáticas, revisión visual sobre retratos de prueba y documentación técnica. Las fechas salen del historial de \texttt{git}:
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+Iteración & Contenido \\
+\midrule
+1 (30 ago -- 1 sep) & Arquitectura FastAPI + interfaz, detección de cara y puntos, tinte inicial, preparación de datos y entrenamiento de YOLO. \\
+2 (16 -- 19 sep) & Barba con plantillas, Delaunay propio y \emph{warp}; primera versión de transferencia de pelo. \\
+3 (21 oct -- 6 nov) & Física de la barba, gaussianas 2D, juego, espejo 3D, laboratorio, peluca 3D multivista con color y recorte. \\
+4 (9 -- 10 nov) & Producto: interfaz Fresh, Docker e integración continua, cámara, motor de cortes, combinación de looks, forma de cara, tinte de barba y YOLO propio en la aplicación. \\
+\bottomrule
+\end{tabularx}
+\caption{Iteraciones del proyecto.}
+\label{tab:iteraciones}
+\end{table}
+
+\textbf{Control de versiones y calidad.} El código vive en un repositorio git compartido por los tres integrantes. En las primeras iteraciones cada uno integraba su módulo directamente; desde la iteración 4, los cambios entran a \texttt{main} por \emph{pull requests} con una rama por funcionalidad. GitHub Actions ejecuta las pruebas en cada \emph{push} y en cada \emph{pull request}. Las convenciones de código están escritas en \archivo{AGENTS.md}:
+\begin{itemize}
+  \item la lógica vive en \archivo{backend/app/core};
+  \item los \emph{endpoints} quedan delgados;
+  \item los datasets y pesos pesados no se versionan, con dos excepciones: los modelos de MediaPipe y \archivo{hair_best.pt}, de 6{,}5~MB.
+\end{itemize}
+
+\textbf{Verificación de requisitos.} Cada requisito se verificó de tres maneras complementarias:
+\begin{itemize}
+  \item 47 pruebas automáticas (sección~\ref{sec:pruebas});
+  \item recorridos completos en el navegador: Chrome sin ventana controlado por el protocolo DevTools, con cámara simulada;
+  \item revisión visual de cuadrículas de resultados sobre 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto; con flequillo y con entradas.
+\end{itemize}
+Los tiempos se midieron sobre el contenedor (sección~\ref{sec:resultados}).
+
+\subsection{Organización del equipo}
+
+El equipo se dividió por módulos, con un responsable principal por cada uno. La tabla~\ref{tab:aportes} resume los aportes según el historial del repositorio.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+Integrante & Aportes principales \\
+\midrule
+Kalos Lazo Mera & Arquitectura del backend y de la API; tinte; preparación de datos y entrenamiento de YOLO; interfaz Fresh; motor de cortes; combinación de looks; forma de cara; tinte de barba; Docker, integración continua y pruebas. \\
+Gianpier Segovia & Barba con plantillas reales; Delaunay de Fortune; \emph{warp} afín; física de la barba; gaussianas 2D; juego de afeitado; espejo 3D; laboratorio (compartido). \\
+Sofía Herrera & Peluca 3D: máscara de transferencia, escaneo con la cámara, peluca de gaussianas multivista, cara 3D, cabeza sin pelo y estudio de color y recorte; laboratorio (compartido). \\
+\bottomrule
+\end{tabularx}
+\caption{Aportes por integrante.}
+\label{tab:aportes}
+\end{table}
