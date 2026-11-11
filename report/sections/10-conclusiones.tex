@@ -1,0 +1,28 @@
+\section{Conclusiones}
+\label{sec:conclusiones}
+
+Fresh muestra que un probador de barbería creíble se puede construir con técnicas clásicas de computación gráfica, sin modelos generativos y sin GPU. La clave fue modelar la geometría de la persona en lugar de pegar imágenes:
+\begin{itemize}
+  \item una malla de Delaunay propia permite deformar barbas reales sobre cualquier cara;
+  \item separar luminosidad y color en CIELAB permite teñir sin perder los mechones;
+  \item un marco de la cabeza medido en anchos de cabeza, junto con un relleno \emph{pull-push} que elige sus fuentes, permite quitar y volver a crear el pelo para ocho cortes distintos.
+\end{itemize}
+
+Las gaussianas resultaron ser una representación versátil a lo largo del proyecto: dibujan pelos sueltos en la barba con física, reconstruyen un retrato en 2D, forman una cabeza 3D girable y una peluca multivista, y siempre con el mismo principio de proyectar, acumular y componer.
+
+Varias decisiones se tomaron midiendo:
+\begin{itemize}
+  \item el anclaje de la textura a la malla redujo el deslizamiento de la barba en vivo, medido con flujo óptico \cite{farneback2003}, de 2{,}88 a 1{,}11;
+  \item el cambio de Telea a \emph{pull-push} eliminó el pelo fantasma;
+  \item calibrar la forma de la cara con 419 caras evitó que todas cayeran en la misma clase;
+  \item limitar el tamaño de entrada bajó de 18~s a menos de 1~s el tiempo de una foto de celular.
+\end{itemize}
+
+El producto está terminado y se puede reproducir:
+\begin{itemize}
+  \item tiene interfaz para escritorio y celular;
+  \item tiene 47 pruebas automáticas e integración continua;
+  \item se levanta con un solo comando de Docker;
+  \item incluye el modelo de segmentación entrenado por el equipo.
+\end{itemize}
+Las limitaciones que quedan (oclusiones, una sola vista en 3D, pelo que tapa los ojos o las orejas) marcan el camino para seguir mejorándolo.

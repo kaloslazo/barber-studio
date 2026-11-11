@@ -1,0 +1,54 @@
+\section{API del servidor}
+\label{sec:anexo-api}
+
+Todos los \emph{endpoints} reciben \texttt{multipart/form-data} y viven bajo \texttt{/api}.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\emph{Endpoint} & Uso \\
+\midrule
+\texttt{GET /health} & Estado del servidor y si el YOLO propio está disponible. \\
+\texttt{POST /face-shape} & Forma de la cara, proporciones y estilos sugeridos (JSON). \\
+\texttt{POST /beard} & Barba sobre una foto (\texttt{style}, \texttt{strength}). \\
+\texttt{POST /dye} & Tinte (\texttt{color}, \texttt{strength}, \texttt{beard}, \texttt{beard\_style}, \texttt{model}). Devuelve en cabeceras el modelo usado y la IoU con MediaPipe. \\
+\texttt{POST /haircut} & Corte (\texttt{style}, \texttt{strength}). \\
+\texttt{POST /mesh} & Malla de Delaunay dibujada sobre la foto. \\
+\texttt{POST /live} & Un cuadro del modo en vivo (tinte, barba, malla o física). \\
+\texttt{POST /gaussians} & Retrato con $N$ gaussianas 2D. \\
+\texttt{POST /game/start}, \texttt{/game/frame} & Ronda de Contrarreloj. \\
+\texttt{POST /head3d} & Gaussianas 3D del espejo, o archivo \texttt{.ply}. \\
+\texttt{POST /transfer/*} & Escaneo, reconstrucción, cara 3D, fotos y peluca de gaussianas. \\
+\texttt{POST /lab/build}, \texttt{/lab/mesh} & Avatar del laboratorio. \\
+\texttt{GET /models/face\_landmarker.task} & Modelo de malla facial para el navegador. \\
+\bottomrule
+\end{tabularx}
+\caption{\emph{Endpoints} principales.}
+\end{table}
+
+\section{Estructura del código}
+
+\begin{lstlisting}
+backend/
+  app/
+    api/routes.py          endpoints
+    core/pipeline.py       orquestacion
+    core/detection/        cara, puntos, mano, filtro One-Euro
+    core/segmentation/     pelo (MediaPipe, YOLO), barba, mascaras
+    core/geometry/         Delaunay (Fortune, Bowyer-Watson), warp, forma de cara
+    core/coloring/         tinte en CIELAB
+    core/compositing/      barba, fisica, corte, cabeza sin pelo
+    core/splatting/        gaussianas 2D, cabeza 3D, peluca 3D, cara 3D
+    core/game/             Contrarreloj
+    core/lab/              avatar en vivo
+  models/                  modelos de MediaPipe y hair_best.pt
+  tests/                   47 pruebas con pytest
+  training/                preparacion de datos y entrenamiento de YOLO
+frontend/
+  index.html, css/, js/    interfaz y visor WebGL2
+docs/                      documentacion tecnica y capturas
+report/                    este documento en LaTeX
+Dockerfile, docker-compose.yml, run.sh
+\end{lstlisting}
