@@ -40,6 +40,42 @@ Las piezas de visión que detectan la cara y sus puntos (MediaPipe) y la segment
   \label{fig:inicio}
 \end{figure}
 
+\subsection{Relación con los temas del curso}
+\label{sec:temas}
+
+Los modelos preentrenados resuelven una sola pregunta: dónde están la cara, el pelo y la mano. Todo lo que la persona ve en pantalla lo calcula código del equipo. En el núcleo del servidor y el visor 3D hay unas 4\,000 líneas de algoritmos gráficos propios y unas 600 líneas que llaman a modelos, es decir, cerca del 87~\% es computación gráfica propia. La tabla~\ref{tab:temas} relaciona cada tema del sílabo del curso con la parte del proyecto que lo aplica.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.9cm} X l@{}}
+\toprule
+Tema del sílabo & Dónde se aplica en Fresh & Sección \\
+\midrule
+6.1.1 Teoría del color & Tinte en CIELAB; color de la barba en YCrCb; croma que baja en las sombras & \ref{sec:tinte}, \ref{sec:barba} \\
+6.1.2 Representación de imágenes & Una foto como suma de gaussianas 2D; capas con alfa & \ref{sec:gauss2d} \\
+6.1.3 Muestreo & Pirámide \emph{pull-push}; resolución de trabajo fija; gaussianas por área 3D con muestreo estratificado & \ref{sec:corte}, \ref{sec:espejo} \\
+6.1.4 Interpolación & Bilineal propia en el \emph{warp}; baricéntricas para anclar hebras y gaussianas; curvas de Bézier y Chaikin & \ref{sec:barba}, \ref{sec:fisica} \\
+6.2.1 Producto vectorial, áreas, Montecarlo & Orientación y área de triángulos; distancia punto--segmento del juego; inicialización aleatoria por importancia de las gaussianas 2D & \ref{sec:juego}, \ref{sec:gauss2d} \\
+6.2.2 Línea de barrido y casco convexo & Fortune es un algoritmo de barrido; casco convexo para recortar regiones & \ref{sec:barba} \\
+6.2.5 Voronoi y Delaunay & Cada evento de círculo de Fortune es un vértice de Voronoi y un triángulo de Delaunay & \ref{sec:barba} \\
+6.3.1 GPU & \emph{Vertex} y \emph{fragment shaders} propios en WebGL2 & \ref{sec:espejo} \\
+6.3.2 Procesamiento de mallas & Malla de 478 puntos elevada a 3D; normales y marcos tangentes; parametrización por triángulo con un marco local ortonormal & \ref{sec:espejo}, \ref{sec:lab} \\
+6.3.3.1 Rasterización & El \emph{warp} recorre el rectángulo envolvente y prueba cada píxel con baricéntricas & \ref{sec:barba} \\
+6.3.3.2 Iluminación y texturas & Lambert en el pelo corto; textura de barba por triángulo; textura de la peluca desde varias vistas & \ref{sec:corte}, \ref{sec:peluca} \\
+6.3.3.3 Superficies visibles & Algoritmo del pintor: gaussianas ordenadas de atrás hacia adelante con \emph{counting sort} & \ref{sec:espejo} \\
+6.3.3.5 \emph{Gaussian Splatting} & \emph{Render} 3DGS con proyección EWA y exportación \texttt{.ply}; gaussianas 2D ajustadas con gradientes analíticos & \ref{sec:espejo}, \ref{sec:gauss2d} \\
+6.4.2 Bordes & Gradientes y tensor de estructura para la barba y la dirección del pelo & \ref{sec:barbatinte}, \ref{sec:peluca} \\
+6.4.4 OpenCV & Lectura de imágenes, filtros, detector de Haar & \ref{sec:deteccion} \\
+6.4.5--6.4.6 YOLO y ajuste fino & Segmentador de pelo entrenado por el equipo & \ref{sec:segmentacion} \\
+\bottomrule
+\end{tabularx}
+\caption{Temas del sílabo de CS4016 que aplica el proyecto.}
+\label{tab:temas}
+\end{table}
+
+Quedan fuera la transformada de Fourier (6.1.5), los \emph{kd-trees} (6.2.4), el \emph{windowing} (6.2.6), CUDA (6.3.1.2) y el trazado de rayos (6.3.3.3--6.3.3.4).
+
 \subsection{Organización del documento}
 
 La sección~\ref{sec:fundamentos} resume los fundamentos teóricos. La sección~\ref{sec:metodologia} describe los requisitos y la metodología de trabajo, y la sección~\ref{sec:arquitectura}, la arquitectura del sistema. La sección~\ref{sec:implementacion} detalla cada módulo con sus algoritmos, decisiones y limitaciones. La sección~\ref{sec:herramientas} indica qué herramienta resolvió cada parte, y la sección~\ref{sec:reproduccion} explica paso a paso cómo reproducir el proyecto. Los resultados se presentan en la sección~\ref{sec:resultados}, las limitaciones en la sección~\ref{sec:limitaciones} y las conclusiones en la sección~\ref{sec:conclusiones}.

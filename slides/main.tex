@@ -169,18 +169,56 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Temas del curso que aplicamos}
+  \small
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \textbf{6.1 Imágenes}
+      \begin{itemize}
+        \item Color: tinte en CIELAB, barba en YCrCb
+        \item Muestreo: pirámide pull-push
+        \item Interpolación: bilineal y baricéntricas
+      \end{itemize}
+      \textbf{6.2 Geometría computacional}
+      \begin{itemize}
+        \item Línea de barrido: Fortune
+        \item Voronoi y Delaunay, casco convexo
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{6.3 Sistemas 3D}
+      \begin{itemize}
+        \item Shaders propios en WebGL2
+        \item Rasterización por baricéntricas
+        \item Lambert y mapeo de texturas
+        \item Algoritmo del pintor (counting sort)
+        \item Gaussian Splatting con proyección EWA
+      \end{itemize}
+      \textbf{6.4 Visión}
+      \begin{itemize}
+        \item Tensor de estructura; YOLO con ajuste fino
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.6em}
+  \nota{Los modelos solo ubican la cara, el pelo y la mano. Cerca del 87~\% del núcleo es gráfica propia.}
+\end{frame}
+
 \begin{frame}{De puntos a malla: Delaunay con Fortune}
+  \small
   \begin{columns}[T]
     \begin{column}{0.55\textwidth}
       \begin{itemize}
         \item 478 puntos $\rightarrow$ 68 (iBUG) $+$ 15 bajo el mentón.
-        \item Delaunay: ningún punto dentro del círculo de otro triángulo; evita triángulos ``aguja''.
+        \item Delaunay: círculos circunscritos vacíos; evita triángulos ``aguja''.
         \item \textbf{Fortune}: línea de barrido y \emph{beach line} de parábolas.
         \begin{itemize}
           \item evento de sitio: aparece un arco;
           \item evento de círculo: desaparece un arco $\Rightarrow$ \textbf{un triángulo}.
         \end{itemize}
-        \item $O(n\log n)$; validado contra Bowyer--Watson.
+        \item $O(n\log n)$ con un árbol; la nuestra usa una lista: $O(n^2)$, 3~ms con 83 puntos.
+        \item Contra Bowyer--Watson: halla un triángulo del borde que ese método pierde.
+        \item Grilla: perturbación mínima y sin triángulos de área cero.
       \end{itemize}
     \end{column}
     \begin{column}{0.38\textwidth}
@@ -369,7 +407,7 @@
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
       \begin{itemize}
-        \item 49 pruebas automáticas, integración continua en GitHub Actions.
+        \item 53 pruebas automáticas, integración continua en GitHub Actions.
         \item Docker: un comando, con modelos incluidos.
         \item Probado en 26 caras: piel clara, morena y negra; pelo liso, rizado, largo, corto.
         \item Funciona con o sin YOLO instalado.
