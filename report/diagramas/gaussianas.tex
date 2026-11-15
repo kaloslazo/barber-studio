@@ -1,0 +1,43 @@
+\documentclass{article}
+\input{estilo}
+\begin{document}
+\begin{tikzpicture}
+
+\node[foto] (target) at (0, 0) {\includegraphics[width=1.85cm]{g2_target.jpg}};
+\node[etapa, above=4pt of target] {Imagen objetivo};
+
+\node[paso, text width=2.55cm] (init) at (2.95, 0) {\textbf{Inicialización}\\más gaussianas\\en los bordes:\\$p \propto 0{,}35 + |\nabla I|$};
+
+\node[paso, text width=2.45cm] (render) at (6.25, 1.15) {\textbf{Render}\\$C(x)=\sum_i c_i\,G_i(x)$};
+\node[paso, text width=2.45cm] (error) at (9.2, 1.15) {\textbf{Error}\\MSE contra la imagen};
+\node[paso, text width=2.45cm] (grad) at (9.2, -1.15) {\textbf{Gradientes}\\analíticos: $\partial q/\partial l_1 = 2u\,d_x$};
+\node[paso, text width=2.45cm] (adam) at (6.25, -1.15) {\textbf{Adam}\\escrito a mano;\\$\Sigma^{-1}=LL^\top$};
+\draw[flecha] (render) -- (error);
+\draw[flecha] (error) -- (grad);
+\draw[flecha] (grad) -- (adam);
+\draw[flecha] (adam) -- (render);
+\node[nota, font=\sffamily\scriptsize\bfseries] at (7.72, 0) {110 a 160\\iteraciones};
+\node[grupo=red, fit=(render)(error)(grad)(adam)] (loop) {};
+\node[titulo=red] at (loop.north west) {Optimización (sin PyTorch)};
+
+\node[foto] (few) at (12.45, 1.0) {\includegraphics[width=1.3cm]{g2_pocas.jpg}};
+\node[nota, below=1pt of few] (fl) {60};
+\node[foto] (many) at (13.9, 1.0) {\includegraphics[width=1.3cm]{g2_render.jpg}};
+\node[nota, below=1pt of many] (ml) {1500};
+\node[foto] (ell) at (13.175, -1.2) {\includegraphics[width=1.3cm]{g2_ellipses.jpg}};
+\node[nota, below=1pt of ell] (el) {cada gaussiana};
+\node[grupo=green, fit=(few)(many)(ell)(el)(fl)] (out) {};
+\node[titulo=green] at (out.north west) {Resultado};
+
+\draw[flecha] (target) -- (init);
+\draw[flecha] (init.east) -- (loop.west |- init.east);
+\draw[flecha] (loop.east |- 0, 0) -- (out.west |- 0, 0);
+
+\coordinate (base) at ($(out.south) + (0, -0.08)$);
+\draw[llave=ink] (init.west |- base) -- (loop.east |- base)
+  node[midway, below=9pt, llavetexto=ink] {Implementado por el equipo};
+\draw[llave=green] (out.west |- base) -- (out.east |- base)
+  node[midway, below=9pt, llavetexto=green] {+8 dB por cada $\times10$};
+
+\end{tikzpicture}
+\end{document}

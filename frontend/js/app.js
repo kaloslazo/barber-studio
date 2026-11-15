@@ -108,12 +108,29 @@ photoInput.addEventListener("change", () => {
   }
 });
 
+function showModelNote(headers) {
+  const note = document.getElementById("dye-model-note");
+  const model = headers.get("X-Hair-Model");
+  const agreement = parseFloat(headers.get("X-Mask-Agreement"));
+  const parts = [model === "yolo" ? "Pelo detectado con el YOLO propio" : "Pelo detectado con MediaPipe"];
+  if (model === "yolo" && !Number.isNaN(agreement)) parts.push(`coincide en ${Math.round(agreement * 100)} % con MediaPipe`);
+  if (document.getElementById("dye-beard").checked) parts.push(headers.get("X-Beard-Dyed") === "1" ? "barba incluida" : "no se encontró barba");
+  note.textContent = parts.join(" · ");
+  note.hidden = false;
+}
+
 applyBtn.addEventListener("click", async () => {
   if (!selectedFile) return;
   const formData = new FormData();
   formData.append("image", selectedFile);
   formData.append("color", selectedColor);
   formData.append("strength", (strengthInput.value / 100).toString());
+  const withBeard = document.getElementById("dye-beard").checked;
+  formData.append("beard", withBeard ? "true" : "false");
+  formData.append("beard_style", withBeard ? document.getElementById("panel-dye").dataset.beardStyle || "" : "");
+  const modelField = document.getElementById("dye-model-field");
+  const modelButton = document.querySelector("[data-dye-model].active");
+  formData.append("model", !modelField.hidden && modelButton ? modelButton.dataset.dyeModel : "auto");
   applyBtn.disabled = true;
   applyBtn.classList.add("loading");
   applyBtn.textContent = "Procesando…";
@@ -128,6 +145,7 @@ applyBtn.addEventListener("click", async () => {
       throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
     const blob = await response.blob();
+    showModelNote(response.headers);
     resultImage.src = URL.createObjectURL(blob);
     compare.hidden = false;
   } catch (error) {
@@ -157,9 +175,6 @@ const beardCompare = document.getElementById("beard-compare");
 const beardOriginal = document.getElementById("beard-original");
 const beardResult = document.getElementById("beard-result");
 const beardStrength = document.getElementById("beard-strength");
-const beardMeshToggle = document.getElementById("beard-mesh");
-const beardMeshCard = document.getElementById("beard-mesh-card");
-const beardMeshImage = document.getElementById("beard-mesh-img");
 let beardFile = null;
 let beardStyle = "full";
 
@@ -237,27 +252,6 @@ beardBtn.addEventListener("click", async () => {
     }
     beardResult.src = URL.createObjectURL(await response.blob());
     beardCompare.hidden = false;
-    if (beardMeshToggle.checked) {
-      try {
-        const meshFormData = new FormData();
-        meshFormData.append("image", beardFile);
-        const meshResponse = await fetch(`${API}/mesh`, {
-          method: "POST",
-          body: meshFormData,
-        });
-        if (meshResponse.ok) {
-          beardMeshImage.src = URL.createObjectURL(await meshResponse.blob());
-          beardMeshCard.hidden = false;
-          beardCompare.classList.add("trio");
-        }
-      } catch (meshError) {
-        beardMeshCard.hidden = true;
-        beardCompare.classList.remove("trio");
-      }
-    } else {
-      beardMeshCard.hidden = true;
-      beardCompare.classList.remove("trio");
-    }
   } catch (error) {
     beardError.textContent = error.message;
     beardError.hidden = false;
@@ -863,7 +857,7 @@ function renderLibrary() {
   pelucas.forEach((peluca) => {
     const card = document.createElement("article");
     card.className = "card peluca-card";
-    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat">Ver en 3D</button></div>`;
+    card.innerHTML = `<img src="${peluca.previewUrl}" alt="${peluca.name}"><h3>${peluca.name}</h3><p>${peluca.date}</p><div class="card-actions"><button data-action="splat" data-icon="rotate-3d">Ver en 3D</button></div>`;
     card.querySelector('[data-action="splat"]').addEventListener("click", () => {
       selectPeluca(peluca, "splat");
       buildHair3dFromPeluca();
@@ -895,7 +889,7 @@ async function toggleTryonCamera() {
     tryonFrame = null;
     tryonAnchor = null;
     tryonServer = null;
-    tryonCamera.textContent = "Encender cámara de la persona B";
+    tryonCamera.textContent = "Encender cámara";
     tryonPlaceholder.hidden = false;
     poseBadge.textContent = "Esperando la cámara";
     renderTryonMesh();
@@ -906,7 +900,7 @@ async function toggleTryonCamera() {
     tryonVideo.srcObject = tryonStream;
     await tryonVideo.play();
     tryonPlaceholder.hidden = true;
-    tryonCamera.textContent = "Apagar cámara de la persona B";
+    tryonCamera.textContent = "Apagar cámara";
     poseBadge.textContent = "Cargando el seguimiento de cabeza…";
     tryonReset = true;
     tryonSmoother = null;

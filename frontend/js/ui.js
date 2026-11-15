@@ -43,6 +43,17 @@
     const target = event.target.closest("[data-go]");
     if (target) go(target.dataset.go);
   });
+  const docTabs = $$("[data-doc]");
+  docTabs.forEach((tab) => tab.addEventListener("click", () => {
+    docTabs.forEach((other) => {
+      other.classList.toggle("active", other === tab);
+      other.setAttribute("aria-selected", other === tab ? "true" : "false");
+    });
+    $$("[data-doc-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.docPanel !== tab.dataset.doc;
+    });
+  }));
+
   window.addEventListener("popstate", () => {
     fromHistory = true;
     go(location.hash.slice(1) || "inicio");
@@ -56,9 +67,16 @@
   const chipText = byId("photo-chip-text");
   let syncing = false;
   let goAfterUpload = null;
+  let chain = null;
+  let chaining = false;
 
   function sharePhoto(file, sourceId) {
     if (!file || !file.type.startsWith("image/")) return;
+    if (!chaining && chain) {
+      URL.revokeObjectURL(chain.origin);
+      chain = null;
+      renderChain();
+    }
     syncing = true;
     PHOTO_INPUTS.forEach((id) => {
       if (id === sourceId) return;
@@ -69,6 +87,7 @@
       input.dispatchEvent(new Event("change", { bubbles: true }));
     });
     syncing = false;
+    if (!chaining) requestFit(file);
     if (chipImg.src) URL.revokeObjectURL(chipImg.src);
     chipImg.src = URL.createObjectURL(file);
     chipText.textContent = "Tu foto";
@@ -126,6 +145,105 @@
     useSample(button.closest("#panel-inicio") ? "beard" : null);
   }));
 
+  const camModal = byId("cam-modal");
+  const camVideo = byId("cam-video");
+  const camCount = byId("cam-count");
+  const camShot = byId("cam-shot");
+  const camError = byId("cam-error");
+  let camStream = null;
+  let camTimer = null;
+  let camGo = null;
+
+  function closeCamera() {
+    clearInterval(camTimer);
+    camTimer = null;
+    camCount.hidden = true;
+    if (camStream) camStream.getTracks().forEach((track) => track.stop());
+    camStream = null;
+    camVideo.srcObject = null;
+    camModal.hidden = true;
+    document.body.classList.remove("modal-open");
+    camShot.disabled = false;
+  }
+
+  async function openCamera(goTo) {
+    camGo = goTo;
+    camError.hidden = true;
+    camShot.disabled = true;
+    camModal.hidden = false;
+    document.body.classList.add("modal-open");
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 960 }, facingMode: "user" },
+        audio: false,
+      });
+      camVideo.srcObject = camStream;
+      await camVideo.play();
+      camShot.disabled = false;
+      camShot.focus();
+    } catch (error) {
+      camError.textContent = `No se pudo abrir la cámara: ${error.message}`;
+      camError.hidden = false;
+    }
+  }
+
+  function capture() {
+    const width = camVideo.videoWidth;
+    const height = camVideo.videoHeight;
+    if (!width || !height) {
+      closeCamera();
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.translate(width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(camVideo, 0, 0, width, height);
+    canvas.toBlob((blob) => {
+      closeCamera();
+      if (!blob) return;
+      sharePhoto(new File([blob], "foto-camara.jpg", { type: "image/jpeg" }), null);
+      if (camGo) go(camGo);
+      toast("Foto tomada. Ya está en todas las herramientas");
+    }, "image/jpeg", 0.92);
+  }
+
+  camShot.addEventListener("click", () => {
+    if (camTimer) return;
+    let left = 3;
+    camShot.disabled = true;
+    camCount.textContent = left;
+    camCount.hidden = false;
+    camTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) {
+        camCount.textContent = left;
+        return;
+      }
+      clearInterval(camTimer);
+      camTimer = null;
+      capture();
+    }, 1000);
+  });
+  byId("cam-cancel").addEventListener("click", closeCamera);
+  byId("cam-close").addEventListener("click", closeCamera);
+  camModal.addEventListener("click", (event) => {
+    if (event.target === camModal) closeCamera();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !camModal.hidden) closeCamera();
+  });
+  $$("[data-change]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    button.closest(".drop-zone").querySelector('input[type="file"]').click();
+  }));
+  $$("[data-camera]").forEach((button) => button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openCamera(button.closest("#panel-inicio") ? "beard" : null);
+  }));
+
   $$(".drop-zone").forEach((zone) => {
     const input = zone.querySelector('input[type="file"]');
     const preview = zone.querySelector(".dz-preview");
@@ -159,7 +277,9 @@
     const modes = document.createElement("div");
     modes.className = "ba-modes";
     modes.innerHTML = `<button type="button" data-pos="100">Antes</button><button type="button" data-pos="50" data-icon="arrows-horizontal">Comparar</button><button type="button" data-pos="0">Después</button>`;
-    ba.append(modes);
+    const bar = ba.nextElementSibling;
+    if (bar && bar.classList.contains("result-bar")) bar.prepend(modes);
+    else ba.after(modes);
     const update = () => {
       ba.style.setProperty("--pos", `${range.value}%`);
       const value = Number(range.value);
@@ -185,11 +305,16 @@
   });
 
   const demoAfter = byId("demo-after");
-  const demoNote = byId("demo-note");
-  $$(".demo-style").forEach((button) => button.addEventListener("click", () => {
+  function showDemo(button) {
     $$(".demo-style").forEach((other) => other.classList.toggle("active", other === button));
     demoAfter.src = `assets/samples/demo-${button.dataset.demo}.jpg`;
-    demoNote.textContent = `${button.querySelector("span").textContent} · generado en ${button.dataset.time} s`;
+    byId("demo-name").textContent = button.querySelector("span").textContent;
+    byId("demo-time").textContent = button.dataset.time;
+    document.dispatchEvent(new CustomEvent("demo:style", { detail: { button } }));
+  }
+  $$(".demo-style").forEach((button) => button.addEventListener("click", (event) => {
+    if (event.isTrusted) document.dispatchEvent(new Event("demo:manual"));
+    showDemo(button);
   }));
 
   $$(".palette").forEach((palette) => {
@@ -206,6 +331,64 @@
     if (first) first.classList.add("selected");
   }
 
+  const meshToggle = byId("beard-mesh");
+  const meshTargets = [
+    { img: byId("beard-original"), caption: byId("beard-original").closest("figure").querySelector("figcaption") },
+    { img: document.querySelector("#beard-drop .dz-preview"), caption: null },
+  ];
+  let meshFile = null;
+  let meshCache = { file: null, url: null };
+
+  async function meshUrl(file) {
+    if (meshCache.file === file && meshCache.url) return meshCache.url;
+    const form = new FormData();
+    form.append("image", file);
+    const response = await fetch("/api/mesh", { method: "POST", body: form });
+    if (!response.ok) throw new Error(String(response.status));
+    if (meshCache.url) URL.revokeObjectURL(meshCache.url);
+    meshCache = { file, url: URL.createObjectURL(await response.blob()) };
+    return meshCache.url;
+  }
+
+  function hideMesh() {
+    meshTargets.forEach(({ img, caption }) => {
+      if (img.dataset.original) img.src = img.dataset.original;
+      delete img.dataset.original;
+      if (caption) caption.textContent = "Antes";
+    });
+  }
+
+  async function syncMesh() {
+    if (!meshToggle.checked || !meshFile) {
+      hideMesh();
+      return;
+    }
+    try {
+      const url = await meshUrl(meshFile);
+      if (!meshToggle.checked) return;
+      meshTargets.forEach(({ img, caption }) => {
+        if (!img.dataset.original) img.dataset.original = img.src;
+        img.src = url;
+        if (caption) caption.textContent = "Malla";
+      });
+    } catch (error) {
+      meshToggle.checked = false;
+      hideMesh();
+      toast("No pudimos dibujar la malla en esta foto");
+    }
+  }
+
+  function setMeshFile(file) {
+    if (!file || !file.type.startsWith("image/")) return;
+    meshFile = file;
+    meshTargets.forEach(({ img }) => delete img.dataset.original);
+    setTimeout(syncMesh, 0);
+  }
+
+  meshToggle.addEventListener("change", syncMesh);
+  byId("beard-input").addEventListener("change", () => setMeshFile(byId("beard-input").files[0]));
+  byId("beard-drop").addEventListener("drop", (event) => setMeshFile(event.dataTransfer.files[0]));
+
   const TOOLS = {
     dye: { panel: "panel-dye", before: "original-image", after: "result-image" },
     beard: { panel: "panel-beard", before: "beard-original", after: "beard-result" },
@@ -217,35 +400,78 @@
     return button ? button.textContent.trim() : "";
   }
 
+  const BEARD_NOTES = {
+    full: "Peine 4 (12 mm) parejo; cuello y mejillas a navaja",
+    goatee: "Peine 3 en bigote y mentón; mejillas a 0",
+    mustache: "Tijera en el bigote; el resto a 0",
+    stubble: "Máquina 1 (3 mm) en toda la barba",
+  };
+  const CUT_NOTES = {
+    "low-fade": "Máquina 0 en patillas y nuca, 1 y 2 hacia arriba; tijera arriba",
+    "mid-fade": "Máquina 0 hasta la sien, 1 y 2 encima; tijera arriba",
+    "high-fade": "Máquina 0 hasta lo alto de los lados, 1 en la unión; tijera arriba",
+    taper: "Máquina 1 en patillas y nuca, 2 y 3 a los lados; tijera arriba",
+    undercut: "Máquina 0,5 pareja en lados y nuca, sin degradar; arriba largo",
+    "hard-part": "Degradado medio (0 a 2) y raya marcada a navaja al costado",
+    crew: "Máquina 2 a los lados y 4 arriba, más largo adelante",
+  };
+
+  function buzzNote(level) {
+    if (level >= 85) return "Máquina 1 (3 mm) en toda la cabeza";
+    if (level >= 60) return "Máquina 2 (6 mm) en toda la cabeza";
+    return "Máquina 3 (9 mm) en toda la cabeza";
+  }
+
+  function toHex(color) {
+    const parts = (color.match(/\d+/g) || []).slice(0, 3).map(Number);
+    if (parts.length !== 3) return "";
+    return `#${parts.map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+  }
+
   function describe(tool) {
     if (tool === "dye") {
       const custom = document.querySelector("#panel-dye .swatch-custom.selected");
-      const picked = document.querySelector("#swatches .swatch.selected span");
-      const color = custom ? byId("custom-color").value.toUpperCase() : (picked ? picked.textContent : "Negro");
+      const picked = document.querySelector("#swatches .swatch.selected");
+      const color = custom ? byId("custom-color").value.toUpperCase() : (picked ? picked.querySelector("span").textContent : "Negro");
+      const hex = custom ? color : (picked ? toHex(picked.querySelector("i").style.background) : "");
       const level = byId("strength").value;
+      const beard = byId("dye-beard").checked;
+      const order = `${custom ? `Color ${color}` : color} al ${level} %${beard ? ", con barba" : ""}`;
+      const note = [hex && `Referencia ${hex}`, beard && "incluye la barba"].filter(Boolean).join(" · ");
       return {
         title: custom ? "Tinte personalizado" : `Tinte ${color.toLowerCase()}`,
-        order: `${custom ? `Color ${color}` : color} al ${level} %`,
-        details: [["Servicio", "Tinte"], ["Color", color], ["Intensidad", `${level} %`]],
+        order,
+        note,
+        details: [["Tinte", order, note]],
         meta: `Intensidad ${level} %`,
       };
     }
     if (tool === "beard") {
-      const style = activeText("#style-group .style-btn.active") || "Completa";
+      const active = document.querySelector("#style-group .style-btn.active");
+      const style = active ? active.textContent.trim() : "Completa";
       const level = byId("beard-strength").value;
+      const order = `${style}, densidad ${level} %`;
+      const note = BEARD_NOTES[active ? active.dataset.style : "full"] || "";
       return {
         title: `Barba ${style.toLowerCase()}`,
-        order: `${style}, densidad ${level} %`,
-        details: [["Servicio", "Barba"], ["Estilo", style], ["Densidad", `${level} %`]],
+        style: active ? active.dataset.style : "full",
+        order,
+        note,
+        details: [["Barba", order, note]],
         meta: `Densidad ${level} %`,
       };
     }
-    const cut = activeText("#hc-style-group .style-btn.active") || "Degradado bajo";
-    const level = byId("hc-strength").value;
+    const active = document.querySelector("#hc-style-group .style-btn.active");
+    const cut = active ? active.textContent.trim() : "Degradado bajo";
+    const key = active ? active.dataset.hcStyle : "low-fade";
+    const level = Number(byId("hc-strength").value);
+    const order = `${cut} al ${level} %`;
+    const note = key === "buzz" ? buzzNote(level) : CUT_NOTES[key] || "";
     return {
       title: cut,
-      order: `${cut} al ${level} %`,
-      details: [["Servicio", "Corte"], ["Corte", cut], ["Intensidad", `${level} %`]],
+      order,
+      note,
+      details: [["Corte", order, note]],
       meta: `Intensidad ${level} %`,
     };
   }
@@ -261,7 +487,23 @@
     ["click", "input"].forEach((type) => panel.addEventListener(type, () => updateOrder(tool)));
     updateOrder(tool);
     byId(conf.after).addEventListener("load", () => {
-      lastResult[tool] = { ...describe(tool), before: byId(conf.before).src, after: byId(conf.after).src };
+      const before = byId(conf.before);
+      const own = describe(tool);
+      const after = byId(conf.after).src;
+      if (!chain) {
+        lastResult[tool] = { ...own, before: before.dataset.original || before.src, after };
+        return;
+      }
+      const steps = [...chain.steps, { tool, title: own.title, order: own.order, note: own.note, style: own.style }];
+      lastResult[tool] = {
+        title: steps.map((step) => step.title).join(" + "),
+        order: own.order,
+        meta: steps.map((step) => SERVICE[step.tool]).join(" + "),
+        details: steps.map((step) => [SERVICE[step.tool], step.order, step.note]),
+        before: chain.origin,
+        after,
+      };
+      before.src = chain.origin;
     });
   });
 
@@ -284,23 +526,41 @@
     new MutationObserver(check).observe(button, { childList: true, characterData: true, subtree: true });
   });
 
+  const ICON_STATES = [
+    [/…$/, "loader-2"],
+    [/^Apagar/, "camera-off"],
+    [/^Detener/, "player-stop"],
+  ];
+  function syncIcon(button) {
+    if (!button.dataset.iconIdle) button.dataset.iconIdle = button.dataset.icon;
+    const text = button.textContent.trim();
+    const state = ICON_STATES.find(([pattern]) => pattern.test(text));
+    const icon = state ? state[1] : button.dataset.iconIdle;
+    if (button.dataset.icon !== icon) button.dataset.icon = icon;
+    button.classList.toggle("is-working", icon === "loader-2");
+  }
+  $$("button[data-icon]:not(.group-tab, .menu-item, .photo-chip)").forEach((button) => {
+    new MutationObserver(() => syncIcon(button)).observe(button, { childList: true, characterData: true, subtree: true });
+  });
+
   const MESSAGES = [
-    [/^Invalid image file/i, "El archivo no es una imagen válida."],
-    [/^Failed to encode result/i, "No se pudo generar el resultado."],
-    [/^No face detected/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
-    [/^Unknown beard style: (.*)/i, "Estilo de barba desconocido: $1"],
-    [/temporarily disabled/i, "Ese corte todavía no está disponible."],
-    [/^Unknown haircut style: (.*)/i, "Corte desconocido: $1"],
-    [/^Face landmarker model not found/i, "Falta el modelo de puntos faciales en el servidor."],
-    [/^No hair or face detected/i, "No encontramos pelo ni cara en la foto."],
-    [/^Frames and scan angles must match/i, "Las capturas y los ángulos no coinciden."],
-    [/^Scan your face first/i, "Primero escanea tu cara en «Tu cara», dentro de Peluca 3D."],
-    [/^No hair detected in the captures/i, "No encontramos pelo en las capturas."],
-    [/^count must be between/i, "La cantidad debe estar entre 10 y 5000."],
-    [/^Unknown target: (.*)/i, "Objetivo desconocido: $1"],
-    [/^Unknown live mode: (.*)/i, "Modo en vivo desconocido: $1"],
-    [/^Send between 1 and 16 frames/i, "Envía entre 1 y 16 fotos."],
-    [/^No face found in the scan frames/i, "No encontramos tu cara en las capturas."],
+    [/^Invalid image file.*$/i, "El archivo no es una imagen válida."],
+    [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz."],
+    [/^Failed to encode result.*$/i, "No se pudo generar el resultado."],
+    [/^No face detected.*$/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
+    [/^Unknown beard style: (.*)$/i, "Estilo de barba desconocido: $1"],
+    [/^.*temporarily disabled.*$/i, "Ese corte todavía no está disponible."],
+    [/^Unknown haircut style: (.*)$/i, "Corte desconocido: $1"],
+    [/^Face landmarker model not found.*$/i, "Falta el modelo de puntos faciales en el servidor."],
+    [/^No hair or face detected.*$/i, "No encontramos pelo ni cara en la foto."],
+    [/^Frames and scan angles must match.*$/i, "Las capturas y los ángulos no coinciden."],
+    [/^Scan your face first.*$/i, "Primero escanea tu cara en «Tu cara», dentro de Peluca 3D."],
+    [/^No hair detected in the captures.*$/i, "No encontramos pelo en las capturas."],
+    [/^count must be between.*$/i, "La cantidad debe estar entre 10 y 5000."],
+    [/^Unknown target: (.*)$/i, "Objetivo desconocido: $1"],
+    [/^Unknown live mode: (.*)$/i, "Modo en vivo desconocido: $1"],
+    [/^Send between 1 and 16 frames.*$/i, "Envía entre 1 y 16 fotos."],
+    [/^No face found in the scan frames.*$/i, "No encontramos tu cara en las capturas."],
     [/^(Failed to fetch|Load failed|NetworkError.*)$/i, "No hay conexión con el servidor."],
     [/^No se pudo abrir la cámara: .*(permission|denied|notallowed).*/i, "No se pudo abrir la cámara: no diste permiso."],
     [/^No se pudo abrir la cámara: .*(notfound|not found|device).*/i, "No se pudo abrir la cámara: no encontramos ninguna."],
@@ -314,6 +574,16 @@
       const next = text.replace(rule[0], rule[1]);
       if (next !== text) banner.textContent = next;
     }).observe(banner, { childList: true, characterData: true, subtree: true });
+  });
+
+  fetch("/api/health").then((response) => response.json()).then((health) => {
+    byId("dye-model-field").hidden = !health.yolo;
+  }).catch(() => null);
+
+  $$("[data-dye-model]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $$("[data-dye-model]").forEach((other) => other.classList.toggle("active", other === button));
+    });
   });
 
   const STORE = "barberstudio-looks-v1";
@@ -444,7 +714,8 @@
     drawPanel(ctx, before, 72, 284, panelW, 540, "Antes");
     drawPanel(ctx, after, 72 + panelW + 24, 284, panelW, 540, "Después");
     let y = 900;
-    look.details.forEach(([label, value]) => {
+    const noted = look.details.some((row) => row[2]);
+    look.details.forEach(([label, value, note]) => {
       ctx.fillStyle = "#6A6A69";
       ctx.font = '600 18px Figtree, Arial, sans-serif';
       ctx.fillText(label.toUpperCase(), 72, y);
@@ -452,15 +723,20 @@
       ctx.font = '40px "Libre Caslon Display", Georgia, serif';
       ctx.textAlign = "right";
       ctx.fillText(value, W - 72, y + 6);
+      if (note) {
+        ctx.fillStyle = "#6A6A69";
+        ctx.font = '500 21px Figtree, Arial, sans-serif';
+        ctx.fillText(note, W - 72, y + 42);
+      }
       ctx.textAlign = "left";
       ctx.strokeStyle = "#BDBDBA";
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
-      ctx.moveTo(72, y + 34);
-      ctx.lineTo(W - 72, y + 34);
+      ctx.moveTo(72, y + (noted ? 64 : 34));
+      ctx.lineTo(W - 72, y + (noted ? 64 : 34));
       ctx.stroke();
       ctx.setLineDash([]);
-      y += 84;
+      y += noted ? 104 : 84;
     });
     ctx.fillStyle = "#0A0A0A";
     ctx.fillRect(72, H - 120, W - 144, 3);
@@ -504,6 +780,110 @@
       }
     });
   });
+
+  const SERVICE = { beard: "Barba", dye: "Tinte", haircut: "Corte" };
+  const NEXT = { beard: "la barba", dye: "el tinte", haircut: "el corte" };
+
+  function renderChain() {
+    $$("[data-chain-note]").forEach((note) => {
+      note.hidden = !chain;
+      if (chain) note.querySelector("strong").textContent = chain.steps.map((step) => step.title).join(" + ");
+    });
+    const beardStep = chain ? [...chain.steps].reverse().find((step) => step.tool === "beard") : null;
+    byId("panel-dye").dataset.beardStyle = beardStep ? beardStep.style : "";
+  }
+
+  async function chainTo(tool, target) {
+    const result = lastResult[tool];
+    const blob = await (await fetch(result.after)).blob();
+    if (!chain) {
+      const origin = await (await fetch(result.before)).blob();
+      chain = { origin: URL.createObjectURL(origin), originBlob: origin, steps: [] };
+    }
+    const own = describe(tool);
+    chain.steps = [...chain.steps, { tool, title: own.title, order: own.order, note: own.note, style: own.style }];
+    const name = `${slug(chain.steps.map((step) => step.title).join(" "))}.jpg`;
+    chaining = true;
+    try {
+      sharePhoto(new File([blob], name, { type: blob.type || "image/jpeg" }), null);
+    } finally {
+      chaining = false;
+    }
+    renderChain();
+    go(target);
+    toast(`${result.title}: listo. Ahora elige ${NEXT[target]}`);
+  }
+
+  $$(".chain-bar").forEach((bar) => {
+    const tool = bar.dataset.tool;
+    bar.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-chain]");
+      if (!button || !lastResult[tool]) return;
+      button.disabled = true;
+      try {
+        await chainTo(tool, button.dataset.chain);
+      } catch (error) {
+        toast("No se pudo combinar");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest("[data-unchain]") || !chain) return;
+    const file = new File([chain.originBlob], "foto-original.jpg", { type: chain.originBlob.type || "image/jpeg" });
+    sharePhoto(file, null);
+    toast("Volviste a tu foto original");
+  });
+
+  const FIT_PANELS = [
+    { panel: "panel-beard", key: "beard", group: "#style-group", attr: "style" },
+    { panel: "panel-haircut", key: "haircut", group: "#hc-style-group", attr: "hcStyle" },
+  ];
+  let fit = null;
+  let fitRequest = 0;
+
+  function renderFit() {
+    FIT_PANELS.forEach(({ panel, key, group, attr }) => {
+      const card = document.querySelector(`#${panel} [data-fit]`);
+      const buttons = $$(`${group} .style-btn`);
+      buttons.forEach((button) => delete button.dataset.fit);
+      card.hidden = !fit;
+      if (!fit) return;
+      card.querySelector("[data-fit-label]").textContent = fit.label.toLowerCase();
+      card.querySelector("[data-fit-why]").textContent = fit.why;
+      const picks = card.querySelector("[data-fit-picks]");
+      picks.textContent = "";
+      fit[key].forEach((style) => {
+        const target = buttons.find((button) => button.dataset[attr] === style);
+        if (!target) return;
+        target.dataset.fit = "";
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "fit-pick";
+        chip.textContent = target.textContent.trim();
+        chip.addEventListener("click", () => target.click());
+        picks.append(chip);
+      });
+    });
+  }
+
+  async function requestFit(file) {
+    const ticket = ++fitRequest;
+    fit = null;
+    renderFit();
+    const form = new FormData();
+    form.append("image", file);
+    try {
+      const response = await fetch("/api/face-shape", { method: "POST", body: form });
+      if (!response.ok || ticket !== fitRequest) return;
+      fit = await response.json();
+      renderFit();
+    } catch (error) {
+      fit = null;
+    }
+  }
 
   function lookCard(look, compact) {
     const card = document.createElement("article");

@@ -1,0 +1,22 @@
+\section{Limitaciones y trabajo futuro}
+\label{sec:limitaciones}
+
+\textbf{Limitaciones conocidas.}
+\begin{itemize}
+  \item \textbf{Oclusiones.} Si una mano pasa delante de la cara en el modo en vivo, la barba se dibuja encima de la mano.
+  \item \textbf{Pelo sobre los ojos.} En el rapado y el \emph{crew cut}, si un flequillo largo tapa un ojo, quedan mechones sueltos, porque no se borra pelo dentro del polígono de la cara para no inventar el ojo.
+  \item \textbf{Orejas tapadas.} Si el pelo tapaba las orejas, el rapado pone pelo corto donde irían las orejas, porque no hay información para reconstruirlas.
+  \item \textbf{Barbas muy densas.} En barbas reales muy negras y tupidas, el tinte a veces toma solo los bordes: la textura no se distingue dentro de una zona uniforme.
+  \item \textbf{Una sola vista en el espejo 3D.} El espejo se construye desde una foto: no tiene nuca, y con giros de más de unos 40° se estira el relieve detrás de la cara.
+  \item \textbf{Velocidad en vivo.} El modo en vivo corre a unos 10 cuadros por segundo; con giros rápidos la barba se atrasa un poco.
+  \item \textbf{Clasificación de la cara.} Es una heurística calibrada estadísticamente, no un diagnóstico; caras en el límite entre dos formas pueden caer en cualquiera de ellas.
+  \item \textbf{Un solo usuario en vivo.} El estado del modo en vivo es único por servidor: dos cámaras a la vez compartirían el anclaje.
+\end{itemize}
+
+\textbf{Trabajo futuro.}
+\begin{itemize}
+  \item Tinte en vivo en el navegador con un \emph{shader} de WebGL y segmentación en JavaScript, para llegar a 30 cuadros por segundo sin servidor.
+  \item Optimizar las gaussianas 3D con varias vistas (3DGS entrenado) para completar la cabeza.
+  \item Segmentar la barba con un modelo propio, entrenado con las máscaras de CelebAMask-HQ.
+  \item Estado del modo en vivo por sesión, para varios usuarios a la vez.
+\end{itemize}

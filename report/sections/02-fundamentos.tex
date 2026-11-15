@@ -1,0 +1,74 @@
+\section{Fundamentos}
+\label{sec:fundamentos}
+
+Esta sección resume la teoría que usa el proyecto, con la notación que se emplea en el resto del documento.
+
+\subsection{Imágenes, espacios de color y composición}
+
+Una imagen digital es una función muestreada $I:\{0,\dots,W-1\}\times\{0,\dots,H-1\}\to[0,255]^3$ \cite{gonzalez2018}. Además de RGB, el proyecto usa dos espacios de color:
+\begin{itemize}
+  \item \textbf{YCrCb}, que separa la luminancia $Y$ de dos componentes de croma $C_r$ y $C_b$. Permite cambiar el tono de una barba sin alterar su brillo.
+  \item \textbf{CIELAB}, diseñado para que distancias iguales correspondan aproximadamente a diferencias de color percibidas iguales \cite{cie2004,fairchild2013}. $L^*$ es la luminosidad, y $a^*$ y $b^*$ son los ejes verde--rojo y azul--amarillo. Cambiar $a^*,b^*$ manteniendo la variación de $L^*$ recolorea sin perder la textura.
+\end{itemize}
+
+La composición de una capa de color $c$ con opacidad $\alpha\in[0,1]$ sobre un fondo $b$ sigue el operador \emph{over} de Porter y Duff \cite{porter1984}:
+\begin{equation}
+  C = \alpha\,c + (1-\alpha)\,b.
+\end{equation}
+Para la barba también se usa el modo \emph{multiply}, $C=(1-\alpha)\,b+\alpha\,b\,m$ con $m\in[0,1]$, que oscurece la piel sin tapar sus luces y sombras.
+
+\subsection{Muestreo, interpolación y coordenadas baricéntricas}
+
+Cuando una transformación geométrica lleva un píxel de salida a una posición no entera $(x,y)$ de la imagen de origen, el valor se reconstruye con interpolación bilineal \cite{marschner2016}. Con $x_0=\lfloor x\rfloor$, $y_0=\lfloor y\rfloor$, $w_x=x-x_0$ y $w_y=y-y_0$:
+\begin{equation}
+  v=(1-w_x)(1-w_y)P_{00}+w_x(1-w_y)P_{10}+(1-w_x)w_yP_{01}+w_xw_yP_{11}.
+\end{equation}
+
+Un punto $p$ dentro de un triángulo $ABC$ se escribe como $p=\lambda_1A+\lambda_2B+\lambda_3C$, con $\lambda_1+\lambda_2+\lambda_3=1$. Estas son sus coordenadas baricéntricas: el punto está dentro del triángulo si y solo si $\lambda_i\ge0$ para todo $i$. Además, si los vértices se mueven, $p'=\lambda_1A'+\lambda_2B'+\lambda_3C'$ es el mismo punto ``pegado'' a la superficie. El proyecto usa esta propiedad para anclar pelos y gaussianas a la cara.
+
+\subsection{Triangulación de Delaunay y algoritmo de Fortune}
+
+Dado un conjunto de puntos $P$ en el plano, la triangulación de Delaunay es aquella en la que ningún punto de $P$ cae dentro del círculo circunscrito de ningún triángulo \cite{delaunay1934}. Entre todas las triangulaciones posibles, maximiza el ángulo mínimo \cite{deberg2008}; por eso evita triángulos muy finos, que deformarían mal una textura. Es el grafo dual del diagrama de Voronoi.
+
+El algoritmo de Fortune \cite{fortune1987} construye el diagrama de Voronoi en $O(n\log n)$ con una línea de barrido. Mantiene una \emph{beach line} formada por arcos de parábola, uno por cada sitio ya visitado, y procesa dos tipos de eventos en una cola de prioridad:
+\begin{itemize}
+  \item \textbf{evento de sitio}: la línea alcanza un punto nuevo y aparece un arco;
+  \item \textbf{evento de círculo}: un arco se reduce a ancho cero y desaparece. Su posición es un vértice de Voronoi, y los tres sitios que lo definen tienen un círculo circunscrito vacío, es decir, forman un triángulo de Delaunay.
+\end{itemize}
+Las alternativas incrementales, como Bowyer--Watson \cite{bowyer1981,watson1981}, insertan los puntos uno por uno y rehacen los triángulos cuyo círculo contiene el punto nuevo.
+
+\subsection{Transformación afín por triángulo}
+
+Una transformación afín $T(x,y)=(a x+b y+c,\; d x+e y+f)$ queda determinada por tres pares de puntos. Por eso, una malla de triángulos en dos posiciones (origen y destino) define un \emph{warp} afín por partes \cite{szeliski2022}: cada triángulo de la textura se lleva a su triángulo correspondiente sobre la cara. Para no dejar huecos, se recorre cada píxel del triángulo de destino y se calcula con la transformación inversa de dónde leer en el origen (\emph{backward mapping}).
+
+\subsection{Gaussianas, \emph{splatting} y proyección EWA}
+
+Una gaussiana anisótropa 3D con centro $\mu$ y covarianza $\Sigma$ tiene densidad $G(x)=\exp\!\left(-\tfrac12(x-\mu)^\top\Sigma^{-1}(x-\mu)\right)$. \emph{3D Gaussian Splatting} \cite{kerbl2023} representa una escena como un conjunto de gaussianas con color y opacidad. Para dibujarlas, cada gaussiana se proyecta a la pantalla con la aproximación EWA \cite{zwicker2001}: si $W$ es la rotación de la vista y $J$ la jacobiana de la proyección en el centro, la covarianza en pantalla es
+\begin{equation}
+  \Sigma_{2D}=J\,W\,\Sigma\,W^\top J^\top.
+\end{equation}
+Las gaussianas proyectadas se ordenan de atrás hacia adelante y se componen con
+\begin{equation}
+  C=\sum_i c_i\,\alpha_i\prod_{j<i}(1-\alpha_j).
+\end{equation}
+En 2D, GaussianImage \cite{zhang2024} representa una imagen como suma de gaussianas sin orden, ajustadas por descenso de gradiente. El proyecto implementa ambas ideas desde cero, sin bibliotecas de diferenciación automática.
+
+\subsection{Simulación con Verlet y dinámica basada en posiciones}
+
+La integración de Verlet \cite{verlet1967} avanza una partícula usando su posición actual y la anterior: $x_{t+h}=x_t+(x_t-x_{t-h})+a\,h^2$. No guarda la velocidad explícitamente, por lo que imponer restricciones consiste simplemente en mover posiciones. La dinámica basada en posiciones (PBD) \cite{jakobsen2001,muller2007} aprovecha esto: después de integrar, proyecta las partículas para que cumplan restricciones como la distancia fija entre nodos de una cuerda. Es estable incluso con pasos de tiempo grandes, algo necesario a 10 cuadros por segundo.
+
+\subsection{Rellenado de regiones}
+
+Cuando se quita pelo que tapaba el fondo, hay que inventar los píxeles faltantes. El \emph{inpainting} por \emph{fast marching} de Telea \cite{telea2004} propaga los valores del borde hacia adentro. El método \emph{pull-push} \cite{gortler1996} construye una pirámide: en la fase \emph{pull} promedia, en cada nivel, solo los píxeles conocidos ponderados por su peso; en la fase \emph{push} rellena los huecos de cada nivel fino con el nivel grueso. La diferencia clave para este proyecto es que en \emph{pull-push} se elige qué píxeles cuentan como conocidos.
+
+\subsection{Orientación local: el tensor de estructura}
+
+Con los gradientes $g_x,g_y$ de una imagen, el tensor de estructura promedia en una vecindad la matriz $J=\begin{pmatrix}g_x^2 & g_xg_y\\ g_xg_y & g_y^2\end{pmatrix}$ \cite{bigun1987}. Sus autovalores $\lambda_1\ge\lambda_2$ describen la textura local:
+\begin{itemize}
+  \item la \textbf{orientación dominante} es $\theta=\tfrac12\operatorname{atan2}(2J_{xy},J_{xx}-J_{yy})$;
+  \item la \textbf{coherencia} $(\lambda_1-\lambda_2)/(\lambda_1+\lambda_2)$ vale cerca de 1 en un borde recto y largo, y es menor en una textura de trazos en todas direcciones, como la barba.
+\end{itemize}
+
+\subsection{Detección y segmentación con modelos}
+
+El detector de Viola--Jones \cite{viola2001} clasifica ventanas con una cascada de rasgos de Haar. MediaPipe \cite{lugaresi2019} ofrece, entre otros, un modelo de malla facial de 468 puntos con profundidad, más 10 puntos de iris \cite{kartynnik2019}, y un segmentador por clases (fondo, pelo, piel del cuerpo, piel de la cara, ropa y accesorios). YOLO \cite{redmon2016} es una familia de detectores de una sola pasada; YOLOv8 \cite{jocher2023} agrega una cabeza de segmentación por instancia. Las máscaras gruesas se ajustan a los bordes reales con el filtro guiado de He \emph{et al.} \cite{he2013}, que usa la propia foto como guía.

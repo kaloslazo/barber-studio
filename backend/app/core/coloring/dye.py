@@ -1,54 +1,59 @@
 import cv2
 import numpy as np
 
-from app.core.compositing.alpha import inside_feather
+
+def hex_to_bgr(hex_color):
+    hex_color = hex_color.strip().lstrip("#")
+    if len(hex_color) != 6:
+        raise ValueError(f"Invalid hex color: {hex_color}")
+    try:
+        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError as error:
+        raise ValueError(f"Invalid hex color: {hex_color}") from error
+    return b, g, r
 
 
 def hex_to_hsv(hex_color):
-    hex_color = hex_color.lstrip("#")
-    if len(hex_color) != 6:
-        raise ValueError(f"Invalid hex color: {hex_color}")
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
-    pixel = np.uint8([[[b, g, r]]])
-    hsv = cv2.cvtColor(pixel, cv2.COLOR_BGR2HSV)[0, 0]
+    b, g, r = hex_to_bgr(hex_color)
+    hsv = cv2.cvtColor(np.uint8([[[b, g, r]]]), cv2.COLOR_BGR2HSV)[0, 0]
     return int(hsv[0]), int(hsv[1]), int(hsv[2])
 
 
-def apply_dye(image_bgr, mask, target_hsv, strength=0.75):
-    """Recolor masked pixels with the target color, keeping smooth shading.
+def apply_dye(image_bgr, alpha, hex_color, strength=0.75):
+    """Recolor the hair in `alpha` (0..1 soft mask) with the dye color.
 
-    Hue and saturation come from the target dye. The brightness map is the
-    hair's own luminance smoothed (strand noise removed, only large lights
-    and shadows kept), rescaled to the target color brightness. Dark hair is
-    therefore lifted to the dye's lightness automatically, like real opaque
-    dye. `strength` (0..1) blends between natural hair and full dye.
-    """
-    target_h, target_s, target_v = target_hsv
-    strength = float(np.clip(strength, 0.0, 1.0))
+    Works in Lab. The hair keeps its own strand texture (lightness detail
+    around its mean) while the base lightness moves toward the dye, so dark
+    hair can go blond and blond hair can go black. Chroma comes from the dye
+    and fades in the deepest shadows like real pigment. `strength` (0..1)
+    blends between natural hair and full dye."""
+    weight = np.clip(alpha.astype(np.float32), 0.0, 1.0) * float(np.clip(strength, 0.0, 1.0))
+    core = alpha > 0.5
+    if core.sum() < 50:
+        core = alpha > 0.1
+    if core.sum() < 50:
+        return image_bgr.copy()
 
-    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    lightness = lab[..., 0]
+    hair_mean = float(lightness[core].mean())
+    hair_std = float(lightness[core].std()) + 1e-3
+    target = cv2.cvtColor(np.uint8([[hex_to_bgr(hex_color)]]), cv2.COLOR_BGR2LAB)[0, 0].astype(np.float32)
 
-    rows = np.where((mask > 0).any(axis=1))[0]
-    span = rows.max() - rows.min() if len(rows) else image_bgr.shape[0] // 4
-    smooth_k = max(15, min(81, int(span / 8) | 1))
-    v_smooth = cv2.GaussianBlur(hsv[..., 2], (smooth_k, smooth_k), 0)
+    base = 0.72 * target[0] + 0.28 * hair_mean
+    contrast = float(np.clip(20.0 / hair_std, 0.9, 1.8))
+    detail = lightness - cv2.GaussianBlur(lightness, (0, 0), 1.5)
+    shading = cv2.GaussianBlur(lightness, (0, 0), 1.5) - hair_mean
+    new_l = np.clip(base + contrast * (0.8 * shading + 1.2 * detail), 0, 255)
 
-    inside = mask > 0
-    mean_v = v_smooth[inside].mean() + 1e-6
-    v_rel = v_smooth / mean_v
-    v_rel = 1.0 + 0.6 * (v_rel - 1.0)
+    depth = np.clip(new_l / max(float(target[0]), 40.0), 0.0, 1.0)
+    chroma = 0.4 + 0.5 * depth
+    dyed = np.empty_like(lab)
+    dyed[..., 0] = new_l
+    dyed[..., 1] = 128.0 + (target[1] - 128.0) * chroma
+    dyed[..., 2] = 128.0 + (target[2] - 128.0) * chroma
+    dyed_bgr = cv2.cvtColor(np.clip(dyed, 0, 255).astype(np.uint8), cv2.COLOR_LAB2BGR).astype(np.float32)
 
-    dyed_hsv = hsv.copy()
-    dyed_hsv[..., 0] = target_h
-    dyed_hsv[..., 1] = np.clip(target_s * (0.85 + 0.15 * hsv[..., 1] / 255.0), 0, 255)
-    dyed_hsv[..., 2] = np.clip(target_v * v_rel, 0, 255).astype(np.uint8)
-    dyed_hsv[..., 1] = dyed_hsv[..., 1].astype(np.uint8)
-    dyed = cv2.cvtColor(dyed_hsv, cv2.COLOR_HSV2BGR)
-
-    feather = max(4.0, min(25.0, span / 40.0))
-    alpha = inside_feather(mask, feather)
-    alpha = alpha[..., None] * strength
-    blended = image_bgr.astype(np.float32) * (1.0 - alpha) + dyed.astype(np.float32) * alpha
+    weight = weight[..., None]
+    blended = image_bgr.astype(np.float32) * (1.0 - weight) + dyed_bgr * weight
     return np.clip(blended, 0, 255).astype(np.uint8)

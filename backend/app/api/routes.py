@@ -2,6 +2,7 @@ import base64
 import hashlib
 import io
 import json
+import threading
 import zipfile
 
 import cv2
@@ -16,15 +17,26 @@ from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.detection.landmarks import MODELS_DIR
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
-from app.core.compositing.haircut import DISABLED_STYLES as HAIRCUT_DISABLED
 from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
 from app.core.splatting.face3d import face_scan_debug_image
 from app.core.splatting.head3d import to_ply
 
+MAX_SIDE = 2048
+
 router = APIRouter(prefix="/api")
 pipeline = StylePipeline()
 lab = LabSession(pipeline)
+work_lock = threading.Lock()
+
+
+def locked(fn, *args, **kwargs):
+    with work_lock:
+        return fn(*args, **kwargs)
+
+
+async def work(fn, *args, **kwargs):
+    return await run_in_threadpool(locked, fn, *args, **kwargs)
 
 
 def decode_image(data):
@@ -32,6 +44,10 @@ def decode_image(data):
     image = cv2.imdecode(buffer, cv2.IMREAD_COLOR)
     if image is None:
         raise HTTPException(status_code=400, detail="Invalid image file")
+    longest = max(image.shape[:2])
+    if longest > MAX_SIDE:
+        scale = MAX_SIDE / longest
+        image = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     return image
 
 
@@ -49,9 +65,21 @@ def encode_jpeg(image, quality=88):
     return Response(content=encoded.tobytes(), media_type="image/jpeg")
 
 
+HAIR_MODELS = ("auto", "yolo", "mediapipe")
+
+
 @router.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "yolo": pipeline.yolo_available}
+
+
+@router.post("/face-shape")
+async def face_shape(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    result = await work(pipeline.face_shape, image_bgr)
+    if result is None:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    return result
 
 
 @router.post("/preview")
@@ -65,15 +93,29 @@ async def dye(
     image: UploadFile = File(...),
     color: str = Form("#7a3ba8"),
     strength: float = Form(0.75),
+    beard: bool = Form(False),
+    beard_style: str = Form(""),
+    model: str = Form("auto"),
 ):
+    if model not in HAIR_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown hair model: {model}")
+    if beard_style and beard_style not in STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown beard style: {beard_style}")
     image_bgr = decode_image(await image.read())
+    info = {}
     try:
-        result = pipeline.apply_hair_dye(image_bgr, color, strength)
+        result = await work(pipeline.apply_hair_dye, image_bgr, color, strength, beard=beard, model=model, info=info, beard_style=beard_style or None)
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        status = 422 if str(error).startswith("No hair") else 400
+        raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
-    return encode_png(result)
+    response = encode_png(result)
+    response.headers["X-Hair-Model"] = info.get("model", "mediapipe")
+    if "agreement" in info:
+        response.headers["X-Mask-Agreement"] = f"{info['agreement']:.3f}"
+    response.headers["X-Beard-Dyed"] = "1" if info.get("beard") else "0"
+    return response
 
 
 @router.post("/beard")
@@ -85,7 +127,7 @@ async def beard(
     if style not in STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown beard style: {style}")
     image_bgr = decode_image(await image.read())
-    result = pipeline.apply_beard(image_bgr, style, strength)
+    result = await work(pipeline.apply_beard, image_bgr, style, strength)
     if result is None:
         raise HTTPException(
             status_code=422, detail="No face detected or landmark model missing"
@@ -99,18 +141,14 @@ async def haircut(
     style: str = Form("low-fade"),
     strength: float = Form(0.9),
 ):
-    if style in HAIRCUT_DISABLED:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Style '{style}' is temporarily disabled during low-fade validation",
-        )
     if style not in HAIRCUT_STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown haircut style: {style}")
     image_bgr = decode_image(await image.read())
     try:
-        result = pipeline.apply_haircut(image_bgr, style, strength)
+        result = await work(pipeline.apply_haircut, image_bgr, style, strength)
     except ValueError as error:
-        raise HTTPException(status_code=400, detail=str(error))
+        status = 422 if str(error).startswith("No hair") else 400
+        raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")
     return encode_png(result)
@@ -119,7 +157,7 @@ async def haircut(
 @router.post("/mesh")
 async def mesh(image: UploadFile = File(...)):
     image_bgr = decode_image(await image.read())
-    result = pipeline.face_mesh(image_bgr)
+    result = await work(pipeline.face_mesh, image_bgr)
     if result is None:
         raise HTTPException(
             status_code=422, detail="No face detected or landmark model missing"
@@ -139,7 +177,7 @@ async def face_landmarker_model():
 async def transfer_scan(image: UploadFile = File(...)):
     data = await image.read()
     image_bgr = decode_image(data)
-    result, pose, yaw, anchor = await run_in_threadpool(pipeline.transfer_scan, image_bgr, frame_key(data))
+    result, pose, yaw, anchor = await work(pipeline.transfer_scan, image_bgr, frame_key(data))
     response = encode_png(result)
     response.headers["X-Head-Anchor"] = json.dumps(anchor)
     response.headers["X-Head-Pose"] = pose
@@ -150,7 +188,7 @@ async def transfer_scan(image: UploadFile = File(...)):
 @router.post("/transfer/asset")
 async def transfer_asset(image: UploadFile = File(...)):
     image_bgr = decode_image(await image.read())
-    result = pipeline.transfer_asset(image_bgr)
+    result = await work(pipeline.transfer_asset, image_bgr)
     if result is None:
         raise HTTPException(status_code=422, detail="No hair or face detected in the image")
     return encode_png(result)
@@ -160,8 +198,8 @@ async def transfer_asset(image: UploadFile = File(...)):
 async def transfer_tryon(image: UploadFile = File(...), reset: bool = Form(False)):
     image_bgr = decode_image(await image.read())
     if reset:
-        pipeline.reset_tryon()
-    anchor = await run_in_threadpool(pipeline.transfer_tryon, image_bgr)
+        await work(pipeline.reset_tryon)
+    anchor = await work(pipeline.transfer_tryon, image_bgr)
     return JSONResponse(anchor)
 
 
@@ -175,7 +213,7 @@ async def transfer_reconstruct(
         raise HTTPException(status_code=400, detail="Frames and scan angles must match")
     images = [decode_image(await frame.read()) for frame in frames]
     try:
-        mesh = pipeline.reconstruct_transfer_mesh(images, angle_values)
+        mesh = await work(pipeline.reconstruct_transfer_mesh, images, angle_values)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     return JSONResponse(mesh)
@@ -190,7 +228,7 @@ async def transfer_face(face_frames: List[UploadFile] = File(...)):
     data = [await frame.read() for frame in face_frames]
     images = [decode_image(item) for item in data]
     try:
-        scan = await run_in_threadpool(pipeline.face_scan, images, frame_key(b"".join(data)))
+        scan = await work(pipeline.face_scan, images, frame_key(b"".join(data)))
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     success, encoded = cv2.imencode(".jpg", face_scan_debug_image(scan))
@@ -242,7 +280,7 @@ async def transfer_splat(
         face_data = [await frame.read() for frame in face_frames]
         faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data))
     try:
-        rows, meta = await run_in_threadpool(
+        rows, meta = await work(
             pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
         )
     except ValueError as error:
@@ -281,7 +319,7 @@ async def gaussians(
     if beard != "none" and beard not in STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown beard style: {beard}")
     image_bgr = decode_image(await image.read())
-    result = await run_in_threadpool(
+    result = await work(
         pipeline.gaussian_portrait, image_bgr, count, face_crop, None if beard == "none" else beard,
     )
     return JSONResponse({
@@ -299,7 +337,7 @@ async def gaussians(
 async def game_start(target: str = Form("goatee")):
     if target not in GAME_TARGETS:
         raise HTTPException(status_code=400, detail=f"Unknown target: {target}")
-    pipeline.start_game(target)
+    await work(pipeline.start_game, target)
     return JSONResponse({"target": target})
 
 
@@ -320,7 +358,7 @@ async def game_frame(
     pointer = None
     if 0.0 <= pointer_x <= 1.0 and 0.0 <= pointer_y <= 1.0:
         pointer = (pointer_x * w, pointer_y * h)
-    result, stats = pipeline.game_frame(image_bgr, pointer, use_hand, pointer_down=pointer_down)
+    result, stats = await work(pipeline.game_frame, image_bgr, pointer, use_hand, pointer_down=pointer_down)
     return JSONResponse({"image": to_data_url(result, 85), **stats})
 
 
@@ -329,7 +367,7 @@ async def head3d(image: UploadFile = File(...), beard: str = Form("none"), forma
     if beard != "none" and beard not in STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown beard style: {beard}")
     image_bgr = decode_image(await image.read())
-    rows, meta = await run_in_threadpool(pipeline.head3d, image_bgr, None if beard == "none" else beard)
+    rows, meta = await work(pipeline.head3d, image_bgr, None if beard == "none" else beard)
     if rows is None:
         raise HTTPException(status_code=422, detail="No face detected or landmark model missing")
     if format == "ply":
@@ -361,7 +399,7 @@ async def live(
     if mode == "beard":
         if w > 1280:
             image_bgr = cv2.resize(image_bgr, (1280, int(h * 1280 / w)), interpolation=cv2.INTER_AREA)
-        result = pipeline.apply_beard_live_hd(image_bgr, style, strength)
+        result = await work(pipeline.apply_beard_live_hd, image_bgr, style, strength)
         response = encode_jpeg(result if result is not None else image_bgr, 90)
         response.headers["X-Face-Found"] = "0" if result is None else "1"
         return response
@@ -369,13 +407,16 @@ async def live(
         scale = 640 / w
         image_bgr = cv2.resize(image_bgr, (640, int(h * scale)))
     if mode == "beard":
-        result = pipeline.apply_beard(image_bgr, style, strength, live=True)
+        result = await work(pipeline.apply_beard, image_bgr, style, strength, live=True)
     elif mode == "physics":
-        result = pipeline.apply_beard_physics(image_bgr, strength, length=float(np.clip(length, 0.4, 2.0)))
+        result = await work(pipeline.apply_beard_physics, image_bgr, strength, length=float(np.clip(length, 0.4, 2.0)))
     elif mode == "mesh":
-        result = pipeline.face_mesh(image_bgr)
+        result = await work(pipeline.face_mesh, image_bgr)
     else:
-        result = pipeline.apply_hair_dye(image_bgr, color, strength)
+        try:
+            result = await work(pipeline.apply_hair_dye, image_bgr, color, strength, live=True)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
     response = encode_jpeg(result if result is not None else image_bgr)
     response.headers["X-Face-Found"] = "0" if result is None else "1"
     return response
@@ -388,7 +429,7 @@ async def lab_build(frames: List[UploadFile] = File(...), beard: str = Form("non
     if not 1 <= len(frames) <= 16:
         raise HTTPException(status_code=400, detail="Send between 1 and 16 frames")
     images = [decode_image(await frame.read()) for frame in frames]
-    result = await run_in_threadpool(lab.build, images, None if beard == "none" else beard)
+    result = await work(lab.build, images, None if beard == "none" else beard)
     if result is None:
         raise HTTPException(status_code=422, detail="No face found in the scan frames")
     return JSONResponse(result)
@@ -397,4 +438,4 @@ async def lab_build(frames: List[UploadFile] = File(...), beard: str = Form("non
 @router.post("/lab/mesh")
 async def lab_mesh(image: UploadFile = File(...)):
     image_bgr = decode_image(await image.read())
-    return JSONResponse({"mesh": lab.live_mesh(image_bgr)})
+    return JSONResponse({"mesh": await work(lab.live_mesh, image_bgr)})

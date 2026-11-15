@@ -14,6 +14,11 @@ WORKDIR /app
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install -r backend/requirements.txt
 
+COPY backend/requirements-yolo.txt backend/requirements-yolo.txt
+RUN pip install -r backend/requirements-yolo.txt \
+    && pip uninstall -y opencv-python opencv-python-headless \
+    && pip install --force-reinstall --no-deps "opencv-contrib-python>=4.9,<5"
+
 COPY backend/app backend/app
 COPY backend/models backend/models
 COPY frontend frontend
@@ -27,4 +32,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
