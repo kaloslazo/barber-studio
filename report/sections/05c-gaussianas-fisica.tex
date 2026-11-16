@@ -124,7 +124,7 @@ Las gaussianas se ordenan de atrás hacia adelante con un \emph{counting sort} d
 \subsection{Peluca 3D multivista}
 \label{sec:peluca}
 
-La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en una peluca de gaussianas. Esa peluca se puede ver sobre un maniquí, sobre la cara escaneada o sobre otra persona en vivo (\archivo{splatting/hair3d.py}, \archivo{splatting/face3d.py}, \archivo{compositing/bald.py}). La figura~\ref{fig:diag-peluca} resume el proceso.
+La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en una peluca de gaussianas. Esa peluca se ve sobre un maniquí o sobre la propia cara escaneada (\archivo{splatting/hair3d.py}, \archivo{splatting/face3d.py}). La figura~\ref{fig:diag-peluca} resume el proceso.
 
 \begin{figure}[ht]
   \centering
@@ -152,7 +152,15 @@ La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en 
   \item \textbf{tijeras}: un pincel en pantalla corta las gaussianas más cercanas a la cámara dentro de su radio, usando la proyección de cada gaussiana; los cortes se pueden deshacer.
 \end{itemize}
 
-\textbf{Prueba en vivo.} Para probar la peluca sobre otra persona, el navegador sigue la cabeza con MediaPipe en JavaScript y el servidor quita el pelo propio de esa persona. El fondo se aprende de cuadros anteriores o se rellena, y el cuero cabelludo se sombrea a partir de la piel de la cara. La figura~\ref{fig:peluca} muestra una peluca construida desde una sola foto, el caso mínimo; con el escaneo de 180° se cierra también la parte de atrás.
+\textbf{Tu cara.} En siete segundos la persona mira de frente y gira a cada lado. Con esas capturas, \archivo{splatting/face3d.py} arma su cabeza con gaussianas ancladas a la malla de la cara (extendida hasta la frente), con el color fusionado de todas las vistas y sin su pelo, y la peluca se ve sobre ella («Usar mi cara»). Cada gaussiana es un disco tangente a la superficie, y el visor ilumina con la normal de ese disco. Si el disco tomara la normal plana de su triángulo, con luz se verían los triángulos (sombreado plano). Por eso se orienta con la normal de los vértices interpolada con sus coordenadas baricéntricas $\beta_k$, como en el sombreado de Phong:
+\begin{equation}
+  \mathbf{n} = \frac{\sum_k \beta_k\,\mathbf{n}_k}{\lVert \sum_k \beta_k\,\mathbf{n}_k \rVert},
+\end{equation}
+donde $\mathbf{n}_k$ es el promedio de las normales de los triángulos que tocan el vértice $k$, ponderadas por su área. Así dos triángulos vecinos comparten la normal en su arista y la cara iluminada queda continua.
+
+\textbf{Color del pelo.} El color de la peluca se oscurece un poco (luminosidad $\times 0{,}86$, croma $\times 0{,}85$) y se recortan los brillos que pasan de 1,3 veces la media, conservando un 20~\% de ellos, para quitar la luz de la habitación sin perder la textura de los mechones. Una versión anterior oscurecía más ($\times 0{,}66$) y la peluca quedaba casi negra, como un casco.
+
+La figura~\ref{fig:peluca} muestra una peluca construida desde una sola foto, el caso mínimo; con el escaneo de 180° o la vuelta completa se cierra también la parte de atrás. La vista para probar la peluca sobre otra persona en vivo (\texttt{/api/transfer/asset} y \texttt{/api/transfer/tryon}, \archivo{compositing/bald.py}) quedó fuera de la interfaz final; los \emph{endpoints} siguen en la API.
 
 \textbf{Vuelta completa en una silla.} El escaneo de 180° no ve bien la nuca. Ahora la persona también puede dar una vuelta completa sentada en una silla giratoria, frente a la cámara o en un video que se sube (\archivo{splatting/turntable.py}, \archivo{splatting/turn_session.py}). De espaldas no hay malla de la cara, así que \texttt{HeadTracker} mide el giro con flujo óptico. Trata la cabeza como una esfera que gira sobre un eje vertical: un punto en la columna normalizada $u=\sin\varphi$ pasa a $\sin(\varphi+\Delta\theta)$, así que cada punto seguido con Lucas--Kanade piramidal vota por
 \begin{equation}
@@ -173,6 +181,8 @@ y el giro entre dos cuadros es la mediana ponderada de los votos. Al final, el �
 El laboratorio (\archivo{lab/avatar.py}) escanea la cabeza desde varios ángulos y construye un avatar de gaussianas. Cada gaussiana guarda su triángulo de la malla, sus coordenadas baricéntricas, un desplazamiento y una covarianza expresados en el marco local del triángulo. Ese marco es ortonormal: $e_1$ es la primera arista normalizada, $n$ la normal y $e_2=n\times e_1$. Con $R=[e_1\;e_2\;n]$ y $s$ el ancho de la cara, la covarianza en el mundo es $R\,\Sigma_{\text{local}}\,R^\top s^2$.
 
 En cada cuadro de la cámara, la malla nueva reconstruye el marco de cada triángulo y la gaussiana lo sigue. Por eso el avatar copia los gestos de la persona y puede verse de perfil. Está marcado como experimental en la interfaz.
+
+\textbf{Color desde varias vistas.} Cada gaussiana se ubica en cada captura a través de la malla de esa captura y toma su color, promediado con peso $\max(0,-n_z)^2$: cuenta más la vista que ve esa parte de frente. Después, los colores se ajustan con Adam para que el \emph{render} con mezcla normalizada se parezca a cada vista, y se reserva una vista para medir si el ajuste generaliza (PSNR de prueba). Sin límites, el ajuste aprendía colores muy distintos entre gaussianas vecinas que se compensaban en esa mezcla, pero que en el visor, que compone de atrás hacia adelante, aparecían como vetas claras sobre la cara. Ahora cada paso se escala por la cobertura real de la gaussiana (la fracción de los píxeles de las vistas que le corresponde) y el color se proyecta a $\pm 0{,}04$ del color fusionado: la corrección es suave y las vetas desaparecen.
 
 \subsection{Contrarreloj: el juego de afeitado}
 \label{sec:juego}

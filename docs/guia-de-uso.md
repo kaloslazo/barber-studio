@@ -179,4 +179,4 @@ Funciona mejor con las caras de frente y con luz de frente. Con la cabeza muy gi
 | Fiesta: «Primero guarden la cara que se van a poner» | Se perdió la cara guardada, por ejemplo porque se reinició el servidor. Volver a guardarla. |
 | La cámara no enciende | Aceptar el permiso del navegador y cerrar otras apps que usen la cámara. |
 | La primera vez tarda | Los modelos se cargan al primer uso; las siguientes fotos tardan de 0,1 a 2,5 s. |
-| Sin internet, la prueba en vivo de la peluca no sigue la cabeza | Esa parte carga MediaPipe para JavaScript desde internet; el resto funciona sin conexión. |
+| Sin internet, el escaneo de la peluca no dibuja la malla sobre la cámara | Esa parte carga MediaPipe para JavaScript desde internet; el escaneo y el resto funcionan sin conexión. |

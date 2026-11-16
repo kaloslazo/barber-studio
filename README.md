@@ -45,7 +45,7 @@ The app does not generate a new face: it models the geometry of your face and ha
 
 - **Backend** (`backend/`): one FastAPI app that serves the UI and the API. Endpoints in `backend/app/api/routes.py` stay thin; the graphics code lives in `backend/app/core/`, one package per technique: `detection`, `segmentation`, `geometry`, `coloring`, `compositing`, `splatting`, `game`, `lab`, `faces`. `backend/app/core/pipeline.py` ties them together.
 - **Frontend** (`frontend/`): vanilla HTML, CSS and JavaScript, no build step. `frontend/js/splat3d.js` is the WebGL2 Gaussian viewer. The animated details in `frontend/js/bits.js` (rotating headline, blur-in titles, threads divider, pill nav fill, spotlight, count up) are vanilla ports of components from [React Bits](https://reactbits.dev) (MIT + Commons Clause).
-- **One server process on purpose.** Live mode, the 3D wig try-on and the game keep per-session state in memory (face anchor, hair color, current round). Uvicorn runs a single process, and every call into the pipeline runs in a worker thread behind one lock, so the server keeps answering while a photo is processed.
+- **One server process on purpose.** Live mode, the 3D wig scans and the game keep per-session state in memory (face anchor, hair color, current round). Uvicorn runs a single process, and every call into the pipeline runs in a worker thread behind one lock, so the server keeps answering while a photo is processed.
 - **Fine-tuning** scripts and the Colab notebook live in `backend/training/`.
 
 ## Run
@@ -64,7 +64,7 @@ Without Docker, from the repo root (creates the venv and installs dependencies o
 ./run.sh
 ```
 
-Tests (117):
+Tests (121):
 
 ```bash
 cd backend && venv/bin/python -m pytest tests/ -q
@@ -95,7 +95,7 @@ pip uninstall -y opencv-python
 pip install --force-reinstall --no-deps "opencv-contrib-python>=4.9,<5"
 ```
 
-The UI loads two things from the internet: the Google fonts (with local fallbacks) and the JavaScript build of MediaPipe, used only by the live 3D wig try-on.
+The UI loads two things from the internet: the Google fonts (with local fallbacks) and the JavaScript build of MediaPipe, used only to draw the face mesh over the camera while scanning a 3D wig.
 
 ## API
 

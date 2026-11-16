@@ -27,7 +27,7 @@ Porque inventa la cara completa: cambia la identidad, la piel y la luz, y necesi
 La API responde 422 y la interfaz muestra el mensaje. En vivo se reutilizan los últimos puntos hasta tres cuadros, desplazados por correlación de fase. Sin puntos no hay malla, así que no se aplica ningún estilo: es la única dependencia fuerte.
 
 **¿Cómo saben que funciona?**
-Con 117 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
+Con 121 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
 
 **¿Por qué todo en CPU?**
 Es una restricción del proyecto: que cualquiera lo reproduzca con `docker compose up`, sin GPU. Todo está vectorizado con NumPy. La GPU solo se usa en el navegador, para el visor 3D.
@@ -475,10 +475,16 @@ Cada gaussiana se proyecta a la pantalla con la misma cámara del visor. Dentro 
 **¿Cómo cambian el largo?**
 Se eliminan las gaussianas por debajo de una altura.
 
-**¿Cómo se prueba la peluca sobre otra persona?**
-El navegador sigue la cabeza con MediaPipe en JavaScript. El servidor quita el pelo propio de esa persona (`compositing/bald.py`): el fondo se aprende de cuadros anteriores o se rellena, y el cuero cabelludo se sombrea a partir de la piel de la cara.
+**¿Se puede probar la peluca sobre otra persona en vivo?**
+No en la interfaz final: esa vista quedó fuera. Los endpoints siguen en la API (`/api/transfer/asset`, `/api/transfer/tryon`, `compositing/bald.py`, que quita el pelo propio con un fondo aprendido de cuadros anteriores). Hoy la peluca se ve sobre el maniquí o sobre tu propia cara escaneada.
+
+**¿Por qué antes la cara sobre la peluca se veía en triángulos?**
+Cada gaussiana es un disco tangente a la superficie y el visor ilumina con su normal. Con la normal plana de cada triángulo se veía el facetado. Ahora la normal es la de los vértices interpolada con las coordenadas baricéntricas (como el sombreado de Phong), así que dos triángulos vecinos comparten la normal en su arista (`smooth_frames` en `lab/avatar.py`).
 
 ### Laboratorio (`backend/app/core/lab/avatar.py`)
+
+**¿Por qué el avatar tenía vetas claras y cómo se arregló?**
+La optimización con Adam ajustaba colores para una mezcla normalizada, donde una gaussiana muy clara y una muy oscura vecinas promedian bien; el visor compone de atrás hacia adelante y ahí se veían como grietas. Además, Adam normaliza el gradiente, así que las gaussianas con poca cobertura recibían pasos tan grandes como las demás. Ahora el paso se escala por la cobertura de cada gaussiana y el color se proyecta a ±0,04 del color fusionado (`COLOR_BOX` en `avatar.py`). La vista reservada sigue mostrando si el ajuste generaliza.
 
 **¿Cómo sigue el avatar a la cara?**
 Cada gaussiana guarda su triángulo, sus coordenadas baricéntricas, un desplazamiento y una covarianza en el marco local del triángulo. En cada cuadro se rearma el marco con la malla nueva y la gaussiana lo sigue (`triangle_frames` y `world` en `avatar.py`).

@@ -1,7 +1,7 @@
 import numpy as np
 from fastapi.testclient import TestClient
 
-from app.core.lab.avatar import AnchoredHead, _surface, oriented_triangles
+from app.core.lab.avatar import COLOR_BOX, AnchoredHead, _surface, build_scanned_head, oriented_triangles, smooth_frames
 from app.main import app
 
 
@@ -50,3 +50,39 @@ def test_lab_endpoints_without_face_or_model():
     response = client.post("/api/lab/mesh", files={"image": ("a.jpg", encoded.tobytes(), "image/jpeg")})
     assert response.status_code == 200
     assert response.json()["mesh"] is None
+
+
+def test_smooth_frames_agree_on_a_shared_edge():
+    mesh = synthetic_mesh()
+    tris = oriented_triangles(mesh)
+    edge = {}
+    pair = None
+    for index, triangle in enumerate(tris):
+        for a, b in ((0, 1), (1, 2), (2, 0)):
+            key = tuple(sorted((triangle[a], triangle[b])))
+            if key in edge:
+                pair = (edge[key], index, key)
+                break
+            edge[key] = index
+        if pair:
+            break
+    first, second, (u, v) = pair
+
+    def middle(tri_index):
+        weights = np.array([0.5 if vertex in (u, v) else 0.0 for vertex in tris[tri_index]])
+        return weights[None, :]
+
+    normal_a = smooth_frames(mesh, tris, np.array([first]), middle(first))[0][:, 2]
+    normal_b = smooth_frames(mesh, tris, np.array([second]), middle(second))[0][:, 2]
+    assert np.allclose(normal_a, normal_b, atol=1e-9)
+
+
+def test_lab_color_correction_stays_near_the_fused_color():
+    rng = np.random.default_rng(3)
+    mesh = synthetic_mesh()
+    views = [np.clip(rng.normal(128, 40, (480, 640, 3)), 0, 255).astype(np.uint8) for _ in range(3)]
+    meshes = [mesh + np.array([shift, 0.0, 0.0]) for shift in (-6.0, 0.0, 6.0)]
+    fused, _ = build_scanned_head(views, meshes, budget=3000, iterations=0)
+    optimized, _ = build_scanned_head(views, meshes, budget=3000, iterations=12)
+    assert np.abs(optimized.color - fused.color).max() <= COLOR_BOX + 1e-6
+
