@@ -389,6 +389,9 @@ Con `bulge`: cada punto cerca del centro de un rasgo se aleja o se acerca a ese 
 **¿Por qué se deforma antes de mezclar?**
 Si solo se mezclan las dos fotos, los ojos de una caen sobre la frente o la mejilla de la otra y salen cuatro ojos. Primero las dos fotos se deforman a la misma forma intermedia, (1 − t)A + tB: los rasgos quedan en el mismo lugar, y la mezcla con pesos 1 − t y t solo cambia el color y la textura. Es el esquema clásico de morphing (Wolberg); Beier y Neely lo hacían con segmentos en lugar de triángulos.
 
+**¿Por qué solo se mezcla la cara y no todo el cuadro?**
+Mezclar los cuadros completos da una doble exposición: el fondo, el pelo y los hombros de las dos fotos se ven a la vez, como fantasmas. Ahora las dos fotos se deforman igual a la forma intermedia, pero la mezcla 1 − t / t va solo dentro del óvalo de la cara, y entra con la pirámide laplaciana sobre la foto de uno de los dos (A hasta la mitad y B después, con un fundido corto entre t = 0,5 y 0,62). El hijo tiene la cabeza y el pelo de A con la cara mezclada, y se ve como una foto. Si la foto de B está tan recortada que no llena el cuadro, el fondo se queda en A y la cara de B toma el tono de A (Reinhard en Lab): el final queda como un cambio de cara.
+
 **¿Por qué alinear primero con una similitud?**
 Si una cara está más grande, más baja o inclinada, la forma intermedia mezclaría también eso y la cabeza se movería por el cuadro. `cv2.estimateAffinePartial2D` (escala, rotación y traslación) quita esa diferencia antes; el morph solo cambia la forma.
 

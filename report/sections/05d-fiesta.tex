@@ -134,13 +134,13 @@ La fusión (\archivo{faces/morph.py}) es un \emph{morphing} clásico \cite{beier
   \item la segunda cara se alinea a la primera con una similitud (\texttt{cv2.estimateAffinePartial2D} sobre los 468 puntos);
   \item cada conjunto de puntos tiene los 468 de la cara, un anillo de 20 puntos a 1{,}5 veces el óvalo y 16 puntos en el borde del cuadro, para que la malla cubra todo el cuadrado;
   \item se triangula con Fortune la forma promedio de las dos, $(A+B)/2$;
-  \item para 13 valores de $t$ entre 0 y 1, las dos fotos se deforman a la forma intermedia y se mezclan:
+  \item para 13 valores de $t$ entre 0 y 1, las dos fotos se deforman a la forma intermedia; solo la cara se mezcla, y entra con la mezcla multibanda sobre la foto de uno de los dos:
   \begin{equation}
-    S_t=(1-t)\,A+t\,B,\qquad I_t=(1-t)\,W_A(S_t)+t\,W_B(S_t),
+    S_t=(1-t)\,A+t\,B,\qquad C_t=(1-t)\,W_A(S_t)+t\,W_B(S_t),\qquad I_t=\mathrm{Lap}\big(F_t,\;C_t,\;M(S_t)\big),
   \end{equation}
-  donde $W_A(S_t)$ es la foto de $A$ llevada con el \emph{warp} a la forma $S_t$.
+  donde $W_A(S_t)$ es la foto de $A$ llevada con el \emph{warp} a la forma $S_t$, $M(S_t)$ es la máscara suave del óvalo de la cara, $\mathrm{Lap}$ la mezcla con pirámides laplacianas y $F_t$ la foto de fondo: $W_A(S_t)$ hasta la mitad y $W_B(S_t)$ después, con un fundido entre $t=0{,}5$ y $0{,}62$.
 \end{enumerate}
-El cuadro $t=0{,}5$ tiene la forma promedio y los dos colores a medias: es ``el hijo'' de los dos. En la interfaz, un deslizador recorre los cuadros, ``Animar'' va y vuelve con una curva coseno (3{,}2~s por ciclo) y el nombre del hijo une la primera mitad del primer nombre con la segunda mitad del segundo (Kalos y Gianpier dan Kalpier). La figura~\ref{fig:fiesta-fusion} muestra cinco cuadros.
+Mezclar los cuadros completos daba una doble exposición: el fondo, el pelo y los hombros de las dos fotos se veían a la vez. Con la mezcla solo dentro de la cara, el cuadro $t=0{,}5$ tiene la cabeza y el pelo de $A$ con la forma promedio y los dos colores a medias en la cara: es ``el hijo'' de los dos y se ve como una foto. Si a la foto de $B$ le falta borde para llenar el cuadro (un retrato muy recortado), el fondo se queda en $A$ todo el tiempo y la cara de $B$ toma el tono de $A$ con la transferencia de Reinhard, así que $t=1$ queda como un cambio de cara. En la interfaz, un deslizador recorre los cuadros, ``Animar'' va y vuelve con una curva coseno (3{,}2~s por ciclo) y el nombre del hijo une la primera mitad del primer nombre con la segunda mitad del segundo (Kalos y Gianpier dan Kalpier). La figura~\ref{fig:fiesta-fusion} muestra cinco cuadros.
 
 \subsubsection{En vivo, tiempos y API}
 
@@ -150,7 +150,7 @@ En vivo, el navegador envía cada cuadro de la cámara, reducido a 640~px de anc
   \item cambio de cara: 44~ms;
   \item caricatura: 49~ms.
 \end{itemize}
-Eso da unos 15 cuadros por segundo en el servidor. En fotos, el cambio de dos caras tarda entre 0{,}2 y 0{,}4~s según el tamaño de la foto, y la caricatura entre 0{,}05 y 0{,}15~s. Es rápido porque la topología no se recalcula, la rasterización la hace \texttt{fillConvexPoly} en C, las afines se resuelven en lote y solo se procesa el recuadro de cada cara. La fusión de 13 cuadros tarda unos 1{,}5~s: cada cuadro deforma dos imágenes completas de $480\times480$, y el muestreo bilineal de esos 26 \emph{warps} se lleva casi todo el tiempo.
+Eso da unos 15 cuadros por segundo en el servidor. En fotos, el cambio de dos caras tarda entre 0{,}2 y 0{,}4~s según el tamaño de la foto, y la caricatura entre 0{,}05 y 0{,}15~s. Es rápido porque la topología no se recalcula, la rasterización la hace \texttt{fillConvexPoly} en C, las afines se resuelven en lote y solo se procesa el recuadro de cada cara. La fusión de 13 cuadros tarda alrededor de 1~s: cada cuadro deforma dos imágenes completas de $480\times480$ y arma una pirámide laplaciana; el muestreo bilineal de esos 26 \emph{warps} se lleva casi todo el tiempo.
 
 \begin{table}[ht]
 \centering
