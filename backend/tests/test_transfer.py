@@ -88,3 +88,22 @@ def test_hair_splats_from_several_angles_form_one_closed_peluca():
     assert meta["views"] == 5 and np.isfinite(rows).all()
     assert (hair[:, 2] > 0.1).any() and (hair[:, 2] < -0.1).any()
     assert (hair[:, 0] > 0.1).any() and (hair[:, 0] < -0.1).any()
+
+
+def test_hair_splats_keep_both_heads_and_dress_the_body():
+    from app.core.splatting.hair3d import HairView, _mannequin, build_hair_splats
+
+    image, probabilities, geometry = scene()
+    _, alpha = transfer_mask(image, geometry, probabilities)
+    face = np.zeros(alpha.shape, np.uint8)
+    cv2.fillPoly(face, [geometry["polygon"]], 255)
+    view = HairView(image, alpha, face, geometry, 0.0, clothes=(200, 40, 20))
+    head = lambda axes: _mannequin(300, np.random.default_rng(1), axes)
+    rows, meta = build_hair_splats([view], budget=6000, mannequin=400, head=head, both=True, torso=500)
+    hair, faces, mannequin, body = meta["hair"], meta["face"], meta["mannequin"], meta["body"]
+    assert (faces, mannequin, body) == (300, 400, 500) and len(rows) == hair + faces + mannequin + body
+    torso = rows[hair + faces + mannequin:]
+    assert torso[:, 1].mean() < rows[:hair, 1].mean() - 0.3
+    assert torso[:, 0].max() - torso[:, 0].min() > rows[:hair, 0].max() - rows[:hair, 0].min()
+    assert torso[:, 11].mean() > 2 * torso[:, 9].mean()
+    assert np.isfinite(rows).all()

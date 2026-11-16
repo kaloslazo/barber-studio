@@ -735,15 +735,25 @@ function updateScanSweep(now) {
   if (!sweep || sweep.phase === "done") return;
   const elapsed = now - sweep.start;
   if (sweep.phase === "left") {
+    if (!sweep.said) {
+      sweep.said = true;
+      freshVoice.say("Mira a tu izquierda. Cuando te diga, gira despacio a la derecha.", { now: true });
+    }
     if (elapsed < SCAN_LEFT_MS) {
       setScanProgress(0, `Empieza mirando a la IZQUIERDA — ${Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000)} s`);
       return;
     }
     sweep.phase = "sweep";
+    freshVoice.sound("shot");
+    freshVoice.say("Ahora gira despacio a la derecha", { now: true });
   }
   const turning = elapsed - SCAN_LEFT_MS;
   const last = sweep.captures[sweep.captures.length - 1];
   const reachedRight = last && last.yaw >= 72 && turning > 5000;
+  if (!sweep.half && turning > SCAN_SWEEP_MS / 2) {
+    sweep.half = true;
+    freshVoice.say("Vas por la mitad, sigue", { now: true });
+  }
   if (turning < SCAN_SWEEP_MS && !reachedRight) {
     setScanProgress((elapsed / (SCAN_LEFT_MS + SCAN_SWEEP_MS)) * 100, `Gira despacio a la DERECHA — ${Math.max(0, Math.ceil((SCAN_LEFT_MS + SCAN_SWEEP_MS - elapsed) / 1000))} s`);
     return;
@@ -787,15 +797,23 @@ async function finishScan(captures) {
   if (views.length < 5) {
     scanStart.disabled = false;
     setScanProgress(0, "Muy pocas vistas: mantén la cabeza en el cuadro, gira despacio y vuelve a intentarlo");
+    freshVoice.sound("error");
+    freshVoice.say("Casi no te vi. Deja toda la cabeza dentro del cuadro y gira más despacio.", { now: true });
     return;
   }
   setScanProgress(100, `Barrido completo: ${views.length} vistas, armando tu peluca…`);
+  freshVoice.sound("chime");
+  freshVoice.say("Listo. Ahora armo tu peluca.", { now: true });
   try {
     const front = views.reduce((best, view) => (Math.abs(view.angle) < Math.abs(best.angle) ? view : best));
     const formData = new FormData();
     formData.append("image", front.frame, "front-hair.jpg");
     const response = await fetch(`${API}/transfer/asset`, { method: "POST", body: formData });
-    if (!response.ok) throw new Error("No encontramos pelo en la vista de frente. Deja todo tu pelo dentro del cuadro y vuelve a intentarlo.");
+    if (!response.ok) {
+      freshVoice.sound("error");
+      freshVoice.say("No encontré pelo de frente. Deja todo el pelo dentro del cuadro.", { now: true });
+      throw new Error("No encontramos pelo en la vista de frente. Deja todo tu pelo dentro del cuadro y vuelve a intentarlo.");
+    }
     const now = new Date();
     const peluca = {
       frames: views.map((view) => view.frame),
@@ -833,6 +851,7 @@ async function scanLoop() {
       scanOverlay = { bitmap, anchor, time: performance.now() };
       if (scanRunning && scanSweep && scanSweep.phase !== "done" && Number.isFinite(detectedYaw)) {
         scanSweep.captures.push({ frame, yaw: detectedYaw, tracked: Boolean(anchor && anchor.tracked), time: performance.now() });
+        if (scanSweep.phase === "sweep") freshVoice.sound("tick", scanProgress / 100);
       }
     } catch (error) {
       scanError.textContent = error.message;
@@ -872,6 +891,7 @@ scanStop.addEventListener("click", () => {
   scanStart.disabled = false;
   scanStop.disabled = true;
   setScanProgress(0, "Escaneo cancelado");
+  freshVoice.stop();
 });
 
 function renderLibrary() {
@@ -891,8 +911,6 @@ function renderLibrary() {
 
 function selectPeluca(peluca, view = "splat") {
   selectedPeluca = peluca;
-  hair3dPelucaName.textContent = peluca.name;
-  hair3dScan.disabled = !peluca.frames;
   updateScanPhotos();
   selectedPelucaPreview.src = peluca.previewUrl;
   selectedPelucaName.textContent = peluca.name;
@@ -1113,9 +1131,8 @@ async function tryonLoop() {
 
 tryonCamera.addEventListener("click", toggleTryonCamera);
 
-const hair3dPelucaName = document.getElementById("hair3d-peluca-name");
-const hair3dScan = document.getElementById("hair3d-scan");
-const hair3dDrop = document.getElementById("hair3d-drop");
+const hair3dPhoto = document.getElementById("hair3d-photo");
+const FACE3D_IDLE = "Sale de la vuelta 360. Para más detalle, escanéala de cerca.";
 const hair3dInput = document.getElementById("hair3d-input");
 const hair3dMannequin = document.getElementById("hair3d-mannequin");
 const hair3dAuto = document.getElementById("hair3d-auto");
@@ -1155,10 +1172,11 @@ function hair3dForm(source, extra = {}) {
   formData.append("angles", source.angles.join(","));
   if (source.turn) formData.append("turn", "true");
   if (faceScan && faceScan.webcam && !source.mirrored) formData.append("face_mirror", "true");
-  if (hair3dMyFace.checked && faceScan) {
+  if (faceScan && faceScan.frames.length && !source.faceless) {
     formData.append("head", "face");
     faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
   }
+  formData.append("heads", "both");
   Object.entries(extra).forEach(([key, value]) => formData.append(key, value));
   return formData;
 }
@@ -1211,6 +1229,7 @@ function resetWig() {
     maxY = Math.max(maxY, data[o + 1]);
   }
   wig.source = data;
+  wig.frames = null;
   wig.meanLum = weight > 0 ? lum / weight : 0.3;
   wig.minY = minY;
   wig.maxY = maxY;
@@ -1231,6 +1250,27 @@ function recolor(out, at, o, target, strength) {
   }
 }
 
+function hair3dParts() {
+  const model = hair3dModel;
+  const total = wig.source.length / SPLAT_FLOATS;
+  if (!hair3dMannequin.checked) return [];
+  const known = model.face + model.mannequin + model.body;
+  if (!known) return total > model.hair ? [[model.hair, total]] : [];
+  const faceAt = model.hair;
+  const mannequinAt = faceAt + model.face;
+  const bodyAt = mannequinAt + model.mannequin;
+  const parts = [];
+  if (hair3dMyFace.checked && model.face) parts.push([faceAt, mannequinAt]);
+  else if (model.mannequin) parts.push([mannequinAt, bodyAt]);
+  else if (model.face) parts.push([faceAt, mannequinAt]);
+  if (model.body) parts.push([bodyAt, bodyAt + model.body]);
+  return parts;
+}
+
+function hair3dDistance() {
+  return hair3dModel && hair3dModel.body ? 3.3 : 2.1;
+}
+
 function showHair3d() {
   if (!hair3dModel) return;
   const source = wig.source;
@@ -1242,7 +1282,8 @@ function showHair3d() {
     if (wig.cut[i] || wig.length <= 0 || source[i * SPLAT_FLOATS + 1] < cutY) continue;
     visible[kept++] = i;
   }
-  const head = hair3dMannequin.checked ? source.length / SPLAT_FLOATS - hair : 0;
+  const parts = hair3dParts();
+  const head = parts.reduce((sum, [from, to]) => sum + to - from, 0);
   const out = new Float32Array((kept + head) * SPLAT_FLOATS);
   const target = wig.color ? hexToRgb(wig.color) : null;
   const strength = Number(wigStrength.value) / 100;
@@ -1251,10 +1292,25 @@ function showHair3d() {
     out.set(source.subarray(o, o + SPLAT_FLOATS), k * SPLAT_FLOATS);
     if (target) recolor(out, k * SPLAT_FLOATS, o, target, strength);
   }
-  if (head) out.set(source.subarray(hair * SPLAT_FLOATS), kept * SPLAT_FLOATS);
+  let at = kept;
+  parts.forEach(([from, to]) => {
+    out.set(source.subarray(from * SPLAT_FLOATS, to * SPLAT_FLOATS), at * SPLAT_FLOATS);
+    at += to - from;
+  });
   wig.visible = visible.subarray(0, kept);
   wig.points = null;
-  hair3dViewer.load(out.buffer);
+  let frames = null;
+  if (hair3dLight.checked) {
+    if (!wig.frames) wig.frames = splatFrames(source, source.length / SPLAT_FLOATS);
+    frames = new Float32Array((kept + head) * 6);
+    for (let k = 0; k < kept; k++) frames.set(wig.frames.subarray(visible[k] * 6, visible[k] * 6 + 6), k * 6);
+    let row = kept;
+    parts.forEach(([from, to]) => {
+      frames.set(wig.frames.subarray(from * 6, to * 6), row * 6);
+      row += to - from;
+    });
+  }
+  hair3dViewer.load(out.buffer, frames);
   hair3dViewer.autoRotate = hair3dAuto.checked;
   hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
   const percent = hair ? Math.round((kept / hair) * 100) : 0;
@@ -1333,13 +1389,36 @@ function cutAt(event) {
     hits.push(k);
     front = Math.min(front, points[k * 3 + 2]);
   }
-  let changed = false;
+  const fallen = [];
   hits.forEach((k) => {
     if (points[k * 3 + 2] > front + WIG_CUT_DEPTH) return;
     wig.cut[wig.visible[k]] = 1;
-    changed = true;
+    fallen.push(k);
   });
-  if (changed) scheduleWig();
+  if (!fallen.length) return;
+  dropHair(fallen, points, 10);
+  scheduleWig();
+}
+
+function dropHair(ks, points, limit, spread = 1) {
+  if (!ks.length || !hair3dViewer) return;
+  const data = hair3dViewer.data;
+  const seeds = [];
+  const step = Math.max(1, Math.floor(ks.length / limit));
+  for (let j = 0; j < ks.length && seeds.length < limit; j += step) {
+    const k = ks[j];
+    const o = k * SPLAT_FLOATS;
+    seeds.push({ x: points[k * 3], y: points[k * 3 + 1], spread, color: [data[o + 9] * 255 | 0, data[o + 10] * 255 | 0, data[o + 11] * 255 | 0] });
+  }
+  freshFx.hairFall(hair3dStage, hair3dCanvas, seeds);
+}
+
+function dropWhere(test, limit, spread) {
+  if (!hair3dViewer || !wig.visible || !wig.visible.length) return;
+  const points = hair3dViewer.screenPoints(wig.visible.length);
+  const ks = [];
+  for (let k = 0; k < wig.visible.length; k++) if (test(wig.visible[k])) ks.push(k);
+  dropHair(ks, points, limit, spread);
 }
 
 const wigTool = {
@@ -1384,12 +1463,15 @@ wigLength.addEventListener("input", () => {
 });
 wigTips.addEventListener("click", () => {
   pushWigHistory();
+  const cutY = wig.maxY - Math.max(0, wig.length - 0.08) * (wig.maxY - wig.minY);
+  dropWhere((i) => wig.source[i * SPLAT_FLOATS + 1] < cutY, 70, 1.2);
   wig.length = Math.max(0, wig.length - 0.08);
   wigLength.value = Math.round(wig.length * 100);
   scheduleWig();
 });
 wigBald.addEventListener("click", () => {
   pushWigHistory();
+  dropWhere(() => true, 170, 1.7);
   wig.length = 0;
   wigLength.value = 0;
   scheduleWig();
@@ -1415,20 +1497,37 @@ hair3dAuto.addEventListener("change", () => {
   if (hair3dViewer) hair3dViewer.autoRotate = hair3dAuto.checked;
 });
 hair3dLight.addEventListener("change", () => {
-  if (hair3dViewer) hair3dViewer.setLighting(hair3dLight.checked);
+  if (!hair3dViewer) return;
+  hair3dViewer.lighting = hair3dLight.checked;
+  if (hair3dModel) showHair3d();
+  else hair3dViewer.setLighting(hair3dLight.checked);
 });
 hair3dSplats.addEventListener("change", () => {
   if (hair3dViewer) hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
 });
 hair3dReset.addEventListener("click", () => {
-  if (hair3dViewer) hair3dViewer.setView(0, 0.1, 2.1);
+  if (hair3dViewer) hair3dViewer.setView(0, 0.1, hair3dDistance());
 });
 
+let hair3dBuild = 0;
+let hair3dInfo = null;
+
+function hair3dStatsText(animate = false) {
+  if (!hair3dInfo || !hair3dModel) return;
+  const parts = hair3dParts().length ? hair3dParts() : [];
+  const onFace = parts.length && hair3dMyFace.checked && hair3dModel.face;
+  const where = !hair3dMannequin.checked ? " · solo el pelo" : onFace ? " en tu cara" : " en el maniquí";
+  const views = hair3dModel.views === 1 ? "1 foto" : `${hair3dModel.views} ángulos`;
+  hair3dStats.textContent = `${hair3dInfo.label}${where} · ${hair3dModel.hair.toLocaleString("es-PE")} gaussianas de pelo desde ${views} · lista en ${hair3dInfo.seconds} s${hair3dInfo.note ? ` · ${hair3dInfo.note}` : ""}`;
+  if (animate) freshFx.countNumbers(hair3dStats, { from: hair3dInfo.label.length });
+}
+
 async function buildHair3d(source, label) {
+  const token = ++hair3dBuild;
   hair3dError.hidden = true;
-  hair3dScan.disabled = true;
   hair3dPly.disabled = true;
   hair3dStats.textContent = `Construyendo ${label}…`;
+  hair3dStats.classList.add("building");
   hair3dStage.hidden = false;
   const started = performance.now();
   try {
@@ -1437,11 +1536,18 @@ async function buildHair3d(source, label) {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || `La solicitud falló (${response.status})`);
     }
+    const buffer = await response.arrayBuffer();
+    if (token !== hair3dBuild) return "stale";
+    const header = (name) => Number(response.headers.get(name) || 0);
     hair3dModel = {
-      buffer: await response.arrayBuffer(),
-      hair: Number(response.headers.get("X-Splat-Hair")),
-      views: Number(response.headers.get("X-Splat-Views")),
+      buffer,
+      hair: header("X-Splat-Hair"),
+      face: header("X-Splat-Face"),
+      mannequin: header("X-Splat-Mannequin"),
+      body: header("X-Splat-Body"),
+      views: header("X-Splat-Views"),
     };
+    if (!hair3dModel.face && !hair3dModel.body) hair3dModel.mannequin = 0;
     hair3dSource = source;
     hair3dLabel = label;
     updateScanPhotos();
@@ -1453,29 +1559,32 @@ async function buildHair3d(source, label) {
         hair3dAuto.checked = false;
         hair3dViewer.autoRotate = false;
       };
-      hair3dViewer.setView(0, 0.1, 2.1);
       setInterval(() => {
         hair3dFps.textContent = hair3dViewer.autoRotate ? `${hair3dViewer.fps.toFixed(0)} fps` : "";
       }, 1000);
     }
+    if (!hair3dModel.face && hair3dMyFace.checked) hair3dMyFace.checked = false;
+    hair3dViewer.setView(0, 0.1, hair3dDistance());
     resetWig();
     wigStudio.hidden = false;
     setScissors(wigScissors.getAttribute("aria-pressed") === "true");
-    const seconds = ((performance.now() - started) / 1000).toFixed(1);
-    const views = hair3dModel.views === 1 ? "1 foto" : `${hair3dModel.views} ángulos`;
-    const head = hair3dMyFace.checked ? " en tu cara" : "";
-    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} gaussianas de pelo desde ${views} · lista en ${seconds} s${source.note ? ` · ${source.note}` : ""}`;
+    hair3dViewer.reveal();
+    hair3dInfo = { label, seconds: ((performance.now() - started) / 1000).toFixed(1), note: source.note || "" };
+    hair3dStats.classList.remove("building");
+    hair3dStatsText(true);
     hair3dPly.disabled = false;
     return true;
   } catch (error) {
+    if (token !== hair3dBuild) return "stale";
+    hair3dStats.classList.remove("building");
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
     hair3dStats.textContent = "--";
     if (!hair3dModel) hair3dStage.hidden = true;
+    else hair3dStatsText();
     return error.message || "error";
   } finally {
-    syncHeadChoice();
-    hair3dScan.disabled = !(selectedPeluca && selectedPeluca.frames);
+    if (token === hair3dBuild) syncHeadChoice();
   }
 }
 
@@ -1484,35 +1593,10 @@ function buildHair3dFromPeluca() {
   buildHair3d({ frames: selectedPeluca.frames, angles: selectedPeluca.angles, mirrored: true }, selectedPeluca.name);
 }
 
-hair3dScan.addEventListener("click", buildHair3dFromPeluca);
-hair3dDrop.addEventListener("click", () => hair3dInput.click());
-hair3dDrop.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    hair3dInput.click();
-  }
-});
-["dragenter", "dragover"].forEach((type) => {
-  hair3dDrop.addEventListener(type, (event) => {
-    event.preventDefault();
-    hair3dDrop.classList.add("dragging");
-  });
-});
-["dragleave", "drop"].forEach((type) => {
-  hair3dDrop.addEventListener(type, (event) => {
-    event.preventDefault();
-    hair3dDrop.classList.remove("dragging");
-  });
-});
+hair3dPhoto.addEventListener("click", () => hair3dInput.click());
 function setHair3dFile(file) {
-  hair3dDrop.querySelector(".dz-title").textContent = file.name;
-  hair3dDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
   buildHair3d({ frames: [file], angles: [0] }, file.name);
 }
-hair3dDrop.addEventListener("drop", (event) => {
-  const file = event.dataTransfer.files[0];
-  if (file && file.type.startsWith("image/")) setHair3dFile(file);
-});
 hair3dInput.addEventListener("change", () => {
   if (hair3dInput.files.length > 0) setHair3dFile(hair3dInput.files[0]);
 });
@@ -1522,14 +1606,15 @@ const hair3dHead = document.getElementById("hair3d-head");
 const hair3dHeadNote = document.getElementById("hair3d-head-note");
 
 function syncHeadChoice() {
-  const current = !hair3dMannequin.checked ? "none" : hair3dMyFace.checked && faceScan ? "face" : "mannequin";
+  const current = !hair3dMannequin.checked ? "none" : hair3dMyFace.checked && (faceScan || (hair3dModel && hair3dModel.face)) ? "face" : "mannequin";
   hair3dHead.querySelectorAll("[data-head]").forEach((button) => {
     const active = button.dataset.head === current;
     button.classList.toggle("active", active);
     button.setAttribute("aria-checked", String(active));
-    if (button.dataset.head === "face") button.disabled = !faceScan || hair3dMyFace.disabled;
+    if (button.dataset.head === "face") button.disabled = !faceScan && !(hair3dModel && hair3dModel.face);
   });
-  hair3dHeadNote.hidden = Boolean(faceScan);
+  hair3dHeadNote.hidden = Boolean(faceScan || (hair3dModel && hair3dModel.face));
+  freshFx.slide(hair3dHead);
 }
 
 hair3dHead.addEventListener("click", (event) => {
@@ -1538,14 +1623,18 @@ hair3dHead.addEventListener("click", (event) => {
   const choice = button.dataset.head;
   const wantFace = choice === "face" ? true : choice === "mannequin" ? false : hair3dMyFace.checked;
   const showHead = choice !== "none";
-  const rebuild = wantFace !== hair3dMyFace.checked;
+  const rebuild = wantFace && faceScan && hair3dModel && !hair3dModel.face;
   hair3dMyFace.checked = wantFace;
-  if (showHead !== hair3dMannequin.checked) {
-    hair3dMannequin.checked = showHead;
-    showHair3d();
-  }
+  hair3dMannequin.checked = showHead;
   syncHeadChoice();
-  if (rebuild && hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
+  if (rebuild && hair3dSource) {
+    buildHair3d(hair3dSource, hair3dLabel);
+    return;
+  }
+  if (hair3dModel) {
+    showHair3d();
+    hair3dStatsText();
+  }
 });
 
 function scanPhotosSource() {
@@ -1582,9 +1671,6 @@ hair3dPhotos.addEventListener("click", async () => {
     updateScanPhotos();
   }
 });
-hair3dMyFace.addEventListener("change", () => {
-  if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
-});
 
 function stopFaceCamera() {
   if (faceStream) faceStream.getTracks().forEach((track) => track.stop());
@@ -1592,7 +1678,7 @@ function stopFaceCamera() {
   face3dVideo.srcObject = null;
   face3dStage.hidden = true;
   face3dScan.disabled = false;
-  face3dScan.textContent = faceScan ? "Volver a escanear (7 s)" : "Escanear mi cara (7 s)";
+  face3dScan.textContent = faceScan && faceScan.webcam ? "Repetir (7 s)" : "Escanear (7 s)";
 }
 
 function faceRender() {
@@ -1656,7 +1742,7 @@ face3dScan.addEventListener("click", async () => {
       const error = await response.json().catch(() => ({}));
       throw new Error(error.detail || "No se pudo construir tu cara. Vuelve a escanearla.");
     }
-    face3dStatus.textContent = `Tu cara · ${frames.length} vistas`;
+    face3dStatus.textContent = `Escaneada de cerca · ${frames.length} vistas`;
     const debugImage = (await response.json()).debug_image;
     if (debugImage) {
       const debug = new Image();
@@ -1676,7 +1762,7 @@ face3dScan.addEventListener("click", async () => {
   } catch (error) {
     faceScan = null;
     syncHeadChoice();
-    face3dStatus.textContent = "Todavía no escaneas tu cara";
+    face3dStatus.textContent = FACE3D_IDLE;
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
   } finally {
@@ -2226,3 +2312,7 @@ mirrorBtn.addEventListener("click", async () => {
     mirrorBtn.textContent = "Construir cabeza 3D";
   }
 });
+
+freshVoice.bind(document.getElementById("scan-voice"));
+freshFx.slide(document.querySelector("#panel-transfer .transfer-steps"));
+syncHeadChoice();

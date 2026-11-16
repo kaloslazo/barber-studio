@@ -21,6 +21,8 @@
   --radius-lg: 12px;
   --radius-img: 6px;
   --border-width: 0px;
+  --edge: rgba(10, 10, 10, 0.075);
+  --edge-dark: rgba(255, 255, 255, 0.07);
   --space-scale: 1.25;
 
   --raised: #FFFFFF;
@@ -3330,12 +3332,6 @@ button.is-working::before {
 .turn-empty[hidden] { display: none; }
 .turn-stage .pose-badge { top: 14px; left: 14px; font-size: 14px; padding: 7px 14px; }
 .turn-steps { margin: 4px 0 14px; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--ink-soft, inherit); }
-.other-ways { padding: 0; }
-.other-ways > summary { cursor: pointer; padding: 14px 18px; font-size: 13px; font-weight: 600; list-style: none; }
-.other-ways > summary::-webkit-details-marker { display: none; }
-.other-ways > summary::after { content: "+"; float: right; font-weight: 400; }
-.other-ways[open] > summary::after { content: "–"; }
-.other-ways > .inspector, .other-ways > .drop-zone, .other-ways > .card { margin: 0 12px 12px; }
 
 .fiesta-stage {
   position: relative;
@@ -3621,3 +3617,7 @@ button.is-working::before {
   }
 }
 
+
+.card { border: 1px solid var(--edge); }
+.mirror-stage, .lab-stage, .game-stage, .scanner-card, .tryon-card, .turn-stage { border-color: var(--edge-dark); }
+.transfer-steps, .style-group.options.has-thumb { border: 1px solid var(--edge); }

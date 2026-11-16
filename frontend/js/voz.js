@@ -45,6 +45,44 @@ const freshVoice = (() => {
     speechSynthesis.speak(utterance);
   }
 
+  let audio = null;
+
+  function tone(frequency, start, length, volume, type = "sine") {
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+    oscillator.connect(gain).connect(audio.destination);
+    oscillator.start(start);
+    oscillator.stop(start + length + 0.02);
+  }
+
+  function sound(kind, value = 0) {
+    if (!on) return;
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return;
+    try {
+      audio = audio || new Context();
+      if (audio.state === "suspended") audio.resume();
+      const now = audio.currentTime;
+      if (kind === "tick") tone(520 + 640 * Math.min(1, Math.max(0, value)), now, 0.06, 0.05, "triangle");
+      if (kind === "shot") tone(880, now, 0.05, 0.04, "triangle");
+      if (kind === "chime") {
+        tone(660, now, 0.35, 0.08);
+        tone(990, now + 0.12, 0.5, 0.07);
+      }
+      if (kind === "error") {
+        tone(220, now, 0.22, 0.07, "triangle");
+        tone(165, now + 0.16, 0.3, 0.07, "triangle");
+      }
+    } catch (error) {
+      audio = null;
+    }
+  }
+
   function stop() {
     if (supported) speechSynthesis.cancel();
   }
@@ -72,5 +110,5 @@ const freshVoice = (() => {
     });
   }
 
-  return { say, stop, bind, supported, get on() { return on && supported; } };
+  return { say, stop, bind, sound, supported, get on() { return on && supported; } };
 })();

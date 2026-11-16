@@ -133,7 +133,7 @@ def test_splat_endpoint_accepts_a_mirrored_webcam_face(monkeypatch):
 
     seen = {}
 
-    def fake(images, angles, mannequin, faces, face_key):
+    def fake(images, angles, mannequin, faces, face_key, both=False):
         seen["face"] = faces[0].copy()
         return np.zeros((4, 13), np.float32), {"count": 4, "hair": 2, "views": len(images)}
 

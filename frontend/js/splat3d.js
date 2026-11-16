@@ -3,6 +3,7 @@ const SPLAT_FOVY = (35 * Math.PI) / 180;
 const SPLAT_TURNTABLE_SPEED = 0.5;
 const SPLAT_NORMAL_CELL = 0.04;
 const SPLAT_NORMAL_PASSES = 2;
+const SPLAT_SORT_STEP = 0.012;
 
 const SPLAT_VS = `#version 300 es
 precision highp float;
@@ -209,6 +210,39 @@ function orbitView(yaw, pitch, distance) {
   return new Float32Array([r[0], r[3], r[6], 0, r[1], r[4], r[7], 0, r[2], r[5], r[8], 0, 0, 0, -distance, 1]);
 }
 
+function splatFrames(data, n) {
+  const frames = new Float32Array(n * 6);
+  if (!n) return frames;
+  let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < n; i++) {
+    cx += data[i * SPLAT_FLOATS];
+    cy += data[i * SPLAT_FLOATS + 1];
+    cz += data[i * SPLAT_FLOATS + 2];
+  }
+  cx /= n; cy /= n; cz /= n;
+  const m = new Float64Array(9);
+  const v = new Float64Array(9);
+  for (let i = 0; i < n; i++) {
+    const o = i * SPLAT_FLOATS;
+    m[0] = data[o + 3]; m[1] = m[3] = data[o + 4]; m[2] = m[6] = data[o + 5];
+    m[4] = data[o + 6]; m[5] = m[7] = data[o + 7]; m[8] = data[o + 8];
+    eigenFrame(m, v);
+    let nx = v[0], ny = v[1], nz = v[2];
+    if (nx * (data[o] - cx) + ny * (data[o + 1] - cy) + nz * (data[o + 2] - cz) < 0) {
+      nx = -nx; ny = -ny; nz = -nz;
+    }
+    frames[i * 6] = nx; frames[i * 6 + 1] = ny; frames[i * 6 + 2] = nz;
+    frames[i * 6 + 3] = v[6]; frames[i * 6 + 4] = v[7]; frames[i * 6 + 5] = v[8];
+  }
+  smoothNormals(data, frames, n);
+  return frames;
+}
+
+function easeOutBack(t) {
+  const c1 = 1.4;
+  return 1 + (c1 + 1) * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
 class SplatViewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -232,9 +266,28 @@ class SplatViewer {
     this.frames = 0;
     this.fps = 0;
     this.fpsClock = performance.now();
+    this.revealStart = 0;
+    this.revealT = 1;
+    this.instanceBytes = 0;
+    this.frameBytes = 0;
+    this.buckets = new Uint32Array(65536);
     this.program = this.compile();
     this.setupBuffers();
     this.bindControls();
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault();
+      this.lost = true;
+    });
+    canvas.addEventListener("webglcontextrestored", () => {
+      this.lost = false;
+      this.program = this.compile();
+      this.setupBuffers();
+      this.instanceBytes = 0;
+      this.frameBytes = 0;
+      if (this.data) this.computeFrames();
+      this.lastSortKey = "";
+      this.dirty = true;
+    });
     requestAnimationFrame((t) => this.loop(t));
   }
 
@@ -335,12 +388,16 @@ class SplatViewer {
     }, { passive: false });
   }
 
-  load(buffer) {
+  load(buffer, frames = null) {
     this.data = new Float32Array(buffer);
     this.count = Math.floor(this.data.length / SPLAT_FLOATS);
-    this.sorted = new Float32Array(this.data.length);
-    this.depthKeys = new Uint32Array(this.count);
-    this.order = new Uint32Array(this.count);
+    this.givenFrames = frames;
+    if (!this.sorted || this.sorted.length !== this.data.length) this.sorted = new Float32Array(this.data.length);
+    if (!this.order || this.order.length !== this.count) {
+      this.depthKeys = new Uint32Array(this.count);
+      this.order = new Uint32Array(this.count);
+      this.depths = new Float32Array(this.count);
+    }
     this.lastSortKey = "";
     this.dirty = true;
     this.computeFrames();
@@ -359,32 +416,17 @@ class SplatViewer {
     [5, 6].forEach((loc) => (this.lighting && this.count ? gl.enableVertexAttribArray(loc) : gl.disableVertexAttribArray(loc)));
     gl.bindVertexArray(null);
     if (!this.lighting || !this.count) return;
-    const n = this.count;
-    const data = this.data;
-    const frames = new Float32Array(n * 6);
-    let cx = 0, cy = 0, cz = 0;
-    for (let i = 0; i < n; i++) {
-      cx += data[i * SPLAT_FLOATS];
-      cy += data[i * SPLAT_FLOATS + 1];
-      cz += data[i * SPLAT_FLOATS + 2];
-    }
-    cx /= n; cy /= n; cz /= n;
-    const m = new Float64Array(9);
-    const v = new Float64Array(9);
-    for (let i = 0; i < n; i++) {
-      const o = i * SPLAT_FLOATS;
-      m[0] = data[o + 3]; m[1] = m[3] = data[o + 4]; m[2] = m[6] = data[o + 5];
-      m[4] = data[o + 6]; m[5] = m[7] = data[o + 7]; m[8] = data[o + 8];
-      eigenFrame(m, v);
-      let nx = v[0], ny = v[1], nz = v[2];
-      if (nx * (data[o] - cx) + ny * (data[o + 1] - cy) + nz * (data[o + 2] - cz) < 0) {
-        nx = -nx; ny = -ny; nz = -nz;
-      }
-      frames.set([nx, ny, nz, v[6], v[7], v[8]], i * 6);
-    }
-    smoothNormals(data, frames, n);
-    this.surfaceFrames = frames;
-    this.surfaceSorted = new Float32Array(frames.length);
+    const given = this.givenFrames && this.givenFrames.length === this.count * 6;
+    this.surfaceFrames = given ? this.givenFrames : splatFrames(this.data, this.count);
+    if (!this.surfaceSorted || this.surfaceSorted.length !== this.surfaceFrames.length) this.surfaceSorted = new Float32Array(this.surfaceFrames.length);
+  }
+
+  reveal(duration = 1100) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.revealStart = performance.now();
+    this.revealDuration = duration;
+    this.revealT = 0;
+    this.dirty = true;
   }
 
   setSplatScale(scale) {
@@ -426,7 +468,8 @@ class SplatViewer {
     const keys = this.depthKeys;
     let min = Infinity;
     let max = -Infinity;
-    const depths = new Float32Array(n);
+    if (!this.depths || this.depths.length !== n) this.depths = new Float32Array(n);
+    const depths = this.depths;
     for (let i = 0; i < n; i++) {
       const o = i * SPLAT_FLOATS;
       const d = view[2] * data[o] + view[6] * data[o + 1] + view[10] * data[o + 2];
@@ -436,7 +479,8 @@ class SplatViewer {
     }
     const buckets = 65536;
     const scale = (buckets - 1) / Math.max(max - min, 1e-6);
-    const counts = new Uint32Array(buckets);
+    const counts = this.buckets;
+    counts.fill(0);
     for (let i = 0; i < n; i++) {
       keys[i] = ((depths[i] - min) * scale) | 0;
       counts[keys[i]]++;
@@ -450,14 +494,28 @@ class SplatViewer {
     }
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instances);
-    gl.bufferData(gl.ARRAY_BUFFER, out, gl.DYNAMIC_DRAW);
+    if (out.byteLength !== this.instanceBytes) {
+      gl.bufferData(gl.ARRAY_BUFFER, out, gl.DYNAMIC_DRAW);
+      this.instanceBytes = out.byteLength;
+    } else {
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, out);
+    }
     if (this.lighting && this.surfaceFrames) {
+      const frames = this.surfaceFrames;
+      const sorted = this.surfaceSorted;
       for (let k = 0; k < n; k++) {
         const src = this.order[k] * 6;
-        this.surfaceSorted.set(this.surfaceFrames.subarray(src, src + 6), k * 6);
+        const dst = k * 6;
+        sorted[dst] = frames[src]; sorted[dst + 1] = frames[src + 1]; sorted[dst + 2] = frames[src + 2];
+        sorted[dst + 3] = frames[src + 3]; sorted[dst + 4] = frames[src + 4]; sorted[dst + 5] = frames[src + 5];
       }
       gl.bindBuffer(gl.ARRAY_BUFFER, this.frameBuffer);
-      gl.bufferData(gl.ARRAY_BUFFER, this.surfaceSorted, gl.DYNAMIC_DRAW);
+      if (sorted.byteLength !== this.frameBytes) {
+        gl.bufferData(gl.ARRAY_BUFFER, sorted, gl.DYNAMIC_DRAW);
+        this.frameBytes = sorted.byteLength;
+      } else {
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, sorted);
+      }
     }
   }
 
@@ -471,7 +529,12 @@ class SplatViewer {
       this.dirty = true;
     }
     this.lastTime = time;
-    if (this.dirty && this.count > 0) {
+    if (this.revealStart) {
+      this.revealT = Math.min(1, Math.max(0, (time - this.revealStart) / this.revealDuration));
+      if (this.revealT >= 1) this.revealStart = 0;
+      this.dirty = true;
+    }
+    if (this.dirty && this.count > 0 && !this.lost) {
       this.draw();
       this.dirty = false;
     }
@@ -495,8 +558,10 @@ class SplatViewer {
       canvas.height = height;
     }
     const fovy = SPLAT_FOVY;
-    const view = orbitView(this.yaw, this.pitch, this.distance);
-    const key = `${this.yaw.toFixed(3)}:${this.pitch.toFixed(3)}:${this.count}`;
+    const t = this.revealT;
+    const yaw = this.yaw - (1 - (1 - Math.pow(1 - t, 3))) * 1.1;
+    const view = orbitView(yaw, this.pitch, this.distance);
+    const key = `${Math.round(yaw / SPLAT_SORT_STEP)}:${Math.round(this.pitch / SPLAT_SORT_STEP)}:${this.count}`;
     if (key !== this.lastSortKey) {
       this.sort(view);
       this.lastSortKey = key;
@@ -513,7 +578,7 @@ class SplatViewer {
     gl.uniformMatrix4fv(this.uniforms.u_proj, false, perspective(fovy, width / height, 0.05, 50));
     gl.uniform2f(this.uniforms.u_focal, focal, focal);
     gl.uniform2f(this.uniforms.u_viewport, width, height);
-    gl.uniform1f(this.uniforms.u_splatScale, this.splatScale);
+    gl.uniform1f(this.uniforms.u_splatScale, this.splatScale * Math.max(0.001, easeOutBack(t)));
     gl.uniform1f(this.uniforms.u_lit, this.lighting && this.surfaceFrames ? 1 : 0);
     gl.uniform3f(this.uniforms.u_key, ...SPLAT_KEY);
     gl.uniform3f(this.uniforms.u_fill, ...SPLAT_FILL);
@@ -524,3 +589,4 @@ class SplatViewer {
 }
 
 window.SplatViewer = SplatViewer;
+window.splatFrames = splatFrames;

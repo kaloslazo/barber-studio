@@ -11,3 +11,44 @@
 #hair3d-head.head-choice .style-btn { justify-content: center; padding: 0 8px; }
 #panel-transfer .ticket > .field { margin-bottom: 6px; }
 .turn-stage .live-meta { padding: 8px 12px 10px; }
+
+.has-thumb { position: relative; isolation: isolate; }
+.has-thumb > .seg-thumb { position: absolute; left: 0; top: 0; z-index: 0; border-radius: var(--radius); background: var(--ink); pointer-events: none; transition: transform 0.36s cubic-bezier(0.22, 0.9, 0.24, 1), width 0.36s cubic-bezier(0.22, 0.9, 0.24, 1), height 0.36s cubic-bezier(0.22, 0.9, 0.24, 1); }
+.has-thumb > :not(.seg-thumb) { position: relative; z-index: 1; transition: color 0.25s ease; }
+.has-thumb > .active, .has-thumb > .active:hover:not(:disabled) { background: transparent; border-color: transparent; color: var(--on-accent); }
+#hair3d-head.has-thumb { padding: 3px; border-radius: calc(var(--radius) + 3px); background: var(--bg); }
+
+#hair3d-stats.building {
+  background: linear-gradient(100deg, var(--on-stage-muted) 0%, var(--on-stage-muted) 40%, #ffffff 50%, var(--on-stage-muted) 60%, var(--on-stage-muted) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 1.6s linear infinite;
+}
+@keyframes shine { from { background-position: 110% 0; } to { background-position: -110% 0; } }
+
+.hair-fall { position: absolute; z-index: 4; pointer-events: none; }
+
+.face-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+.face-row .field-note { margin: 4px 0 0; }
+.face-row button { flex: none; }
+#panel-transfer .ticket > .face-scan-stage { margin-top: -8px; }
+
+#transfer-splat.active .inspector-col > *, #transfer-splat.active .stage-col > * { animation: rise 0.55s cubic-bezier(0.22, 0.9, 0.24, 1) both; }
+#transfer-splat.active .inspector-col > :nth-child(2) { animation-delay: 70ms; }
+#transfer-splat.active .inspector-col > :nth-child(3) { animation-delay: 140ms; }
+#transfer-splat.active .stage-col > :nth-child(2), #transfer-splat.active .stage-col > :nth-child(3) { animation-delay: 90ms; }
+.turn-steps li { animation: rise 0.5s cubic-bezier(0.22, 0.9, 0.24, 1) both; }
+.turn-steps li:nth-child(2) { animation-delay: 60ms; }
+.turn-steps li:nth-child(3) { animation-delay: 120ms; }
+.turn-steps li:nth-child(4) { animation-delay: 180ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+
+.swatch.active, .wig-swatch.active { animation: pop 0.32s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes pop { 0% { transform: scale(0.9); } 100% { transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  #transfer-splat.active .inspector-col > *, #transfer-splat.active .stage-col > *, .turn-steps li, .swatch.active, .wig-swatch.active { animation: none; }
+  #hair3d-stats.building { animation: none; color: var(--on-stage-muted); background: none; }
+}
