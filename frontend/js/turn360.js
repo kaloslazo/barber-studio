@@ -87,6 +87,7 @@ function turnFail(title, detail) {
   turnStatus.textContent = title;
   turnPercent.textContent = "";
   turnStart.textContent = "Intentar de nuevo";
+  freshVoice.sound("error");
   freshVoice.say(`${title}. ${detail}`, { now: true });
 }
 
@@ -195,6 +196,7 @@ async function turnSend() {
     if (!turn.running) return;
     turn.frames[info.index] = blob;
     turn.yaw = info.yaw;
+    if (info.bins.length > turn.bins.length) freshVoice.sound("tick", info.coverage);
     turn.bins = info.bins;
     turn.coverage = info.coverage;
     turn.turned = info.turned;
@@ -252,7 +254,10 @@ async function startTurn() {
   requestAnimationFrame(drawTurn);
   turn.countTimer = setInterval(() => {
     turn.count -= 1;
-    if (turn.count > 0) return;
+    if (turn.count > 0) {
+      freshVoice.sound("shot");
+      return;
+    }
     clearInterval(turn.countTimer);
     turn.counting = false;
     beginTurn();
@@ -328,10 +333,12 @@ async function turnBuild(source, label, withFace) {
   freshVoice.say("Listo. Ahora armo tu peluca, dame unos segundos.", { now: true });
   let built = await buildHair3d(source, label);
   let faceless = false;
+  if (built === "stale") return false;
   if (built !== true && withFace) {
     hair3dMyFace.checked = false;
     syncHeadChoice();
-    built = await buildHair3d({ ...source, note: `${source.note} · en el maniquí: tu cara no salió` }, label);
+    built = await buildHair3d({ ...source, faceless: true, note: `${source.note} · en el maniquí: tu cara no salió` }, label);
+    if (built === "stale") return false;
     faceless = built === true;
   }
   if (built !== true) {
@@ -342,6 +349,7 @@ async function turnBuild(source, label, withFace) {
   turnStage.hidden = true;
   turnStart.textContent = "Escanear de nuevo";
   turnStatus.textContent = "Peluca lista";
+  freshVoice.sound("chime");
   freshVoice.say(faceless
     ? "Tu peluca está lista, pero en el maniquí: tu cara no salió bien. Prueba escanear tu cara aparte."
     : "Tu peluca está lista. Gírala con el mouse o con el dedo.", { now: true });

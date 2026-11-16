@@ -47,7 +47,7 @@ except ImportError:
     HairSegmenter = None
 
 try:
-    from app.core.segmentation.mp_segmenter import FACE_SKIN, HAIR, MultiClassSegmenter
+    from app.core.segmentation.mp_segmenter import CLOTHES, FACE_SKIN, HAIR, MultiClassSegmenter
 except ImportError:
     MultiClassSegmenter = None
 
@@ -737,9 +737,14 @@ class StylePipeline:
             near = cv2.dilate(face_mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (grow, grow)))
             face_mask[(probabilities[FACE_SKIN] > 0.5) & (near > 0)] = 255
         face_mask[mask > 0] = 0
+        clothes = None
+        if probabilities is not None:
+            worn = probabilities[CLOTHES] > 0.6
+            if worn.sum() > 300:
+                clothes = np.median(image_bgr[worn], axis=0)
         result = {
             "image": image_bgr, "mask": mask, "alpha": alpha, "face_mask": face_mask, "geometry": geometry,
-            "points": points, "pose": pose, "yaw": measured,
+            "points": points, "pose": pose, "yaw": measured, "clothes": clothes,
         }
         if key is not None:
             self._remember(self._hair_views, key, result, 90)
@@ -862,7 +867,7 @@ class StylePipeline:
             self._remember(self._face_scans, key, scan, 4)
         return scan
 
-    def hair3d(self, images_bgr, angles, mannequin=True, face_images=None, keys=None, face_key=None):
+    def hair3d(self, images_bgr, angles, mannequin=True, face_images=None, keys=None, face_key=None, both=False):
         head = None
         if face_images is not None:
             scan = self.face_scan(face_images, face_key)
@@ -874,11 +879,11 @@ class StylePipeline:
             if not analysed["mask"].any():
                 continue
             yaw = analysed["yaw"] if analysed["yaw"] is not None else angle
-            views.append(HairView(analysed["image"], analysed["alpha"], analysed["face_mask"], analysed["geometry"], yaw,
+            views.append(HairView(analysed["image"], analysed["alpha"], analysed["face_mask"], analysed["geometry"], yaw, clothes=analysed.get("clothes"),
                                   tracked=analysed["points"] is not None))
         if not views:
             return None, None
-        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head, both=both)
 
     def turn_frame(self, key, image_bgr):
         """One frame of a scan in which the person turns on the chair: the
@@ -1063,10 +1068,10 @@ class StylePipeline:
                     a = self._untracked_view(resized, face_w, eye_ratio)
                     if a is None:
                         continue
-                views.append(HairView(a["image"], a["alpha"], a["face_mask"], a["geometry"], yaw, tracked=tracked))
+                views.append(HairView(a["image"], a["alpha"], a["face_mask"], a["geometry"], yaw, tracked=tracked, clothes=a.get("clothes")))
         return views
 
-    def hair3d_turn(self, images_bgr, yaws, mannequin=True, face_images=None, face_key=None):
+    def hair3d_turn(self, images_bgr, yaws, mannequin=True, face_images=None, face_key=None, both=False):
         views = self.turn_views(images_bgr, yaws)
         if len(views) < 3:
             return None, None
@@ -1074,7 +1079,7 @@ class StylePipeline:
         if face_images is not None:
             scan = self.face_scan(face_images, face_key)
             head = lambda axes: face_splats(scan, axes)
-        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head, both=both)
 
     def reconstruct_transfer_mesh(self, images_bgr, angles):
         masks = []

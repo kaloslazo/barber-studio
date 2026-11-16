@@ -325,7 +325,9 @@ async def transfer_splat(
     turn: str = Form("false"),
     face_mirror: str = Form("false"),
     face_frames: List[UploadFile] = File(None),
+    heads: str = Form("one"),
 ):
+    both = heads == "both"
     angle_values = [float(value) for value in angles.split(",") if value.strip()]
     if len(frames) != len(angle_values):
         raise HTTPException(status_code=400, detail="Frames and scan angles must match")
@@ -342,10 +344,10 @@ async def transfer_splat(
     try:
         if turn == "true":
             turn_store.save(data, angle_values)
-            rows, meta = await work(pipeline.hair3d_turn, images, angle_values, mannequin != "false", faces, face_key)
+            rows, meta = await work(pipeline.hair3d_turn, images, angle_values, mannequin != "false", faces, face_key, both=both)
         else:
             rows, meta = await work(
-                pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
+                pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key, both=both,
             )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
@@ -360,7 +362,10 @@ async def transfer_splat(
     return Response(
         content=rows.tobytes(),
         media_type="application/octet-stream",
-        headers={"X-Splat-Count": str(meta["count"]), "X-Splat-Hair": str(meta["hair"]), "X-Splat-Views": str(meta["views"])},
+        headers={
+            "X-Splat-Count": str(meta["count"]), "X-Splat-Hair": str(meta["hair"]), "X-Splat-Views": str(meta["views"]),
+            "X-Splat-Face": str(meta.get("face", 0)), "X-Splat-Mannequin": str(meta.get("mannequin", 0)), "X-Splat-Body": str(meta.get("body", 0)),
+        },
     )
 
 

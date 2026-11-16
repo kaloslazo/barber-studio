@@ -575,6 +575,7 @@
             <h2>12 segundos, 180°</h2>
             <p>Empieza mirando a la izquierda y gira despacio hacia la derecha. Mantén toda la cabeza dentro de la guía.</p>
             <div class="scan-key mesh-key"><i></i> Las líneas son la malla facial</div>
+            <label class="check"><span>Voz y sonidos</span><input type="checkbox" id="scan-voice" data-voice-toggle checked></label>
             <div class="actions">
               <button id="scan-start" data-icon="scan">Empezar escaneo</button>
               <button class="quiet-button" id="scan-stop" disabled>Cancelar</button>
@@ -700,46 +701,20 @@
                 <li>Gira despacio una vuelta completa, unos 15 s. La voz te va diciendo cómo vas.</li>
                 <li>Al volver de frente, la peluca se arma sola sobre tu cara.</li>
               </ol>
-              <label class="check"><span>Guía por voz</span><input type="checkbox" id="turn-voice" data-voice-toggle checked></label>
+              <label class="check"><span>Voz y sonidos</span><input type="checkbox" id="turn-voice" data-voice-toggle checked></label>
               <div class="actions">
                 <button id="turn-start" data-icon="rotate-3d">Empezar escaneo 360°</button>
                 <button class="quiet-button" id="turn-stop" disabled>Terminar</button>
               </div>
-              <div class="actions">
-                <button class="quiet-button" id="turn-file-button" data-icon="video">Usar un video de una vuelta</button>
+              <div class="actions-row pair">
+                <button class="quiet-button" id="turn-file-button" data-icon="video">Usar un video</button>
+                <button class="quiet-button" id="hair3d-photo" data-icon="photo-up">Usar una foto</button>
                 <input type="file" id="turn-file" accept="video/*" hidden>
+                <input type="file" id="hair3d-input" accept="image/*" hidden>
               </div>
               <video id="turn-video" hidden autoplay playsinline muted></video>
               <div class="banner" id="turn-error" hidden></div>
             </div>
-            <details class="card inspector ticket other-ways">
-              <summary>Otras formas de crear una peluca</summary>
-            <div class="inspector ticket">
-              <span class="step-label">Desde tu escaneo</span>
-              <h2 id="hair3d-peluca-name">Ninguna peluca elegida</h2>
-              <p class="field-note">Cada ángulo capturado se lleva a 3D y se une en una sola peluca de gaussianas.</p>
-              <div class="actions"><button id="hair3d-scan" data-icon="cube-plus" disabled>Construir desde el escaneo</button></div>
-            </div>
-            <div class="card drop-zone compact" id="hair3d-drop" tabindex="0">
-              <img class="dz-preview" alt="">
-              <div class="dz-text">
-                <p class="dz-title">O suelta una foto de pelo</p>
-                <p class="dz-sub">Una foto de frente, como en el Espejo 3D</p>
-              </div>
-              <input type="file" id="hair3d-input" accept="image/*" hidden>
-            </div>
-            <div class="card inspector ticket">
-              <span class="step-label">Tu cara</span>
-              <h2 id="face3d-status">Todavía no escaneas tu cara</h2>
-              <p class="field-note">Siete segundos: mira de frente y gira despacio a cada lado.</p>
-              <div class="face-scan-stage" id="face3d-stage" hidden>
-                <canvas id="face3d-live" aria-label="Escaneo de la cara en vivo"></canvas>
-                <div class="pose-badge" id="face3d-hint">Prepárate…</div>
-              </div>
-              <div class="actions"><button class="quiet-button" id="face3d-scan" data-icon="user-scan">Escanear mi cara (7 s)</button></div>
-              <video id="face3d-video" hidden autoplay playsinline muted></video>
-            </div>
-            </details>
             <div class="card inspector ticket">
               <span class="step-label">Paso 2 · Míralo en 3D</span>
               <div class="field">
@@ -751,6 +726,18 @@
                 </div>
                 <p class="field-note" id="hair3d-head-note">«Mi cara» se activa sola después de la vuelta 360 o de escanear tu cara.</p>
               </div>
+              <div class="face-row">
+                <div>
+                  <span class="field-label">Tu cara</span>
+                  <p class="field-note" id="face3d-status">Sale de la vuelta 360. Para más detalle, escanéala de cerca.</p>
+                </div>
+                <button class="quiet-button" id="face3d-scan" data-icon="user-scan">Escanear (7 s)</button>
+              </div>
+              <div class="face-scan-stage" id="face3d-stage" hidden>
+                <canvas id="face3d-live" aria-label="Escaneo de la cara en vivo"></canvas>
+                <div class="pose-badge" id="face3d-hint">Prepárate…</div>
+              </div>
+              <video id="face3d-video" hidden autoplay playsinline muted></video>
               <div hidden>
                 <input type="checkbox" id="hair3d-mannequin" checked>
                 <input type="checkbox" id="hair3d-myface" disabled>
@@ -1541,6 +1528,7 @@
 
   <script src="js/splat3d.js"></script>
   <script src="js/voz.js"></script>
+  <script src="js/efectos.js"></script>
   <script src="js/app.js"></script>
   <script src="js/turn360.js"></script>
   <script src="js/lab.js"></script>

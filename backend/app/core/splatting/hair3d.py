@@ -10,6 +10,11 @@ SKULL_AXES = np.array([0.47, 0.82, 0.58])
 NECK_CENTER_Z = -0.24
 NECK_AXES = np.array([0.24, 0.27])
 NECK_RANGE = (0.55, 1.2)
+BODY_RANGE = (0.9, 2.3)
+BODY_LIFT = 0.42
+BODY_POWER = 2.6
+BODY_FADE = (1.95, 2.3)
+BODY_COLOR = np.array([0.26, 0.27, 0.29])
 
 
 DELIGHT_SIGMA = 0.35
@@ -54,13 +59,14 @@ def delight(image_bgr, alpha, face_w):
 
 
 class HairView:
-    def __init__(self, image_bgr, alpha, face_mask, geometry, yaw, tracked=True):
+    def __init__(self, image_bgr, alpha, face_mask, geometry, yaw, tracked=True, clothes=None):
         self.image = delight(image_bgr, alpha, geometry["face_w"])
         self.alpha = alpha.astype(np.float32)
         self.face_mask = face_mask
         self.geometry = geometry
         self.yaw = float(yaw)
         self.tracked = tracked
+        self.clothes = None if clothes is None else np.asarray(clothes, np.float64)
 
 
 def _body_mask(view):
@@ -630,7 +636,62 @@ def _mannequin(count, rng, axes=SKULL_AXES):
     return pos, _covariance((t1, t2, n), scales), color, np.full(len(pos), 0.98)
 
 
-def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None):
+def clothes_color(views):
+    """RGB colour of the clothes seen in the captures, or a neutral grey."""
+    found = [view.clothes for view in views if getattr(view, "clothes", None) is not None]
+    if not found:
+        return BODY_COLOR.copy()
+    return np.clip(np.median(np.stack(found), axis=0)[::-1] / 255.0, 0.0, 1.0)
+
+
+def _smoothstep(edge0, edge1, x):
+    t = np.clip((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _torso_size(y):
+    width = 0.29 + 0.89 * _smoothstep(0.9, 1.4, y) - 0.08 * _smoothstep(1.6, BODY_RANGE[1], y)
+    depth = 0.25 + 0.19 * _smoothstep(0.9, 1.5, y)
+    return width, depth
+
+
+def _torso(count, rng, color):
+    """Shoulders and chest under the neck: a superellipse section that opens
+    from the collar to the shoulders, dressed in the colour of the clothes and
+    fading out at the bottom like a bust."""
+    levels = np.linspace(BODY_RANGE[0], BODY_RANGE[1], 240)
+    widths, depths = _torso_size(levels)
+    slope_w = np.gradient(widths, levels)
+    slope_d = np.gradient(depths, levels)
+    band = (widths + depths) * np.pi * np.sqrt(1.0 + slope_w ** 2)
+    area = float(np.sum(band[:-1] * np.diff(levels)))
+    cdf = np.cumsum(band)
+    y = np.interp(rng.uniform(0.0, 1.0, count), cdf / cdf[-1], levels)
+    width, depth = _torso_size(y)
+    dw, dd = np.interp(y, levels, slope_w), np.interp(y, levels, slope_d)
+    angle = rng.uniform(0.0, 2.0 * np.pi, count)
+    c, s = np.cos(angle), np.sin(angle)
+    n = BODY_POWER
+    x = width * np.sign(c) * np.abs(c) ** (2.0 / n)
+    z = depth * np.sign(s) * np.abs(s) ** (2.0 / n)
+    ax, az = np.abs(x) + 1e-9, np.abs(z) + 1e-9
+    gx = np.sign(x) * ax ** (n - 1) / width ** n
+    gz = np.sign(z) * az ** (n - 1) / depth ** n
+    gy = -(ax ** n) * dw / width ** (n + 1) - (az ** n) * dd / depth ** (n + 1)
+    normal = np.stack([gx, gy, gz], axis=1)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True) + 1e-12
+    pos = np.stack([x, y, z + NECK_CENTER_Z], axis=1)
+    tangent = np.cross(normal, np.array([[0.0, 1.0, 0.0]]) + 1e-3)
+    t1, t2, nn = _frame(tangent, normal)
+    spacing = np.sqrt(area / max(count, 1)) * 1.15
+    scales = np.tile([spacing, spacing, spacing * 0.3], (count, 1))
+    shade = (1.0 - 0.12 * _smoothstep(1.2, BODY_RANGE[1], y)) * rng.normal(1.0, 0.025, count)
+    colors = np.clip(np.asarray(color)[None, :] * shade[:, None], 0.0, 1.0)
+    alpha = 0.98 * (1.0 - _smoothstep(BODY_FADE[0], BODY_FADE[1], y))
+    return pos, _covariance((t1, t2, nn), scales), colors, alpha
+
+
+def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None, both=False, torso=7000):
     """3D Gaussian peluca from one or more hair captures.
 
     One photo is lifted onto a lathe surface built from its silhouette; several
@@ -641,7 +702,9 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None):
     [x, y, z, cov(6), r, g, b, a] (hair first, then mannequin) in the same
     y-up, camera-facing frame as the 3D Mirror head. `head(axes)` replaces the
     mannequin with (pos, cov, color, alpha) in the same head frame, built
-    around a skull of the given axes."""
+    around a skull of the given axes; with `both` the mannequin is kept after
+    it, so the viewer can switch heads without rebuilding. Shoulders and chest
+    in the colour of the clothes close the rows."""
     rng = np.random.default_rng(seed)
     reference = min(range(len(views)), key=lambda index: abs(views[index].yaw))
     ref = views[reference]
@@ -681,26 +744,37 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None):
     cov = [hair_cov]
     color = [deepen_hair(samples["color"])]
     alpha = [samples["alpha"]]
-    if head is not None or mannequin:
-        m_pos, m_cov, m_color, m_alpha = head(axes) if head is not None else _mannequin(mannequin, rng, axes)
-        pos.append(m_pos)
-        cov.append(m_cov)
-        color.append(m_color)
-        alpha.append(m_alpha)
+    extras = {}
+    if head is not None:
+        extras["face"] = head(axes)
+    if mannequin and (head is None or both):
+        extras["mannequin"] = _mannequin(mannequin, rng, axes)
+    if torso and extras:
+        extras["body"] = _torso(torso, rng, clothes_color(views))
+    for part in extras.values():
+        pos.append(part[0])
+        cov.append(part[1])
+        color.append(part[2])
+        alpha.append(part[3])
     pos, cov = np.concatenate(pos), np.concatenate(cov)
     color, alpha = np.concatenate(color), np.concatenate(alpha)
 
     hair_pos = samples["pos"]
     center = np.array([0.0, (hair_pos[:, 1].min() + hair_pos[:, 1].max()) / 2, 0.0])
+    if "body" in extras:
+        center[1] += BODY_LIFT
     extent = np.abs(hair_pos - center).max(axis=0)
     A = np.diag([1.0, -1.0, 1.0]) * (FIT_RADIUS / max(extent[0], extent[1], 1.0))
     pos = (pos - center) @ A.T
     cov = np.einsum("ij,njk,lk->nil", A, cov, A)
     upper = np.stack([cov[:, 0, 0], cov[:, 0, 1], cov[:, 0, 2], cov[:, 1, 1], cov[:, 1, 2], cov[:, 2, 2]], axis=1)
     rows = np.concatenate([pos, upper, np.clip(color, 0, 1), alpha[:, None]], axis=1).astype(np.float32)
+    sizes = {name: int(len(part[0])) for name, part in extras.items()}
     return rows, {
         "count": int(len(rows)),
         "hair": int(len(hair_pos)),
-        "mannequin": int(len(rows) - len(hair_pos)),
+        "face": sizes.get("face", 0),
+        "mannequin": sizes.get("mannequin", sizes.get("face", 0)),
+        "body": sizes.get("body", 0),
         "views": len(views),
     }
