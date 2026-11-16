@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="css/icons.css">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/peluca.css">
+  <link rel="stylesheet" href="css/inicio.css">
 </head>
 <body>
   <header class="site-head">
@@ -81,9 +82,147 @@
 
       <div class="threads-band" aria-hidden="true"><canvas class="threads" id="threads"></canvas></div>
 
+      <section class="datos" aria-label="Fresh en números">
+        <p class="dato"><strong>478</strong><span>puntos que ubica en tu cara para dibujar encima</span></p>
+        <p class="dato"><strong>0,4 s</strong><span>en promedio para ponerte una barba</span></p>
+        <p class="dato"><strong>14</strong><span>herramientas entre estilos, 3D, juegos y fiesta</span></p>
+        <p class="dato"><strong>0</strong><span>fotos subidas a la nube: todo se procesa en tu compu</span></p>
+      </section>
+
+      <section class="probador" id="probador" aria-labelledby="probador-title">
+        <figure class="probador-foto">
+          <img src="assets/inicio/tinte-original.jpg" alt="" aria-hidden="true">
+          <img class="on" id="probador-img" src="assets/inicio/tinte-rojo.jpg" alt="Foto de ejemplo con el pelo rojo">
+          <figcaption id="probador-label">Rojo</figcaption>
+        </figure>
+        <div class="probador-copy">
+          <p class="eyebrow">Tinte y corte</p>
+          <h2 id="probador-title">Píntate el pelo sin manchar la toalla</h2>
+          <p class="probador-text">Mira cómo te queda el color antes de comprar el tinte. La app encuentra cada mechón y le cambia el color sin borrarle los brillos ni las sombras. Si te animas, también te pasa la máquina.</p>
+          <div class="probador-group" role="group" aria-label="Colores">
+            <span class="probador-title">Color</span>
+            <button type="button" class="probador-chip" data-look="tinte-original" data-name="Tal cual"><i style="--c: #2b2019"></i>Tal cual</button>
+            <button type="button" class="probador-chip" data-look="tinte-rubio" data-name="Rubio"><i style="--c: #d9b04a"></i>Rubio</button>
+            <button type="button" class="probador-chip active" data-look="tinte-rojo" data-name="Rojo"><i style="--c: #b3312c"></i>Rojo</button>
+            <button type="button" class="probador-chip" data-look="tinte-azul" data-name="Azul"><i style="--c: #2f4fb8"></i>Azul</button>
+            <button type="button" class="probador-chip" data-look="tinte-morado" data-name="Morado"><i style="--c: #7a3ba8"></i>Morado</button>
+            <button type="button" class="probador-chip" data-look="tinte-rosado" data-name="Rosado"><i style="--c: #d95fa6"></i>Rosado</button>
+          </div>
+          <div class="probador-group" role="group" aria-label="Cortes">
+            <span class="probador-title">Corte</span>
+            <button type="button" class="probador-chip" data-look="corte-crew" data-name="Crew cut">Crew cut</button>
+            <button type="button" class="probador-chip" data-look="corte-buzz" data-name="Rapado">Rapado</button>
+          </div>
+          <div class="hero-actions">
+            <button type="button" data-go="dye" data-icon="palette">Probar el tinte</button>
+            <button type="button" class="quiet-button" data-go="haircut" data-icon="razor-electric">Ver los cortes</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="casa" aria-labelledby="casa-title">
+        <div class="casa-head">
+          <h2 id="casa-title">Aquí no solo se corta pelo</h2>
+          <p>Retratos famosos, caras cruzadas, cabezas en 3D y un practicante con la tijera suelta. Toca cualquiera para probarlo.</p>
+        </div>
+        <div class="bento">
+          <button type="button" class="tile tile-wide" data-go="gallery" data-tone="estilos">
+            <span class="tile-media trio">
+              <img src="assets/inicio/galeria-marx.jpg" alt="La cara de la foto de ejemplo en el retrato de Karl Marx" loading="lazy">
+              <img src="assets/inicio/galeria-einstein.jpg" alt="La cara de la foto de ejemplo en el retrato de Einstein" loading="lazy">
+              <img src="assets/inicio/galeria-vangogh.jpg" alt="La cara de la foto de ejemplo en el autorretrato de van Gogh" loading="lazy">
+            </span>
+            <span class="tile-text">
+              <span class="tile-tag">Estilos <em>Foto</em></span>
+              <span class="tile-name">Galería</span>
+              <span class="tile-desc">Tu cara en el retrato de Marx, Einstein o van Gogh, con su barba, el grano de la foto vieja y hasta las pinceladas del óleo.</span>
+            </span>
+          </button>
+          <button type="button" class="tile tile-wide" data-go="swap" data-tone="fiesta" data-flip>
+            <span class="tile-media duo">
+              <span class="flip"><img src="assets/inicio/cambio-horowitz.jpg" alt="" loading="lazy"><img src="assets/inicio/cambio-a.jpg" alt="El primer astronauta con la cara del segundo" loading="lazy"></span>
+              <span class="flip"><img src="assets/inicio/cambio-rubio.jpg" alt="" loading="lazy"><img src="assets/inicio/cambio-b.jpg" alt="El segundo astronauta con la cara del primero" loading="lazy"></span>
+            </span>
+            <span class="tile-text">
+              <span class="tile-tag">Fiesta <em>Cámara</em></span>
+              <span class="tile-name">Cambio de cara</span>
+              <span class="tile-desc">Dos personas frente a la cámara y las caras se cruzan, con su piel y su luz. O todos con la cara del profe.</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="caricature" data-tone="fiesta" data-flip>
+            <span class="tile-media"><span class="flip"><img src="assets/inicio/caricatura-eyes.jpg" alt="Caricatura con ojos enormes" loading="lazy"><img src="assets/inicio/caricatura-alien.jpg" alt="Caricatura de alien" loading="lazy"></span></span>
+            <span class="tile-text">
+              <span class="tile-tag">Fiesta <em>Cámara</em></span>
+              <span class="tile-name">Caricatura</span>
+              <span class="tile-desc">Ojotes, narizón, carita o alien, en vivo.</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="fusion" data-tone="fiesta">
+            <span class="tile-media"><img src="assets/inicio/fusion.jpg" alt="Las dos caras de ejemplo fundidas en una" loading="lazy"></span>
+            <span class="tile-text">
+              <span class="tile-tag">Fiesta <em>Foto</em></span>
+              <span class="tile-name">Fusión</span>
+              <span class="tile-desc">Dos caras en una y, de yapa, el nombre del hijo.</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="apprentice" data-tone="juegos" data-flip>
+            <span class="tile-media"><span class="flip"><img src="assets/inicio/practicante-1.jpg" alt="Look del practicante: pelo y barba rosados con el pelo rapado" loading="lazy"><img src="assets/inicio/practicante-2.jpg" alt="Look del practicante: bigote y pelo verdes" loading="lazy"></span></span>
+            <span class="tile-text">
+              <span class="tile-tag">Juegos <em>Foto</em></span>
+              <span class="tile-name">El practicante</span>
+              <span class="tile-desc">Su primer día: tira los dados y él decide tu barba, tu color y tu corte.</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="mirror" data-tone="3d">
+            <span class="tile-media"><img src="assets/inicio/espejo.jpg" alt="Cabeza 3D hecha de gaussianas, girada y con barba completa" loading="lazy"></span>
+            <span class="tile-text">
+              <span class="tile-tag">3D <em>Foto</em></span>
+              <span class="tile-name">Espejo 3D</span>
+              <span class="tile-desc">De una sola foto sale tu cabeza en 3D con la barba puesta. Gírala con el dedo.</span>
+            </span>
+          </button>
+          <button type="button" class="tile tile-wide" data-go="transfer" data-tone="3d">
+            <span class="tile-media duo">
+              <img src="assets/inicio/peluca-frente.jpg" alt="Peluca 3D sobre la cara escaneada, de frente" loading="lazy">
+              <img src="assets/inicio/peluca-giro.jpg" alt="La misma peluca 3D girada hacia un costado" loading="lazy">
+            </span>
+            <span class="tile-text">
+              <span class="tile-tag">3D <em>Cámara</em></span>
+              <span class="tile-name">Peluca 3D</span>
+              <span class="tile-desc">Da una vuelta en la silla frente a la cámara y tu peinado queda en 3D para cortarlo.</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="splats" data-tone="juegos" data-flip>
+            <span class="tile-media"><span class="flip"><img src="assets/inicio/gaussianas.jpg" alt="Retrato armado con 600 elipses de color" loading="lazy"><img src="assets/inicio/gaussianas-render.jpg" alt="El mismo retrato con las gaussianas difuminadas" loading="lazy"></span></span>
+            <span class="tile-text">
+              <span class="tile-tag">Juegos <em>Foto</em></span>
+              <span class="tile-name">Gaussianas</span>
+              <span class="tile-desc">Tu cara hecha con 600 manchas de color. ¿Con cuántas te reconoces?</span>
+            </span>
+          </button>
+          <button type="button" class="tile" data-go="speedrun" data-tone="juegos">
+            <span class="tile-media"><img src="assets/inicio/contrarreloj.jpg" alt="Partida de Contrarreloj con el estilo objetivo marcado" loading="lazy"></span>
+            <span class="tile-text">
+              <span class="tile-tag">Juegos <em>Cámara · 30 s</em></span>
+              <span class="tile-name">Contrarreloj</span>
+              <span class="tile-desc">30 segundos para afeitarte hasta el estilo pedido, con el dedo frente a la cámara.</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="pasos" aria-labelledby="pasos-title">
+        <h2 id="pasos-title">Así de fácil</h2>
+        <ol>
+          <li><span class="paso-n">1</span><h3>Siéntate</h3><p>Sube una foto o tómala con la cámara. De frente, con luz pareja y sin gorra.</p></li>
+          <li><span class="paso-n">2</span><h3>Pide tu estilo</h3><p>Barba, tinte o corte. En menos de un segundo lo tienes dibujado sobre tu cara.</p></li>
+          <li><span class="paso-n">3</span><h3>Mírate en el espejo</h3><p>Compara el antes y el después, guárdalo en Mis looks y llévale la ficha a tu barbero.</p></li>
+        </ol>
+      </section>
+
       <section class="carta" aria-labelledby="carta-title">
         <div class="carta-head">
-          <h2 id="carta-title">Herramientas</h2>
+          <h2 id="carta-title">La carta completa</h2>
           <button type="button" class="quiet-button" data-go="docs" data-icon="route">Cómo funciona por dentro</button>
         </div>
         <div class="carta-cols">
@@ -121,7 +260,24 @@
         </div>
         <div class="looks-grid compact" id="recent-grid"></div>
       </section>
-      <p class="credits">Hecho por Kalos Lazo, Sofía Herrera y Gianpier Segovia para CS4016 Computación Gráfica, UTEC.</p>
+
+      <section class="sigue" aria-labelledby="sigue-title">
+        <div class="sigue-caras" aria-hidden="true">
+          <img src="assets/inicio/tinte-rubio.jpg" alt="" loading="lazy">
+          <img src="assets/inicio/galeria-lincoln.jpg" alt="" loading="lazy">
+          <img src="assets/inicio/caricatura-big-head.jpg" alt="" loading="lazy">
+          <img src="assets/inicio/practicante-3.jpg" alt="" loading="lazy">
+          <img src="assets/inicio/corte-buzz.jpg" alt="" loading="lazy">
+          <img src="assets/inicio/tinte-azul.jpg" alt="" loading="lazy">
+        </div>
+        <h2 id="sigue-title">¿Quién sigue?</h2>
+        <p>El sillón está libre. Sube tu foto y sal fresh.</p>
+        <div class="hero-actions center">
+          <button type="button" data-upload data-icon="photo-up">Subir foto</button>
+          <button type="button" class="quiet-button" data-camera data-icon="camera">Tomar foto</button>
+          <button type="button" class="link-button" data-sample>o usa la foto de ejemplo</button>
+        </div>
+      </section>
     </section>
 
     <section class="panel" id="panel-dye">
@@ -1296,6 +1452,53 @@
     </section>
   </main>
 
+  <footer class="site-foot">
+    <div class="foot-pole" aria-hidden="true"></div>
+    <div class="foot-main">
+      <div class="foot-brand">
+        <button type="button" class="foot-mark" data-go="inicio">Fresh</button>
+        <p>La barbería donde te pruebas el look antes de que caiga el primer pelo.</p>
+      </div>
+      <nav class="foot-cols" aria-label="Todas las herramientas">
+        <div class="foot-col" data-tone="estilos">
+          <h3>Estilos</h3>
+          <button type="button" data-go="beard">Barba</button>
+          <button type="button" data-go="dye">Tinte</button>
+          <button type="button" data-go="haircut">Corte</button>
+          <button type="button" data-go="live">En vivo</button>
+          <button type="button" data-go="gallery">Galería</button>
+        </div>
+        <div class="foot-col" data-tone="3d">
+          <h3>3D</h3>
+          <button type="button" data-go="mirror">Espejo 3D</button>
+          <button type="button" data-go="transfer">Peluca 3D</button>
+          <button type="button" data-go="lab">Laboratorio</button>
+        </div>
+        <div class="foot-col" data-tone="juegos">
+          <h3>Juegos</h3>
+          <button type="button" data-go="speedrun">Contrarreloj</button>
+          <button type="button" data-go="splats">Gaussianas</button>
+          <button type="button" data-go="apprentice">El practicante</button>
+        </div>
+        <div class="foot-col" data-tone="fiesta">
+          <h3>Fiesta</h3>
+          <button type="button" data-go="swap">Cambio de cara</button>
+          <button type="button" data-go="caricature">Caricatura</button>
+          <button type="button" data-go="fusion">Fusión</button>
+        </div>
+        <div class="foot-col">
+          <h3>Fresh</h3>
+          <button type="button" data-go="docs">Cómo funciona</button>
+          <button type="button" data-go="looks">Mis looks</button>
+        </div>
+      </nav>
+    </div>
+    <div class="foot-base">
+      <p>Hecho por Kalos Lazo, Sofía Herrera y Gianpier Segovia para CS4016 Computación Gráfica, UTEC, 2026.</p>
+      <p>Python, OpenCV, MediaPipe y WebGL. Fotos de ejemplo de la NASA y de Wikimedia Commons, de dominio público.</p>
+    </div>
+  </footer>
+
 
   <div class="cam-modal" id="cam-modal" role="dialog" aria-modal="true" aria-labelledby="cam-title" hidden>
     <div class="cam-box">
@@ -1332,5 +1535,6 @@
   <script src="js/ui.js"></script>
   <script src="js/practicante.js"></script>
   <script src="js/bits.js"></script>
+  <script src="js/inicio.js"></script>
 </body>
 </html>
