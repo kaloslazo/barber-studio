@@ -62,7 +62,7 @@ Without Docker, from the repo root (creates the venv and installs dependencies o
 ./run.sh
 ```
 
-Tests (103):
+Tests (107):
 
 ```bash
 cd backend && venv/bin/python -m pytest tests/ -q

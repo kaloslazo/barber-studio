@@ -547,6 +547,7 @@
   const MESSAGES = [
     [/^Invalid image file.*$/i, "El archivo no es una imagen válida."],
     [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz. Si no tienes pelo, la Peluca 3D te presta uno."],
+    [/^Face turned too far.*$/i, "La cara está muy de perfil. Para la barba y el corte, mira a la cámara."],
     [/^Need two faces in the photo.*$/i, "Hacen falta dos caras en la foto. Pónganse dos frente a la cámara o elige «Dos fotos»."],
     [/^Choose a face to wear first.*$/i, "Primero guarden la cara que se van a poner."],
     [/^No face detected in the second photo.*$/i, "No encontramos una cara en la segunda foto."],

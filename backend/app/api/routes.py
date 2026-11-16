@@ -136,7 +136,10 @@ async def beard(
     if style not in STYLES:
         raise HTTPException(status_code=400, detail=f"Unknown beard style: {style}")
     image_bgr = decode_image(await image.read())
-    result = await work(pipeline.apply_beard, image_bgr, style, strength)
+    try:
+        result = await work(pipeline.apply_beard, image_bgr, style, strength, strict=True)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
     if result is None:
         raise HTTPException(
             status_code=422, detail="No face detected or landmark model missing"
@@ -156,7 +159,7 @@ async def haircut(
     try:
         result = await work(pipeline.apply_haircut, image_bgr, style, strength)
     except ValueError as error:
-        status = 422 if str(error).startswith("No hair") else 400
+        status = 422 if str(error).startswith(("No hair", "Face turned")) else 400
         raise HTTPException(status_code=status, detail=str(error))
     if result is None:
         raise HTTPException(status_code=422, detail="No face detected in the image")

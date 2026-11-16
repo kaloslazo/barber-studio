@@ -6,14 +6,16 @@ from app.core.geometry.warp import _bilinear_sample
 SUBPIXEL = 4
 
 
-def triangle_ids(points, triangles, box):
+def triangle_ids(points, triangles, box, keep=None):
     """Which triangle covers each pixel of `box` (-1 = none). Each triangle
-    is rasterized once with its index as the color, with 1/16 px precision."""
+    is rasterized once with its index as the color, with 1/16 px precision.
+    Triangles with `keep` False are not drawn (back-face culling)."""
     x0, y0, x1, y1 = box
     ids = np.full((y1 - y0, x1 - x0), -1, np.int32)
     shifted = np.round((points - (x0, y0)) * (1 << SUBPIXEL)).astype(np.int32)
     for index, triangle in enumerate(triangles):
-        cv2.fillConvexPoly(ids, shifted[triangle], int(index), lineType=cv2.LINE_8, shift=SUBPIXEL)
+        if keep is None or keep[index]:
+            cv2.fillConvexPoly(ids, shifted[triangle], int(index), lineType=cv2.LINE_8, shift=SUBPIXEL)
     return ids
 
 
@@ -39,12 +41,12 @@ def bounds(points, shape, pad=2):
     return max(0, x0), max(0, y0), min(w, x1), min(h, y1)
 
 
-def warp_mesh(image, src_points, dst_points, triangles, out=None):
+def warp_mesh(image, src_points, dst_points, triangles, out=None, keep=None):
     """Piecewise-affine warp by inverse mapping: the pixels inside the
     destination mesh are read from `image` where the same triangle sits in
     the source mesh, with bilinear sampling. Returns the warped picture
     (pixels outside the mesh come from `out`, or are black) and the
-    coverage mask."""
+    coverage mask. `keep` leaves triangles out."""
     shape = image.shape if out is None else out.shape
     box = bounds(dst_points, shape)
     x0, y0, x1, y1 = box
@@ -52,7 +54,7 @@ def warp_mesh(image, src_points, dst_points, triangles, out=None):
     covered = np.zeros(shape[:2], np.float32)
     if x1 <= x0 or y1 <= y0:
         return result, covered
-    ids = triangle_ids(dst_points, triangles, box)
+    ids = triangle_ids(dst_points, triangles, box, keep)
     rows, cols = np.nonzero(ids >= 0)
     if not len(rows):
         return result, covered
