@@ -22,6 +22,7 @@ The app does not generate a new face: it models the geometry of your face and ha
 - **3D Mirror**: your head as more than 100k 3D Gaussians from one photo and the MediaPipe 3D mesh, drawn by our own WebGL2 splatting viewer (EWA projection, counting sort), exportable as `.ply`.
 - **3D Wig**: a 12 s webcam scan, or one full turn on a swivel chair (head yaw tracked without a face), turned into a hair volume (visual hull per slice), textured from the best views; recolor, shorten and trim it with scissors. The lab keeps Gaussians in each triangle's local frame so they follow the face live.
 - **Speedrun** (game): shave a physics beard down to a target style in 30 s with your index finger (MediaPipe Hands) or the mouse.
+- **Galería** (famous beards): your face inside seven public-domain portraits (Lincoln, Marx, Twain, Douglass, Van Gogh, Einstein, Nietzsche), keeping the portrait's beard on top. Old photos turn the face black and white with their own grain; the Van Gogh self-portrait repaints it with a Kuwahara filter computed with summed-area tables. Credits in `frontend/assets/galeria/CREDITOS.md`.
 - **Fiesta** (face games, photo or live, several faces at once): face swap between the people in front of the camera or one saved face for everybody, caricatures (Brennan's exaggeration against a mean face of 400 people, plus five local warps) and a morph between two faces with the "child" at t = 0.5. All three share one Delaunay topology computed once on the mean face, a batched piecewise-affine warp by inverse mapping, Reinhard color transfer in Lab and Laplacian-pyramid blending. About 15 fps live on the CPU.
 
 ## Course topics covered
@@ -62,7 +63,7 @@ Without Docker, from the repo root (creates the venv and installs dependencies o
 ./run.sh
 ```
 
-Tests (107):
+Tests (113):
 
 ```bash
 cd backend && venv/bin/python -m pytest tests/ -q
@@ -118,6 +119,8 @@ The UI loads two things from the internet: the Google fonts (with local fallback
 | `POST /api/faces/source` | Saves the biggest face of the photo as the face everybody wears. Field: `image`. Returns the face crop (JPEG) |
 | `POST /api/faces/photo` | Fiesta on a photo. Fields: `image`, optional `other` (puts the face of the second photo on the first), `mode` (`swap`/`wear`/`caricature`), `preset` (`caricature`/`eyes`/`nose`/`big-head`/`tiny-face`/`alien`), `amount` (0-1). Returns PNG and `X-Faces` |
 | `POST /api/faces/live` | One webcam frame (scaled to 640 px). Fields: `image`, `mode`, `preset`, `amount`. Returns JPEG and `X-Faces` |
+| `GET /api/gallery` | The portraits of the Galería (name, year, author, style, what to ask the barber, source) |
+| `POST /api/gallery` | Your face in the portraits. Fields: `image`, optional `key`. Returns JSON `{results: [{key, image}]}` |
 | `POST /api/faces/fusion` | Morph between two faces. Fields: `image`, optional `other`, `steps` (3-25, default 13). Without `other`, uses the two biggest faces of the photo, left to right. Returns JSON `{frames: [data URLs]}` |
 
 ## Documentation

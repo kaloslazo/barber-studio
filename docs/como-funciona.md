@@ -23,7 +23,7 @@ Los diagramas usan las etapas reales del programa sobre un retrato de dominio p�
 - **Un solo proceso de FastAPI sirve la interfaz y la API.** Los endpoints solo validan la entrada y llaman al pipeline.
 - **Cada llamada al pipeline pasa por `work()`.** Corre en un hilo aparte, detrás de un candado. El servidor sigue respondiendo mientras procesa una foto, y los modelos nunca se usan desde dos hilos a la vez.
 - **Un solo proceso, a propósito.** El modo en vivo, la peluca y el juego guardan estado entre cuadros. Con dos procesos, ese estado se partía.
-- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 107 pruebas de GitHub Actions.
+- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 113 pruebas de GitHub Actions.
 
 ## Qué se usa para cada cosa
 
@@ -141,6 +141,15 @@ Las rutas de `backend/app/core/` se abrevian sin ese prefijo.
 - El dedo índice es la máquina de afeitar. Como a 10 cuadros por segundo salta mucho, se cortan las hebras cercanas al segmento entre dos cuadros (una cápsula).
 - El puntaje es 1000 × limpieza × conservación.
 - Informe: sección 5.14.
+
+## Galería
+
+Tu cara dentro de siete retratos de dominio público (Lincoln, Marx, Twain, Douglass, Van Gogh, Einstein y Nietzsche), quedándote con su barba.
+
+- **Retratos preparados una vez** (`backend/training/gallery.py`): busto 3:4 de 900 × 1200, malla de 468 puntos y zona de vello (regiones de barba de la app sobre los 68 puntos del retrato, agrandadas a ojo para cada barba). Créditos en `frontend/assets/galeria/CREDITOS.md`.
+- **Composición** (`backend/app/core/faces/gallery.py`): el mismo cambio de cara de Fiesta con el retrato como destino. La máscara se multiplica por 1 − vello, así que la barba del retrato queda encima. En fotos antiguas la cara pasa a blanco y negro (Reinhard con la variación de color llevada a cero) y toma el grano de la foto; el contraste puede crecer hasta 2,5 veces para fotos de webcam oscuras.
+- **Kuwahara** (`backend/app/core/faces/paint.py`): en el autorretrato de Van Gogh la cara se repinta con el filtro de Kuwahara (cuatro ventanas por píxel, gana la de menor varianza) calculado con imágenes integrales, más la pincelada del propio cuadro.
+- Unos 1,5 s para los siete retratos. Informe: sección 5.16.
 
 ## Fiesta: cambio de cara, caricatura y fusión
 

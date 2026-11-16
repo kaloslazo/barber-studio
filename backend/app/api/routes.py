@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.detection.landmarks import MODELS_DIR
+from app.core.faces.gallery import listing as gallery_listing
 from app.core.faces.session import FaceStudio
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
 from app.core.lab.session import LabSession
@@ -600,3 +601,20 @@ async def faces_fusion(image: UploadFile = File(...), other: UploadFile = File(N
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     return JSONResponse({"frames": [to_data_url(frame, 88) for frame in frames]})
+
+
+@router.get("/gallery")
+def gallery_list():
+    return gallery_listing()
+
+
+@router.post("/gallery")
+async def gallery(image: UploadFile = File(...), key: str = Form("")):
+    image_bgr = decode_image(await image.read())
+    try:
+        results = await work(studio.gallery, image_bgr, key or None)
+    except ValueError as error:
+        status = 422 if str(error).startswith("No face") else 400
+        raise HTTPException(status_code=status, detail=str(error))
+    return JSONResponse({"results": [{"key": name, "image": to_data_url(picture, 88)} for name, picture in results]})
+

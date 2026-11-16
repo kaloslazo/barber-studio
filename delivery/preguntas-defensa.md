@@ -27,7 +27,7 @@ Porque inventa la cara completa: cambia la identidad, la piel y la luz, y necesi
 La API responde 422 y la interfaz muestra el mensaje. En vivo se reutilizan los últimos puntos hasta tres cuadros, desplazados por correlación de fase. Sin puntos no hay malla, así que no se aplica ningún estilo: es la única dependencia fuerte.
 
 **¿Cómo saben que funciona?**
-Con 107 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
+Con 113 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
 
 **¿Por qué todo en CPU?**
 Es una restricción del proyecto: que cualquiera lo reproduzca con `docker compose up`, sin GPU. Todo está vectorizado con NumPy. La GPU solo se usa en el navegador, para el visor 3D.
@@ -410,6 +410,23 @@ En el navegador: la primera mitad del primer nombre (redondeando hacia arriba) y
 - Mezcla multibanda: O(N), porque N + N/4 + N/16 + … = 4N/3.
 - Fusión: cada cuadro deforma dos imágenes completas de 480 × 480, así que son 26 warps de 480² píxeles; el muestreo bilineal se lleva casi todo el tiempo.
 - Medido en una Mac con chip M, en CPU: cambio de cara 44 ms y caricatura 49 ms por cuadro, unos 15 cuadros por segundo en el servidor. Con foto: cambio de dos caras 0,1 a 0,4 s según el tamaño, caricatura 0,05–0,15 s, fusión de 13 cuadros ~1,5 s.
+
+### Galería (`backend/app/core/faces/gallery.py`, `faces/paint.py`, `training/gallery.py`)
+
+**¿Cómo se queda la barba del retrato encima de mi cara?**
+Cada retrato trae una zona de vello calculada una vez: las regiones de barba de la app (barba completa, bigote, boca) sobre los 68 puntos del retrato, agrandadas a ojo para cada barba. En la mezcla, la máscara de la cara se multiplica por 1 − v, así que donde hay barba manda el retrato.
+
+**¿Por qué tu cara queda en blanco y negro en las fotos antiguas?**
+Es la misma transferencia de Reinhard en Lab del cambio de cara, pero si el retrato es monocromo (los canales a y b casi no varían) se permite bajar la variación de color hasta cero. Después la cara recibe el grano de la propia foto: su detalle más fino, R − G_σ * R.
+
+**¿Qué es el filtro de Kuwahara y por qué no es un desenfoque?**
+Cada píxel mira cuatro ventanas cuadradas, una por esquina, y toma la media de la que menos varía. En una zona plana todas dan lo mismo y junto a un borde gana la que no lo cruza: quedan pinceladas de un color y los bordes no se borran. Un desenfoque promedia a través del borde.
+
+**¿Cómo calculas tantas medias y varianzas rápido?**
+Con tablas de áreas sumadas (imágenes integrales, Crow 1984): cada suma de una ventana son cuatro lecturas de la tabla. Se guardan el color, la luminosidad y su cuadrado; la varianza es E[L²] − E[L]². El costo no depende del radio.
+
+**¿Por qué Darwin y Tolstói no están?**
+MediaPipe no encontraba la cara: Darwin está muy de perfil con la barba tapando la mandíbula y en la foto de Tolstói la cara ocupa un 5 % del ancho. Se probaron recortes y se descartaron.
 
 ---
 

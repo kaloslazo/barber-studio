@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 
 from app.core.faces.caricature import PRESETS, caricature
+from app.core.faces.gallery import catalog, into_portrait
 from app.core.faces.mesh import FaceMeshes, face_width
 from app.core.faces.morph import morph
 from app.core.faces.swap import swap_faces, wear_face
@@ -83,3 +84,16 @@ class FaceStudio:
             raise ValueError("Need two faces in the photo")
         pair = sorted(sorted(faces, key=face_width)[-2:], key=lambda points: float(points[:, 0].mean()))
         return morph(image_bgr, pair[0], image_bgr, pair[1], steps)
+
+    def gallery(self, image_bgr, key=None):
+        """The biggest face of the photo inside one portrait of the Galería,
+        or inside all of them."""
+        if key and key not in catalog():
+            raise ValueError(f"Unknown portrait: {key}")
+        faces = self.photo.detect(image_bgr)
+        if not faces:
+            raise ValueError("No face detected in the image")
+        points = max(faces, key=face_width)
+        keys = [key] if key else list(catalog())
+        return [(name, into_portrait(image_bgr, points, name)) for name in keys]
+

@@ -46,7 +46,7 @@ Cuando Sofía presenta, Kalos maneja la laptop.
 
 - **Láminas:** «Tinte: el proceso» y «Corte: el proceso». Una frase por lámina; el resto se ve en la app.
 
-### 2:45 – 5:00 · Demo 1: el voluntario
+### 2:45 – 5:30 · Demo 1: el voluntario (recortar 30 s del espejo 3D)
 
 1. **Barba (Gianpier, 2:45 – 3:30).** Sofía abre Barba con la foto del voluntario, elige **Completa** y toca **Aplicar barba**. Después, **Mostrar la malla de triángulos**.
    - **Decir:** «Cada píxel de la barba se lleva a la plantilla con la afín inversa de su triángulo, se prueba con baricéntricas y se lee con interpolación bilineal propia (6.1.4 y 6.3.3.1)».
@@ -55,8 +55,11 @@ Cuando Sofía presenta, Kalos maneja la laptop.
    - **Decir:** «La máscara de nuestro YOLO pasa por dos filtros guiados y queda suave, sin agujeros (6.4.4 y 6.4.5–6.4.6). En CIELAB movemos la luminosidad hacia la del tinte y conservamos tres bandas de detalle: por eso un pelo oscuro queda rubio sin puntos negros (6.1.1)».
 3. **Corte (Kalos, 4:10 – 4:40).** **Agregar corte** → **Degradado medio**.
    - **Decir:** «Para cortar hay que quitar pelo y reconstruir lo que había detrás. Rellenamos con pull-push usando solo fondo seguro (6.1.3) y el pelo corto se sombrea con Lambert, con la luz de la cara (6.3.3.2)».
-4. **Ficha (Kalos, 4:40 – 5:00).** **Ficha para tu barbero** y mostrarla.
+4. **Ficha (Kalos, 4:40 – 4:50).** **Ficha para tu barbero** y mostrarla.
    - **Chiste:** «Con esto ya no hay excusa para salir mal de la barbería».
+5. **Galería (Kalos, 4:50 – 5:30).** Estilos → **Galería**. Escribir el nombre del voluntario en **Nombre para la placa** y tocar **Entrar a los 7 cuadros**. Pasar por Marx, Nietzsche y Van Gogh. Si el profesor prestó su cara en Fiesta, repetirlo después con su foto: «el profe como Karl Marx».
+   - **Chiste:** «Antes de pedir un corte, conviene ver si ya lo usó alguien famoso».
+   - **Decir:** «Es el mismo cambio de cara de Fiesta, con el retrato como destino, pero la barba del retrato queda encima. En la foto antigua la cara se vuelve blanco y negro con la misma transferencia de color, y en el Van Gogh la repintamos con el filtro de Kuwahara: cuatro ventanas por píxel, gana la de menor varianza, calculado con imágenes integrales (6.1.2 y 6.3.3.2)».
 
 ### 5:00 – 6:15 · Demo 2: espejo 3D (Gianpier)
 
@@ -100,7 +103,7 @@ Sofía maneja la laptop. Kalos y Gianpier se paran a un metro de la cámara, hom
 ### 10:30 – 11:15 · Calidad y límites (Sofía)
 
 - **Láminas:** «Calidad y rendimiento» y «Límites que conocemos».
-- **Decir:** «107 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
+- **Decir:** «113 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
 
 ### 11:15 – 12:00 · Cierre y preguntas (Kalos)
 
@@ -124,7 +127,7 @@ La última lámina, «Demo», todavía lista gaussianas, en vivo y Contrarreloj.
 ### La noche antes
 
 - [ ] Construir y levantar: `docker compose up -d --build app` (la primera vez tarda unos minutos). Sin Docker: `./run.sh`.
-- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (107).
+- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (113).
 - [ ] Ensayar la demo completa una vez con el reloj, en el mismo orden.
 - [ ] Carpeta en el escritorio con fotos de respaldo: `frontend/assets/samples/ejemplo.jpg` (Scott Horowitz, NASA), `frontend/assets/samples/muestra.jpg` (Frank Rubio, NASA), una foto del equipo con dos o tres caras de frente y una foto de cada uno. Solo retratos de la NASA o caras propias.
 - [ ] Video de respaldo en la laptop, sin depender de internet: `delivery/videos/video-largo.mp4`, con el bloque de Fiesta en 16:00.

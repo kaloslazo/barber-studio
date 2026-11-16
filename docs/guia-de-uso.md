@@ -114,6 +114,15 @@ Puntaje = afeitado × objetivo intacto × 1000.
 2. Tocar **Empezar**. La foto se rehace con 20, 60, 200, 600 y 2000 gaussianas.
 3. En **Modo adivinanza**, tocar **La reconozco** apenas se reconozca la cara: con menos gaussianas, más puntos.
 
+## Galería
+
+Siete retratos de dominio público con barbas y peinados famosos: Lincoln, Marx, Twain, Douglass, Van Gogh, Einstein y Nietzsche.
+
+1. Ve a **Estilos → Galería**. Usa la foto que ya cargaste, **Tomar foto** o **Subir foto**. De frente sale mejor.
+2. Escribe tu nombre en **Nombre para la placa**.
+3. Toca **Entrar a los 7 cuadros**. En un segundo y medio tu cara está en los siete; tócalos abajo para verlos en grande.
+4. **Pídele al barbero** dice cómo pedir ese estilo. **Descargar con marco** baja el retrato con marco y placa.
+
 ## Fiesta
 
 Tres herramientas para usar en grupo, con la cámara o con una foto. **Usar tu foto** toma la foto cargada en Inicio; si no hay ninguna, pide una. **Descargar** baja lo que se ve en pantalla.
