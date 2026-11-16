@@ -123,6 +123,15 @@ Siete retratos de dominio público con barbas y peinados famosos: Lincoln, Marx,
 3. Toca **Entrar a los 7 cuadros**. En un segundo y medio tu cara está en los siete; tócalos abajo para verlos en grande.
 4. **Pídele al barbero** dice cómo pedir ese estilo. **Descargar con marco** baja el retrato con marco y placa.
 
+## El practicante
+
+El aprendiz de la barbería decide tu look.
+
+1. Ve a **Juegos → El practicante**. Usa la foto que ya cargaste, **Tomar foto** o **Subir foto**.
+2. Elige **Primer día** (todo al azar, colores incluidos) o **Ya aprendió** (según la forma de tu cara, tonos naturales).
+3. Toca **Que decida el practicante**. Los tres rodillos giran y se detienen en la barba, el tinte y el corte; abajo aparece el antes y después con la frase del practicante.
+4. **Guardar** lo deja en Mis looks; **Ficha para tu barbero** baja la ficha con las indicaciones de máquina.
+
 ## Fiesta
 
 Tres herramientas para usar en grupo, con la cámara o con una foto. **Usar tu foto** toma la foto cargada en Inicio; si no hay ninguna, pide una. **Descargar** baja lo que se ve en pantalla.

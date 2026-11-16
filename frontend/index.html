@@ -41,6 +41,7 @@
     <button class="menu-item" data-panel="lab" data-group="3d" data-icon="flask">Laboratorio <small>beta</small></button>
     <button class="menu-item" data-panel="speedrun" data-group="juegos" data-icon="stopwatch">Contrarreloj</button>
     <button class="menu-item" data-panel="splats" data-group="juegos" data-icon="grain">Gaussianas</button>
+    <button class="menu-item" data-panel="apprentice" data-group="juegos" data-icon="dice">El practicante</button>
     <button class="menu-item" data-panel="swap" data-group="fiesta" data-icon="arrows-exchange">Cambio de cara</button>
     <button class="menu-item" data-panel="caricature" data-group="fiesta" data-icon="mood-crazy-happy">Caricatura</button>
     <button class="menu-item" data-panel="fusion" data-group="fiesta" data-icon="users">Fusión</button>
@@ -103,6 +104,7 @@
             <h3>Juegos</h3>
             <button class="carta-row" type="button" data-go="speedrun"><span class="carta-icon" data-icon="stopwatch"></span><span class="carta-name">Contrarreloj</span><span class="carta-dots"></span><span class="carta-tag">Cámara · 30 s</span><span class="carta-desc">Afeita hasta el estilo objetivo con el dedo.</span></button>
             <button class="carta-row" type="button" data-go="splats"><span class="carta-icon" data-icon="grain"></span><span class="carta-name">Gaussianas</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Reconoce la cara con la menor cantidad.</span></button>
+            <button class="carta-row" type="button" data-go="apprentice"><span class="carta-icon" data-icon="dice"></span><span class="carta-name">El practicante</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Primer día en la barbería: él decide tu look.</span></button>
             <h3 class="carta-sub">Fiesta</h3>
             <button class="carta-row" type="button" data-go="swap"><span class="carta-icon" data-icon="arrows-exchange"></span><span class="carta-name">Cambio de cara</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Dos personas, caras cruzadas. O todos con la cara del profe.</span></button>
             <button class="carta-row" type="button" data-go="caricature"><span class="carta-icon" data-icon="mood-crazy-happy"></span><span class="carta-name">Caricatura</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Ojotes, narizón, carita o alien.</span></button>
@@ -822,6 +824,64 @@
       <div class="splat-grid" id="splat-grid"></div>
     </section>
 
+    <section class="panel" id="panel-apprentice">
+      <header class="page-head">
+        <h1>El practicante</h1>
+        <p>Es su primer día en la barbería. Tú pones la cabeza; él decide la barba, el tinte y el corte. Si ya aprendió, decide según la forma de tu cara.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="reels" aria-live="polite">
+            <div class="reel"><span class="reel-label">Barba</span><span class="reel-value" id="reel-beard">—</span></div>
+            <div class="reel"><span class="reel-label">Tinte</span><span class="reel-value" id="reel-color"><i class="reel-chip"></i><b>—</b></span></div>
+            <div class="reel"><span class="reel-label">Corte</span><span class="reel-value" id="reel-cut">—</span></div>
+          </div>
+          <div class="card stage-empty" id="apprentice-empty">
+            <span class="dz-icon" data-icon="dice"></span>
+            <p class="dz-title">Siéntate</p>
+            <p class="dz-sub">Elige una foto en el panel y deja que el practicante decida.</p>
+          </div>
+          <div class="compare ba result" id="apprentice-compare" hidden>
+            <figure class="shot"><img id="apprentice-before" alt="Antes"><figcaption>Antes</figcaption></figure>
+            <figure class="shot"><img id="apprentice-after" alt="Lo que decidió el practicante"><figcaption>Después</figcaption></figure>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Comparar antes y después">
+          </div>
+          <div class="result-bar" id="apprentice-bar" hidden>
+            <button type="button" class="quiet-button" id="apprentice-save" data-icon="bookmark-plus">Guardar</button>
+            <button type="button" class="quiet-button" id="apprentice-download" data-icon="download">Descargar</button>
+            <button type="button" class="quiet-button" id="apprentice-ficha" data-icon="receipt">Ficha para tu barbero</button>
+          </div>
+          <p class="apprentice-quote" id="apprentice-quote" hidden></p>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Tu foto</span>
+            <div class="face-source">
+              <img id="apprentice-photo" alt="Tu foto" hidden>
+              <p class="hint" id="apprentice-photo-empty">Usa la foto que ya subiste, tómate una o sube otra.</p>
+            </div>
+            <div class="source-actions">
+              <button type="button" class="quiet-button" data-camera data-icon="camera">Tomar foto</button>
+              <button type="button" class="quiet-button" id="apprentice-upload" data-icon="upload">Subir foto</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field-label">El practicante</span>
+            <div class="style-group options">
+              <button class="style-btn active" data-apprentice-mode="first">Primer día</button>
+              <button class="style-btn" data-apprentice-mode="learned">Ya aprendió</button>
+            </div>
+          </div>
+          <p class="hint" id="apprentice-hint">Elige al azar entre todas las barbas, colores y cortes. Sin garantía.</p>
+          <div class="actions">
+            <button id="apprentice-go" data-icon="dice">Que decida el practicante</button>
+          </div>
+          <div class="banner" id="apprentice-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
     <section class="panel" id="panel-gallery">
       <header class="page-head">
         <h1>Galería</h1>
@@ -1181,7 +1241,7 @@
         <ul class="docs-points">
           <li>Un solo proceso de FastAPI sirve esta interfaz y la API.</li>
           <li>Cada llamada al pipeline corre en un hilo aparte detrás de un candado, así el servidor sigue respondiendo mientras procesa.</li>
-          <li>Cada técnica vive en su paquete de <code>backend/app/core/</code>, y GitHub Actions corre 113 pruebas en cada cambio.</li>
+          <li>Cada técnica vive en su paquete de <code>backend/app/core/</code>, y GitHub Actions corre 117 pruebas en cada cambio.</li>
         </ul>
       </section>
 
@@ -1258,6 +1318,7 @@
 
   <input type="file" id="fiesta-input" accept="image/*" hidden>
   <input type="file" id="galeria-input" accept="image/*" hidden>
+  <input type="file" id="practicante-input" accept="image/*" hidden>
 
   <div class="toast" id="toast" role="status" aria-live="polite" data-icon="check" hidden></div>
 
@@ -1268,6 +1329,7 @@
   <script src="js/fiesta.js"></script>
   <script src="js/galeria.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/practicante.js"></script>
   <script src="js/bits.js"></script>
 </body>
 </html>

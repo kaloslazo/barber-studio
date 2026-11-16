@@ -23,7 +23,7 @@ Los diagramas usan las etapas reales del programa sobre un retrato de dominio p�
 - **Un solo proceso de FastAPI sirve la interfaz y la API.** Los endpoints solo validan la entrada y llaman al pipeline.
 - **Cada llamada al pipeline pasa por `work()`.** Corre en un hilo aparte, detrás de un candado. El servidor sigue respondiendo mientras procesa una foto, y los modelos nunca se usan desde dos hilos a la vez.
 - **Un solo proceso, a propósito.** El modo en vivo, la peluca y el juego guardan estado entre cuadros. Con dos procesos, ese estado se partía.
-- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 113 pruebas de GitHub Actions.
+- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 117 pruebas de GitHub Actions.
 
 ## Qué se usa para cada cosa
 
@@ -141,6 +141,13 @@ Las rutas de `backend/app/core/` se abrevian sin ese prefijo.
 - El dedo índice es la máquina de afeitar. Como a 10 cuadros por segundo salta mucho, se cortan las hebras cercanas al segmento entre dos cuadros (una cápsula).
 - El puntaje es 1000 × limpieza × conservación.
 - Informe: sección 5.14.
+
+## El practicante
+
+Un pedido completo elegido al azar. **Primer día** elige entre todas las barbas, seis colores y los ocho cortes; **Ya aprendió** mide la forma de la cara en la malla 3D y elige solo entre lo sugerido para esa forma, con tonos naturales o sin tinte.
+
+- `backend/app/core/compositing/look.py` aplica el pedido como un barbero: barba, tinte (que también tiñe la barba nueva) y corte. Un paso imposible, como teñir a un calvo, se salta y se informa en `X-Skipped`.
+- `POST /api/look`; la interfaz en `frontend/js/practicante.js` reutiliza la ficha y Mis looks. Informe: sección 5.17.
 
 ## Galería
 

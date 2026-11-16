@@ -18,6 +18,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
+from app.core.coloring.dye import hex_to_bgr
+from app.core.compositing.look import apply_look
 from app.core.detection.landmarks import MODELS_DIR
 from app.core.faces.gallery import listing as gallery_listing
 from app.core.faces.session import FaceStudio
@@ -617,4 +619,31 @@ async def gallery(image: UploadFile = File(...), key: str = Form("")):
         status = 422 if str(error).startswith("No face") else 400
         raise HTTPException(status_code=status, detail=str(error))
     return JSONResponse({"results": [{"key": name, "image": to_data_url(picture, 88)} for name, picture in results]})
+
+
+@router.post("/look")
+async def look(
+    image: UploadFile = File(...),
+    beard: str = Form(""),
+    color: str = Form(""),
+    cut: str = Form(""),
+):
+    if beard and beard not in STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown beard style: {beard}")
+    if cut and cut not in HAIRCUT_STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown haircut style: {cut}")
+    if color:
+        try:
+            hex_to_bgr(color)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error))
+    image_bgr = decode_image(await image.read())
+    try:
+        result, skipped = await work(apply_look, pipeline, image_bgr, beard or None, color or None, cut or None)
+    except ValueError as error:
+        status = 422 if str(error).startswith("No face") else 400
+        raise HTTPException(status_code=status, detail=str(error))
+    response = encode_png(result)
+    response.headers["X-Skipped"] = ",".join(skipped)
+    return response
 

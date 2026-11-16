@@ -60,7 +60,7 @@
     fromHistory = false;
   });
 
-  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input", "fiesta-input", "galeria-input"];
+  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input", "fiesta-input", "galeria-input", "practicante-input"];
   const sharedInput = byId("shared-input");
   const chip = byId("photo-chip");
   const chipImg = byId("photo-chip-img");
@@ -961,6 +961,20 @@
     renderLooks();
     toast("Se borraron tus looks");
   });
+
+  window.freshLooks = {
+    async save(result) {
+      const [before, after] = await Promise.all([thumbnail(result.before), thumbnail(result.after)]);
+      const look = { id: Date.now().toString(36), tool: result.tool, title: result.title, meta: result.meta, details: result.details, ts: Date.now(), before, after };
+      const saved = storeLooks([look, ...loadLooks()].slice(0, 24));
+      renderLooks();
+      toast(saved.length ? `${result.title}: guardado en Mis looks` : "No queda espacio para guardar más looks");
+    },
+    ficha: (result) => makeFicha({ ...result, ts: Date.now() }),
+    beardNote: (style) => BEARD_NOTES[style] || "",
+    cutNote: (style) => (style === "buzz" ? buzzNote(90) : CUT_NOTES[style] || ""),
+    toast,
+  };
 
   renderLooks();
   const startPanel = location.hash.slice(1);
