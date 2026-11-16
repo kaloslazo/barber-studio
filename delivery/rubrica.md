@@ -8,14 +8,14 @@ Para revisar antes de entregar (lunes 16-nov, 23:59) y antes de exponer. No va e
 
 | Pide | Dónde está | Estado |
 |---|---|---|
-| a. Documento en LaTeX y PDF, reproducible | `report/` → `documentacion-en-latex/` y `documentación-en-pdf/informe.pdf` | Listo; actualizar y recompilar con lo de hoy |
+| a. Documento en LaTeX y PDF, reproducible | `report/` → `documentacion-en-latex/` y `documentación-en-pdf/informe.pdf` | Listo, 52 páginas, con el busto, la guía por voz y la fusión nueva |
 | b. Título | `delivery/titulo.txt` | Listo |
 | c. Descripción de 1 o 2 párrafos | `delivery/descripcion-breve.txt` | Listo |
 | d. Código fuente y cómo reproducir | `codigo-fuente/` (git archive de HEAD) + `README.md` | Listo; el zip toma el último commit |
-| e. Video corto ≤ 1:30 | `delivery/videos/video-corto.mp4` | **Falta grabarlo** (guion en `guion-video-corto.md`) |
+| e. Video corto ≤ 1:30 | `delivery/videos/video-corto.mp4` | Listo: pitch de 1:16 hecho con capturas de la app real (ver `guion-video-corto.md`) |
 | f. Video largo ≤ 20 min | `delivery/videos/video-largo.mp4` | **Falta grabarlo** (guion en `guion-video-largo.md`) |
 | g. Imágenes y videos extra | `imagenes-y-videos/` (galería, GIFs, diagramas) | Listo |
-| h. Diapositivas (PDF y original) | `slides/` → `diapositivas-exposicion-final/` | Listo; recompilar |
+| h. Diapositivas (PDF y original) | `slides/` → `diapositivas-exposicion-final/` | Listo, 34 diapositivas |
 | i. Página HTML con todo | `pagina-web/index.html`, sin internet | Listo |
 | j. Todo en un solo .zip, sin links | `python3 delivery/build_zip.py` | Armar al final |
 | k. El zip puede ir por Drive | Subir `dist/entrega-cs4016-fresh.zip` | Al final |
@@ -30,10 +30,10 @@ Para revisar antes de entregar (lunes 16-nov, 23:59) y antes de exponer. No va e
 | Comunicación oral (2) | Claridad, tiempo, recursos visuales, contacto visual | Diapositivas Beamer + demo en vivo (`demo-en-vivo.md`) | Ensayar una vez con cronómetro; cada uno habla de lo suyo |
 | Liderazgo / iniciativa (1,5) | Participación constante, propone mejoras | Historial de git por integrante, PRs | Que cada uno muestre y explique su módulo |
 | Colaboración (2) | Integra ideas de otros, clima positivo | Ramas y PRs integrados (la de Gianpier entra en este PR) | Presentar como un solo producto, no tres partes sueltas |
-| Desarrollo de software (2) | Metodología, calidad, verificación de requisitos | 121 pruebas automáticas (`pytest`), CI en GitHub Actions, Docker, API documentada, `verificar.py` | Correr las pruebas antes de exponer y mostrarlas 10 s |
+| Desarrollo de software (2) | Metodología, calidad, verificación de requisitos | 123 pruebas automáticas (`pytest`), CI en GitHub Actions, Docker, API documentada, `verificar.py` | Correr las pruebas antes de exponer y mostrarlas 10 s |
 
 ## Pendiente de cada uno
 
-- Todos: grabar los dos videos con los guiones y ponerlos en `delivery/videos/`.
+- Todos: grabar el video largo con `guion-video-largo.md` (cada uno explica su parte) y ponerlo en `delivery/videos/video-largo.mp4`.
 - Gianpier: revisar que la descripción de su barba en vivo y la peluca 360 en el informe sea exacta.
 - Kalos: armar el zip (`build_zip.py`), correr `verificar.py` y subirlo.

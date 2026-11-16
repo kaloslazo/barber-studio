@@ -1,5 +1,7 @@
 # Guion del video corto (pitch)
 
+> **Versión entregada (16-nov):** un pitch de 1:16 sin voz, con la app real. Las escenas se capturaron en 1080p con Chrome sin ventana manejado por código (la foto de ejemplo y una cámara simulada con dos retratos de la NASA), se montaron en Python con textos animados, cortinillas por sección (Estilos, 3D, Juegos, Fiesta), un repaso de las técnicas de gráfica y el cierre con el equipo, y la música se sintetizó con numpy (sin archivos de terceros). Recorre Inicio, Barba con la malla, Tinte, Corte, Galería, Espejo 3D, Peluca 3D con busto y rapado, Gaussianas, El practicante, Contrarreloj, Caricatura, Cambio de cara en vivo, Fusión y la barba en vivo. Si quieren ponerle voz, el guion de abajo calza encima.
+
 Duración máxima: **1:30**. El plan suma 1:30 justo y el texto tiene unas 180 palabras: leído con calma dura cerca de 1:10, y el resto son pausas para que se vean las imágenes y el chiste del final. Archivo final: `delivery/videos/video-corto.mp4`.
 
 Lo puede narrar una sola voz. En pantalla va la app real corriendo en `http://localhost:8000`, grabada en 1080p, con la foto de ejemplo o un retrato de la NASA. La escena de Fiesta se graba con Kalos y Gianpier frente a la cámara.
