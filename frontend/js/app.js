@@ -279,6 +279,10 @@ const liveModePhysics = document.getElementById("live-mode-physics");
 const livePhysicsHint = document.getElementById("live-physics-hint");
 const liveLengthField = document.getElementById("live-length-field");
 const liveLength = document.getElementById("live-length");
+const liveDebug = document.getElementById("live-debug");
+const liveDebugField = document.getElementById("live-debug-field");
+const liveDebugSave = document.getElementById("live-debug-save");
+const liveDebugNote = document.getElementById("live-debug-note");
 
 function setLiveMode(mode, activeBtn) {
   liveMode = mode;
@@ -288,6 +292,7 @@ function setLiveMode(mode, activeBtn) {
   liveStyles.hidden = mode !== "beard";
   livePhysicsHint.hidden = mode !== "physics";
   liveLengthField.hidden = mode !== "physics";
+  liveDebugField.hidden = mode !== "beard";
 }
 
 let liveRunning = false;
@@ -323,6 +328,22 @@ document.querySelectorAll("[data-live-style]").forEach((button) => {
   });
 });
 
+async function saveLiveDebug() {
+  const response = await fetch(`${API}/live/debug/save`, { method: "POST" });
+  if (response.ok) {
+    const saved = await response.json();
+    liveDebugNote.textContent = `Guardados ${saved.frames} cuadros en ${saved.folder}`;
+  } else {
+    liveDebugNote.textContent = "No hay cuadros: activa Depurar con la cámara encendida.";
+  }
+  liveDebugNote.hidden = false;
+}
+
+liveDebugSave.addEventListener("click", saveLiveDebug);
+document.addEventListener("keydown", (event) => {
+  if ((event.key === "f" || event.key === "F") && liveRunning && liveDebug.checked && !event.target.matches("textarea, input:not([type=checkbox]):not([type=range])")) saveLiveDebug();
+});
+
 async function liveLoop() {
   if (!liveRunning) return;
   if (!liveBusy && liveVideo.videoWidth > 0) {
@@ -347,6 +368,7 @@ async function liveLoop() {
       formData.append("style", liveStyle);
       formData.append("strength", (liveStrength.value / 100).toString());
       formData.append("length", (liveLength.value / 100).toString());
+      formData.append("debug", liveMode === "beard" && liveDebug.checked ? "1" : "0");
       const response = await fetch(`${API}/live`, { method: "POST", body: formData });
       if (response.ok) {
         liveResult.src = URL.createObjectURL(await response.blob());

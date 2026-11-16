@@ -347,6 +347,11 @@
               <button class="style-btn" data-live-style="stubble"><img src="assets/samples/estilo-stubble.jpg" alt=""><span>Tres días</span></button>
             </div>
           </div>
+          <div class="field" id="live-debug-field" hidden>
+            <label class="check"><span>Depurar: ver malla y zona</span><input type="checkbox" id="live-debug"></label>
+            <button class="quiet-button" id="live-debug-save" type="button">Marcar fallo (tecla F)</button>
+            <p class="hint" id="live-debug-note" hidden></p>
+          </div>
           <label class="field">
             <span class="field-label">Intensidad <output data-for="live-strength" data-unit=" %"></output></span>
             <input type="range" id="live-strength" min="20" max="100" value="75">

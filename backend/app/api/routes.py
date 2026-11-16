@@ -3,7 +3,10 @@ import hashlib
 import io
 import json
 import threading
+import time
 import zipfile
+from collections import deque
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -28,6 +31,9 @@ router = APIRouter(prefix="/api")
 pipeline = StylePipeline()
 lab = LabSession(pipeline)
 work_lock = threading.Lock()
+LIVE_DEBUG_FRAMES = 60
+LIVE_DEBUG_DIR = Path(__file__).resolve().parents[3] / "data" / "live_debug"
+live_debug = deque(maxlen=LIVE_DEBUG_FRAMES)
 
 
 def locked(fn, *args, **kwargs):
@@ -391,17 +397,24 @@ async def live(
     style: str = Form("full"),
     strength: float = Form(0.75),
     length: float = Form(1.0),
+    debug: str = Form("0"),
 ):
     if mode not in ("dye", "beard", "mesh", "physics"):
         raise HTTPException(status_code=400, detail=f"Unknown live mode: {mode}")
-    image_bgr = decode_image(await image.read())
+    raw = await image.read()
+    image_bgr = decode_image(raw)
     h, w = image_bgr.shape[:2]
     if mode == "beard":
         if w > 1280:
             image_bgr = cv2.resize(image_bgr, (1280, int(h * 1280 / w)), interpolation=cv2.INTER_AREA)
-        result = await work(pipeline.apply_beard_live_hd, image_bgr, style, strength)
+        info = {} if debug == "1" else None
+        result = await work(pipeline.apply_beard_live_hd, image_bgr, style, strength, 640, info)
         response = encode_jpeg(result if result is not None else image_bgr, 90)
-        response.headers["X-Face-Found"] = "0" if result is None else "1"
+        response.headers["X-Face-Found"] = "0" if result is None or (info and not info.get("face", True)) else "1"
+        if info is not None:
+            clean = info.pop("clean", None)
+            live_debug.append({"input": raw, "output": response.body, "style": style, "info": info,
+                               "clean": None if clean is None else encode_jpeg(clean, 90).body})
         return response
     if w > 640:
         scale = 640 / w
@@ -420,6 +433,25 @@ async def live(
     response = encode_jpeg(result if result is not None else image_bgr)
     response.headers["X-Face-Found"] = "0" if result is None else "1"
     return response
+
+
+@router.post("/live/debug/save")
+def live_debug_save():
+    if not live_debug:
+        raise HTTPException(status_code=409, detail="No debug frames yet: turn on Depurar with the camera running")
+    folder = LIVE_DEBUG_DIR / time.strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    meta = []
+    for index, item in enumerate(list(live_debug)):
+        (folder / f"{index:03d}_in.jpg").write_bytes(item["input"])
+        (folder / f"{index:03d}_out.jpg").write_bytes(item["output"])
+        if item["clean"]:
+            (folder / f"{index:03d}_clean.jpg").write_bytes(item["clean"])
+        meta.append({"frame": index, "style": item["style"], **item["info"]})
+    if pipeline.live_reference_frame is not None:
+        (folder / "reference.jpg").write_bytes(encode_jpeg(pipeline.live_reference_frame, 95).body)
+    (folder / "meta.json").write_text(json.dumps(meta, indent=1))
+    return {"folder": str(folder), "frames": len(meta)}
 
 
 @router.post("/lab/build")

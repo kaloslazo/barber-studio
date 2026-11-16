@@ -62,6 +62,7 @@ class StylePipeline:
         self._live_yaw = None
         self._live_clock = None
         self._mesh_beard = None
+        self.live_reference_frame = None
         self._live_last_gray = None
         self.game = None
         self.finger_tracker = FingerTracker()
@@ -379,7 +380,7 @@ class StylePipeline:
             self._live_hair_color = ycc
         return self._live_hair_color
 
-    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640):
+    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640, debug=None):
         """Live beard rendered at the camera's full resolution, but only inside
         a fixed-size crop around the face. Landmarks run on a small copy (fast);
         the beard is painted on the high-resolution crop (sharp hair, like photo
@@ -395,10 +396,10 @@ class StylePipeline:
         points = self._live_points(small)
         if points is None:
             self._live_anchor = None
-            return None
+            return None if debug is None else self._debug_view(image_bgr, debug, "sin cara")
         if self._lost_turned_face():
             self._live_anchor = None
-            return image_bgr
+            return image_bgr if debug is None else self._debug_view(image_bgr, debug, "cara girada perdida")
         hair = self._live_hair_estimate(small, self._box_from_landmarks(points), points)
         pts = points / scale
         face_w = float(np.linalg.norm(pts[16] - pts[0]))
@@ -417,15 +418,20 @@ class StylePipeline:
         y0 = int(np.clip(top, 0, h - ch))
         crop = image_bgr[y0:y0 + ch, x0:x0 + cw]
         local = (pts - np.array([x0, y0], np.float32)).astype(np.float32)
+        previous = self._mesh_beard
         view = self._mesh_region(mesh, style, pts, (h, w), (x0, y0), (ch, cw), local, face_w, crop)
+        if self._mesh_beard is not previous:
+            self.live_reference_frame = image_bgr
         region = None if view is None or view is False else view["region"]
         if view is False:
             self._live_anchor = None
-            return image_bgr
+            return image_bgr if debug is None else self._debug_view(image_bgr, debug, "sin referencia: mira de frente", mesh)
         current = self._live_anchor
         if current is None or current.stale or current.style != style or current.shape != (ch, cw):
             current = LiveAnchor(local, (ch, cw), style)
             self._live_anchor = current
+            if debug is not None:
+                debug["anchor_new"] = True
         if view is not None:
             current.bind(self._mesh_beard, view["xy"], view["front"])
         try:
@@ -440,7 +446,47 @@ class StylePipeline:
             painted = render_beard(crop, local, style, strength)
         result = image_bgr.copy()
         result[y0:y0 + ch, x0:x0 + cw] = painted
-        return result
+        if debug is None:
+            return result
+        return self._debug_view(result, debug, "2D" if region is None else "3D", mesh, region, (x0, y0), (ch, cw))
+
+    def _debug_view(self, image_bgr, info, source, mesh=None, region=None, origin=(0, 0), window=None):
+        """Live beard diagnostics: fills `info` (pose, source of the region,
+        size) and draws on a copy of the frame the front-facing triangles of
+        the 3D mesh, the contour of the beard region and a text panel."""
+        out = image_bgr.copy()
+        detector = self.live_landmark_detector
+        m = detector.last_mesh3d if detector is not None else None
+        info.update(clean=image_bgr, source=source, face=source != "sin cara", yaw=None, pitch=None, roll=None, mouth=None,
+                    region_px=0 if region is None or region is False else int((region > 0).sum()),
+                    window=None if window is None else f"{window[1]}x{window[0]}")
+        if detector is not None and detector.last_yaw is not None:
+            info["yaw"] = round(float(detector.last_yaw), 1)
+        if m is not None:
+            chin_to_brow = m[152] - m[10]
+            info["roll"] = round(float(np.degrees(np.arctan2(m[263, 1] - m[33, 1], m[263, 0] - m[33, 0]))), 1)
+            info["pitch"] = round(float(np.degrees(np.arctan2(chin_to_brow[2], chin_to_brow[1]))), 1)
+            info["mouth"] = round(float(np.linalg.norm(m[13] - m[14]) / max(np.linalg.norm(chin_to_brow), 1e-6)), 3)
+        beard = self._mesh_beard
+        if mesh is not None and beard is not None:
+            shown = beard.extended(mesh)
+            info["triangles"] = int(len(beard.visible(mesh)))
+            for index in beard.visible(mesh):
+                cv2.polylines(out, [np.round(shown[beard.triangles[index], :2]).astype(np.int32)], True, (255, 200, 0), 1, cv2.LINE_AA)
+        if region is not None and region is not False:
+            contours, _ = cv2.findContours((region > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            color = (0, 200, 0) if source == "3D" else (0, 0, 255)
+            cv2.drawContours(out, contours, -1, color, 2, offset=(int(origin[0]), int(origin[1])))
+        scale = max(0.5, image_bgr.shape[1] / 1280.0)
+        lines = [f"yaw {info['yaw']}  cabeceo {info['pitch']}  giro {info['roll']}",
+                 f"fuente {source}  zona {info['region_px']} px  boca {info['mouth']}  ventana {info['window']}"]
+        for row, text in enumerate(lines):
+            for color, thickness in (((0, 0, 0), 4), ((255, 255, 255), 1)):
+                cv2.putText(out, text, (14, int(30 * scale) + row * int(30 * scale)), cv2.FONT_HERSHEY_SIMPLEX, 0.7 * scale, color, thickness, cv2.LINE_AA)
+        if source not in ("3D", "2D"):
+            for color, thickness in (((0, 0, 0), 6), ((0, 0, 255), 2)):
+                cv2.putText(out, "SIN BARBA: " + source, (14, int(100 * scale)), cv2.FONT_HERSHEY_SIMPLEX, 0.9 * scale, color, thickness, cv2.LINE_AA)
+        return out
 
     def _live_mesh(self, scale):
         detector = self.live_landmark_detector
