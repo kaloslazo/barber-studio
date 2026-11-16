@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.core.faces.blend import pyramid_blend
 from app.core.faces.caricature import PRESETS, bulge, caricature, exaggerate
-from app.core.faces.mesh import MESH_POINTS, face_triangles, fit_similarity, mean_face
+from app.core.faces.mesh import MESH_POINTS, face_triangles, fit_similarity, mean_face, mirror_index
 from app.core.faces.warp import affine_maps, warp_mesh
 from app.main import app
 
@@ -178,3 +178,46 @@ def test_fusion_returns_frames_between_two_photos():
 def test_fusion_with_one_face_returns_422():
     response = client.post("/api/faces/fusion", files=upload(sample()))
     assert response.status_code == 422
+
+
+def test_mirror_index_pairs_both_cheeks():
+    mirror = mirror_index()
+    reference = mean_face()
+    assert mirror[1] == 1
+    assert (mirror[mirror] == np.arange(MESH_POINTS)).all()
+    assert reference[mirror[234], 0] > 0.5 and reference[mirror[454], 0] < -0.5
+    reflected = reference[mirror] * (-1.0, 1.0)
+    assert np.linalg.norm(reflected - reference, axis=1).mean() < 0.03
+
+
+def test_tilted_head_still_gets_a_beard():
+    photo = sample()
+    h, w = photo.shape[:2]
+    turn = cv2.getRotationMatrix2D((w / 2, h / 2), 32, 1.0)
+    tilted = cv2.warpAffine(photo, turn, (w, h), borderMode=cv2.BORDER_REFLECT)
+    response = client.post("/api/beard", files=upload(tilted), data={"style": "goatee"})
+    assert response.status_code == 200
+
+
+def test_small_second_face_is_found_in_tiles():
+    photo = sample()
+    room = np.full((720, 1280, 3), (110, 110, 115), np.uint8)
+    room[100:500, 150:600] = cv2.resize(photo, (450, 400))
+    room[300:500, 850:1075] = cv2.resize(cv2.flip(photo, 1), (225, 200))
+    response = client.post("/api/faces/photo", files=upload(room), data={"mode": "swap"})
+    assert response.status_code == 200
+    assert response.headers["X-Faces"] == "2"
+
+
+def test_profile_photo_asks_to_face_the_camera():
+    from app.api.routes import pipeline
+
+    pipeline.apply_beard(sample(), "full", 0.9)
+    pipeline.landmark_detector.last_yaw = 70.0
+    try:
+        pipeline._require_front()
+        assert False, "expected a ValueError"
+    except ValueError as error:
+        assert "Face turned" in str(error)
+    pipeline.landmark_detector.last_yaw = 0.0
+

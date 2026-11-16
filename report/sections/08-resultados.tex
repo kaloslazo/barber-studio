@@ -139,6 +139,13 @@ La interfaz (figuras~\ref{fig:inicio}, \ref{fig:ui} y~\ref{fig:ficha}) organiza 
   \label{fig:ficha}
 \end{figure}
 
+\subsection{Robustez}
+\label{sec:robustez}
+
+Los retratos de la NASA tienen luz de estudio y caras de frente; la cámara de una laptop en un salón no. \archivo{docs/robustez/robustez.py} corre cada herramienta de foto y de Fiesta sobre 40 casos difíciles: caras de CelebAMask-HQ elegidas por atributos y pose (perfil de más de 32°, cabeza inclinada, lentes, gorra, borrosa, flequillo, boca abierta, barba real, calvo), fotos reales de Figaro1k (rizos, afro, trenzas, rastas, varias de espaldas), una cara con diez degradaciones de cámara (resolución a un cuarto, poca luz con ruido, luz lateral, contraluz, movida, JPEG de calidad 12, girada 25°, chica en un cuadro de $1280\times720$, mano delante de la boca, selfie cortada) y cuatro fotos con varias personas.
+
+Ningún caso produjo un error del servidor. La primera pasada encontró cuatro fallas, todas corregidas: las cabezas inclinadas no pasaban el detector Haar (ahora la caja sale de la malla de MediaPipe), dos personas a distinta distancia solo daban una cara (búsqueda en recortes), la mejilla oculta de una donante girada salía estirada (\emph{culling} y simetría, sección~\ref{sec:fiesta-robustez}) y en la fusión el recorte se salía de la foto. Las fotos de espaldas y los perfiles completos devuelven un aviso claro en lugar de un resultado roto.
+
 \subsection{Rendimiento}
 
 La tabla~\ref{tab:tiempos} reúne los tiempos medidos. Las fotos más grandes que 2048~px se reducen al recibirlas: una foto de 4000~px tardaba 18~s en el contenedor y ahora tarda menos de 1~s.
@@ -169,7 +176,7 @@ Fusión de 13 cuadros (Mac, CPU) & 1{,}5~s \\
 \subsection{Pruebas automáticas}
 \label{sec:pruebas}
 
-El proyecto tiene 103 pruebas con pytest, que GitHub Actions ejecuta en cada cambio. Cubren la API y los módulos de estilo, Fiesta, \emph{splatting} y física, la luz y el color de la peluca 3D, la barba sobre la malla 3D, la vuelta completa en la silla, la transferencia de pelo, la triangulación de Delaunay, la vista de depuración en vivo y el laboratorio.
+El proyecto tiene 107 pruebas con pytest, que GitHub Actions ejecuta en cada cambio. Cubren la API y los módulos de estilo, Fiesta, \emph{splatting} y física, la luz y el color de la peluca 3D, la barba sobre la malla 3D, la vuelta completa en la silla, la transferencia de pelo, la triangulación de Delaunay, la vista de depuración en vivo y el laboratorio.
 
 Entre otras cosas, verifican:
 \begin{itemize}

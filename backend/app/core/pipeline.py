@@ -58,6 +58,9 @@ LIVE_RESTART_GAP = 1.0
 LIVE_HAIR_EVERY = 8
 
 
+MAX_PHOTO_YAW = 50.0
+
+
 class StylePipeline:
     def __init__(self):
         self.detector = FaceDetector()
@@ -207,11 +210,20 @@ class StylePipeline:
             return None
         return face_shape(mesh)
 
+    def _require_front(self):
+        """Beard and haircut on a photo need both cheeks: past about 50
+        degrees of yaw (a full profile) the far side is hidden and the result
+        would be garbage, so the user is asked to face the camera."""
+        yaw = self.landmark_detector.last_yaw if self.landmark_detector is not None else None
+        if yaw is not None and abs(yaw) > MAX_PHOTO_YAW:
+            raise ValueError("Face turned too far: look at the camera")
+
     def apply_haircut(self, image_bgr, style="low-fade", strength=0.9):
         face = self.detector.largest_face(image_bgr)
         if face is None:
             return None
         points = self._landmarks(image_bgr, face)
+        self._require_front()
         geometry = self._head_geometry(points, face)
         probabilities = self._part_probabilities(image_bgr, geometry)
         hair_mask = self.transfer_hair_mask(image_bgr, face, points, probabilities=probabilities, geometry=geometry)
@@ -260,7 +272,7 @@ class StylePipeline:
         top = brow - 0.2 * (chin - brow)
         return int(x0), int(top), max(1, int(x1 - x0)), max(1, int(chin - top))
 
-    def apply_beard(self, image_bgr, style="full", strength=0.9, live=False, detail=True):
+    def apply_beard(self, image_bgr, style="full", strength=0.9, live=False, detail=True, strict=False):
         if live:
             points = self._live_points(image_bgr)
             if points is None:
@@ -274,6 +286,8 @@ class StylePipeline:
             points = self._landmarks(image_bgr, face)
             if points is None:
                 return None
+            if strict:
+                self._require_front()
         anchor = None
         if live:
             current = self._live_anchor

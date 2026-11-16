@@ -20,8 +20,8 @@ class FaceStudio:
         self.camera = FaceMeshes(live=True, max_faces=3)
         self.source = None
 
-    def detect(self, image_bgr, live=False):
-        return (self.camera if live else self.photo).detect(image_bgr)
+    def detect(self, image_bgr, live=False, wanted=1):
+        return (self.camera if live else self.photo).detect(image_bgr, wanted)
 
     def set_source(self, image_bgr):
         """Saves the biggest face of the picture as the face to wear, cropped
@@ -51,7 +51,8 @@ class FaceStudio:
             raise ValueError(f"Unknown face mode: {mode}")
         if mode == "caricature" and preset not in PRESETS:
             raise ValueError(f"Unknown caricature preset: {preset}")
-        faces = self.detect(image_bgr, live)
+        wanted = 2 if mode == "swap" and other is None else 1
+        faces = self.detect(image_bgr, live, wanted)
         if not faces:
             return image_bgr, 0
         if mode == "caricature":
@@ -72,7 +73,7 @@ class FaceStudio:
     def fusion(self, image_bgr, other=None, steps=13):
         """Morph frames between two faces: the biggest face of each photo, or
         the two biggest faces of a single photo, left to right."""
-        faces = self.photo.detect(image_bgr)
+        faces = self.photo.detect(image_bgr, 1 if other is not None else 2)
         if other is not None:
             donors = self.photo.detect(other)
             if not faces or not donors:

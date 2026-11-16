@@ -51,3 +51,4 @@ paper/*.out
 # Delivery build
 dist/
 delivery/videos/
+robustez-salida/

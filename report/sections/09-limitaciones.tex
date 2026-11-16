@@ -11,7 +11,8 @@
   \item \textbf{Velocidad en vivo.} El modo en vivo corre a unos 10 cuadros por segundo; con giros rápidos la barba se atrasa un poco.
   \item \textbf{Clasificación de la cara.} Es una heurística calibrada estadísticamente, no un diagnóstico; caras en el límite entre dos formas pueden caer en cualquiera de ellas.
   \item \textbf{Un solo usuario en vivo.} El estado del modo en vivo es único por servidor: dos cámaras a la vez compartirían el anclaje. Lo mismo pasa con la cara guardada de Fiesta.
-  \item \textbf{Cambio de cara con poses distintas.} El \emph{warp} es 2D, así que el cambio de cara necesita caras de frente y en poses parecidas. Si una cara está girada, la otra se estira para cubrir la mejilla del lado lejano y aparecen zonas que su foto no tiene.
+  \item \textbf{Cambio de cara con poses distintas.} El \emph{warp} es 2D. Con giros moderados la mejilla oculta se toma de la otra mejilla espejada, pero eso supone una cara simétrica: lunares, peinado o luz de un solo lado aparecen duplicados. Con un perfil completo no hay suficiente cara que copiar.
+  \item \textbf{Perfil completo en foto.} Con más de 50° de giro la barba y el corte no se dibujan: la app pide mirar a la cámara.
   \item \textbf{Caricatura en poses extremas.} Con la cabeza muy girada, los puntos de un lado de la cara quedan muy juntos y los efectos fuertes pueden invertir triángulos: la foto se pliega sobre sí misma.
   \item \textbf{Pelo doble en la fusión.} El pelo y el fondo no están en la malla: en los cuadros intermedios solo se mezclan, y se ven dos contornos superpuestos.
 \end{itemize}

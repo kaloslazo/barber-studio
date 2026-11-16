@@ -17,12 +17,14 @@ def _frame_points(width, height, count=4):
 
 
 def _crop(image, points, size):
-    """Square picture around the face, scaled so the face width is the side
-    divided by 2.1."""
-    fw = face_width(points)
-    center = points.mean(axis=0)
-    scale = size / (fw * 2.1)
-    shift = np.array([size / 2.0, size * 0.5]) - center * scale
+    """Square picture around the face, with the face width a 2.1th of the
+    side. The square is slid (and shrunk if it must) to stay inside the
+    photo, so the frames never show mirrored borders."""
+    h, w = image.shape[:2]
+    side = min(face_width(points) * 2.1, h, w)
+    center = np.clip(points.mean(axis=0), side / 2.0, (w - side / 2.0, h - side / 2.0))
+    scale = size / side
+    shift = np.array([size / 2.0, size / 2.0]) - center * scale
     matrix = np.array([[scale, 0.0, shift[0]], [0.0, scale, shift[1]]])
     crop = cv2.warpAffine(image, matrix, (size, size), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT_101)
     return crop, points * scale + shift

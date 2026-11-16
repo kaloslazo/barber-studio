@@ -23,16 +23,23 @@ RING = 28
 
 class FaceMeshes:
     """Every face in a picture as a 468-point MediaPipe mesh in pixels,
-    sorted left to right. Live mode tracks between frames."""
+    sorted left to right. Live mode tracks between frames.
+
+    MediaPipe's face detector shrinks the whole picture to 128 px, so a face
+    narrower than about a fifth of the frame is lost (two people a meter
+    away from a laptop). When fewer faces than `wanted` show up, the picture
+    is searched again in overlapping square tiles, first as tall as the
+    frame and then smaller, and the meshes found are mapped back and merged."""
 
     def __init__(self, live=False, max_faces=2):
         self.live = live
         self.max_faces = max_faces
         self._landmarker = None
+        self._tiles = None
         self._failed = False
         self._last_ms = 0
 
-    def _create(self):
+    def _create(self, live):
         model_path = MODELS_DIR / "face_landmarker.task"
         try:
             import mediapipe as mp
@@ -40,36 +47,66 @@ class FaceMeshes:
             from mediapipe.tasks.python import vision
         except ImportError:
             self._failed = True
-            return
+            return None
         if not model_path.exists():
             self._failed = True
-            return
+            return None
         options = vision.FaceLandmarkerOptions(
             base_options=mp_python.BaseOptions(model_asset_path=str(model_path)),
-            running_mode=vision.RunningMode.VIDEO if self.live else vision.RunningMode.IMAGE,
+            running_mode=vision.RunningMode.VIDEO if live else vision.RunningMode.IMAGE,
             num_faces=self.max_faces,
             min_face_detection_confidence=0.5,
             min_tracking_confidence=0.5,
         )
         self._mp = mp
-        self._landmarker = vision.FaceLandmarker.create_from_options(options)
+        return vision.FaceLandmarker.create_from_options(options)
 
-    def detect(self, image_bgr):
-        if self._landmarker is None and not self._failed:
-            self._create()
-        if self._failed:
-            return []
+    def _run(self, landmarker, image_bgr, live):
         rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
         frame = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
-        if self.live:
+        if live:
             now_ms = max(self._last_ms + 1, int(time.monotonic() * 1000))
             self._last_ms = now_ms
-            result = self._landmarker.detect_for_video(frame, now_ms)
+            result = landmarker.detect_for_video(frame, now_ms)
         else:
-            result = self._landmarker.detect(frame)
+            result = landmarker.detect(frame)
         h, w = image_bgr.shape[:2]
-        faces = [np.array([[p.x * w, p.y * h] for p in mesh[:MESH_POINTS]], np.float32) for mesh in result.face_landmarks]
+        return [np.array([[p.x * w, p.y * h] for p in mesh[:MESH_POINTS]], np.float32) for mesh in result.face_landmarks]
+
+    def _tiled(self, image_bgr, faces, wanted):
+        if self._tiles is None:
+            self._tiles = self._create(False)
+        h, w = image_bgr.shape[:2]
+        for side in (min(h, w), int(min(h, w) * 0.6)):
+            if side < 96 or len(faces) >= wanted:
+                break
+            step = max(1, int(side * 0.7))
+            xs = sorted({*range(0, max(1, w - side), step), max(0, w - side)})
+            ys = sorted({*range(0, max(1, h - side), step), max(0, h - side)})
+            for y in ys:
+                for x in xs:
+                    for points in self._run(self._tiles, image_bgr[y:y + side, x:x + side], False):
+                        points = points + (x, y)
+                        if not any(_same_face(points, other) for other in faces):
+                            faces.append(points)
+        return faces
+
+    def detect(self, image_bgr, wanted=1):
+        if self._landmarker is None and not self._failed:
+            self._landmarker = self._create(self.live)
+        if self._failed:
+            return []
+        faces = self._run(self._landmarker, image_bgr, self.live)
+        if len(faces) < min(wanted, self.max_faces):
+            faces = self._tiled(image_bgr, faces, min(wanted, self.max_faces))
         return sorted(faces, key=lambda points: float(points[:, 0].mean()))
+
+
+def _same_face(a, b):
+    """Two meshes are the same face when their centers are closer than half
+    a face width."""
+    width = max(face_width(a), face_width(b), 1.0)
+    return float(np.linalg.norm(a.mean(axis=0) - b.mean(axis=0))) < width * 0.5
 
 
 def normalize(points):
@@ -137,3 +174,42 @@ def face_triangles(with_ring):
 
 def face_width(points):
     return float(np.linalg.norm(points[454] - points[234]))
+
+
+def signed_areas(points, triangles):
+    a, b, c = (points[triangles[:, k]].astype(np.float64) for k in range(3))
+    return 0.5 * ((b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (c[:, 0] - a[:, 0]) * (b[:, 1] - a[:, 1]))
+
+
+@lru_cache(maxsize=1)
+def facing():
+    """Sign of every face triangle seen from the front, read on the average
+    face. A triangle whose sign flips on a turned head is facing away."""
+    return np.sign(signed_areas(mean_face(), face_triangles(False)))
+
+
+MIDLINE = [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 2, 164, 0, 13, 14, 17, 18, 200, 199, 175, 152]
+
+
+@lru_cache(maxsize=1)
+def mirror_index():
+    """For each of the 468 points, the point on the other side of the face.
+    Every point is reflected across the midline of the average face (a line
+    fitted to the forehead, nose and chin points) and the pairs are taken
+    greedily from the closest, each point used once, so the result is a
+    true swap of the two cheeks."""
+    reference = mean_face()
+    line = reference[MIDLINE]
+    slope, offset = np.linalg.lstsq(np.c_[line[:, 1], np.ones(len(line))], line[:, 0], rcond=None)[0]
+    axis = slope * reference[:, 1] + offset
+    reflected = np.c_[2.0 * axis - reference[:, 0], reference[:, 1]]
+    distance = ((reference[None, :, :] - reflected[:, None, :]) ** 2).sum(axis=2)
+    distance = (distance + distance.T) / 2.0
+    pairs = np.full(len(reference), -1)
+    for flat in np.argsort(distance, axis=None):
+        i, j = divmod(int(flat), len(reference))
+        if pairs[i] < 0 and pairs[j] < 0:
+            pairs[i], pairs[j] = j, i
+        if (pairs >= 0).all():
+            break
+    return pairs

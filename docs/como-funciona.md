@@ -23,7 +23,7 @@ Los diagramas usan las etapas reales del programa sobre un retrato de dominio p�
 - **Un solo proceso de FastAPI sirve la interfaz y la API.** Los endpoints solo validan la entrada y llaman al pipeline.
 - **Cada llamada al pipeline pasa por `work()`.** Corre en un hilo aparte, detrás de un candado. El servidor sigue respondiendo mientras procesa una foto, y los modelos nunca se usan desde dos hilos a la vez.
 - **Un solo proceso, a propósito.** El modo en vivo, la peluca y el juego guardan estado entre cuadros. Con dos procesos, ese estado se partía.
-- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 103 pruebas de GitHub Actions.
+- **Cada técnica vive en su paquete de `backend/app/core/`.** Es lo que prueban las 107 pruebas de GitHub Actions.
 
 ## Qué se usa para cada cosa
 
@@ -151,6 +151,7 @@ Las tres herramientas usan la misma maquinaria: la malla de 468 puntos de MediaP
 - **Una sola triangulación.** Se calcula una vez sobre la cara promedio y se reutiliza para todas las caras y todos los cuadros. El triángulo número i es la misma parte de la cara en cualquier persona, y en vivo no hay que triangular en cada cuadro.
 - **Cara promedio.** `backend/training/mean_face.py` corre MediaPipe sobre fotos de CelebAMask-HQ y se queda con 400 caras frontales. Cada malla se centra en el origen y se escala a radio RMS 1; después las mallas se alinean con Procrustes generalizado (4 iteraciones) y se promedian. Queda en `backend/app/assets/faces/mean_face.npy`.
 - **Warp por mapeo inverso.** Cada triángulo del destino se rasteriza con su índice como color (`cv2.fillConvexPoly`, precisión de 1/16 px). Para todos los triángulos a la vez se resuelve un sistema de 3 × 3: la afín que lleva un píxel del destino a su lugar en la fuente. El color se lee con nuestra interpolación bilineal. Como se recorre el destino, no quedan huecos.
+- **Robustez.** Si faltan caras (personas lejos de la cámara), se buscan otra vez en recortes cuadrados. Los triángulos que miran hacia atrás no se dibujan, y si la donante tiene la cabeza girada, la mejilla oculta se toma de la otra mejilla espejada. Banco de 40 casos difíciles en `docs/robustez/`.
 - Informe: sección 5.15.
 
 ### Cambio de cara
