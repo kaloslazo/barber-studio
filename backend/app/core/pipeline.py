@@ -7,7 +7,6 @@ import cv2
 import numpy as np
 
 from app.core.coloring.dye import apply_dye, hex_to_hsv
-from app.core.compositing.alpha import inside_feather
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
 from app.core.compositing.beard_mesh import MeshBeard
@@ -24,7 +23,7 @@ from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.face_shape import face_shape
 from app.core.segmentation.facial_hair import facial_hair_alpha
 from app.core.segmentation.hair_region import provisional_hair_mask
-from app.core.segmentation.mask_refiner import refine_hair_mask
+from app.core.segmentation.mask_refiner import hair_matte, refine_hair_mask
 from app.core.segmentation.transfer_mask import head_geometry, head_window, transfer_mask
 from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
 from app.core.splatting.face3d import FaceView, face_splats, scan_face
@@ -168,8 +167,7 @@ class StylePipeline:
                 union = np.count_nonzero((yolo > 0) | (mp_mask > 0))
                 info["model"] = "yolo"
                 info["agreement"] = np.count_nonzero((yolo > 0) & (mp_mask > 0)) / union if union else 0.0
-                span = max(1, int(np.ptp(np.where(yolo > 0)[0])))
-                alpha = inside_feather(yolo, max(4.0, min(25.0, span / 40.0)))
+                alpha = hair_matte(image_bgr, raw)
         if alpha is None and mp_mask.any():
             info["model"] = "mediapipe"
             alpha = mp_alpha
