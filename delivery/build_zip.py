@@ -37,6 +37,7 @@ GALLERY = [
     ("peluca3d.jpg", "Peluca de gaussianas sobre el maniquí.", False),
     ("espejo3d_giro.jpg", "Espejo 3D girado: con una sola vista, el relieve detrás de la cara se estira.", False),
     ("contrarreloj.jpg", "Una ronda de Contrarreloj, de la barba completa al candado.", True),
+    ("galeria.jpg", "Galería: siete retratos de dominio público y la misma cara dentro de cada uno, con la barba del retrato encima.", True),
 ]
 
 ANIMATIONS = [

@@ -39,7 +39,7 @@ Por persona: Kalos 7:45, Gianpier 9:00, Sofía 2:45.
 - un solo proceso de FastAPI sirve la interfaz y la API;
 - los endpoints son delgados; la lógica gráfica está en `backend/app/core`, un paquete por técnica;
 - la interfaz es HTML y JavaScript sin compilación; el 3D es un visor propio en WebGL2;
-- 107 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
+- 113 pruebas automáticas, integración continua en GitHub y Docker para reproducirlo con un comando.
 
 **Mostrar:** subir una foto una vez y ver que queda cargada en todas las herramientas.
 
@@ -169,7 +169,7 @@ Por persona: Kalos 7:45, Gianpier 9:00, Sofía 2:45.
 **Pantalla:** láminas «Calidad y rendimiento» y «Límites que conocemos».
 
 **Decir:**
-- se probó en 26 caras distintas; hay 107 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto, y Fiesta corre a unos 15 cuadros por segundo;
+- se probó en 26 caras distintas; hay 113 pruebas automáticas; los tiempos van de 0,1 a 2,5 s por foto, y Fiesta corre a unos 15 cuadros por segundo;
 - el tinte nuevo se revisó en 8 caras con 7 colores, sin puntos negros;
 - límites honestos: oclusiones, pelo que tapa ojos u orejas, el espejo 3D desde una vista, unos 10 fps en vivo, y en Fiesta las poses muy giradas;
 - lo siguiente: tinte en vivo con un shader de WebGL.

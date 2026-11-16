@@ -60,7 +60,7 @@
     fromHistory = false;
   });
 
-  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input", "fiesta-input"];
+  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input", "fiesta-input", "galeria-input"];
   const sharedInput = byId("shared-input");
   const chip = byId("photo-chip");
   const chipImg = byId("photo-chip-img");
@@ -94,7 +94,7 @@
     chip.title = "Cambiar la foto";
   }
 
-  const LOADED = "Foto cargada en Barba, Tinte, Corte, Espejo 3D, Gaussianas y Fiesta";
+  const LOADED = "Foto cargada en Barba, Tinte, Corte, Galería, Espejo 3D, Gaussianas y Fiesta";
 
   PHOTO_INPUTS.forEach((id) => {
     const input = byId(id);
@@ -553,6 +553,7 @@
     [/^No face detected in the second photo.*$/i, "No encontramos una cara en la segunda foto."],
     [/^No face detected in one of the photos.*$/i, "No encontramos una cara en una de las dos fotos."],
     [/^Unknown caricature preset: (.*)$/i, "Efecto desconocido: $1"],
+    [/^Unknown portrait: (.*)$/i, "Retrato desconocido: $1"],
     [/^Unknown face mode: (.*)$/i, "Modo desconocido: $1"],
     [/^Failed to encode result.*$/i, "No se pudo generar el resultado."],
     [/^No face detected.*$/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],

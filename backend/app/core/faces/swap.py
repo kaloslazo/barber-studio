@@ -28,13 +28,15 @@ def visibility(points, target_points, triangles):
     return np.clip(donor / target / SEEN, 0.0, 1.0)
 
 
-def paste_face(canvas, target, target_points, source, source_points):
+def paste_face(canvas, target, target_points, source, source_points, keep=None, finish=None, spread_range=(0.6, 1.6)):
     """Puts the face of `source` on the person in `target` and draws it on
     `canvas`. The source face is moved triangle by triangle onto the target
     mesh, recolored to the target's skin and light, and blended band by band
     inside the target's face oval. Triangles that face away from the camera
     on the target are culled; where the donor shows a triangle edge-on (a
-    turned head), its mirror twin on the other cheek is used instead."""
+    turned head), its mirror twin on the other cheek is used instead.
+    `keep` (0..1, target size) lowers the mask where the target must stay,
+    like a beard; `finish` restyles the recolored face before blending."""
     triangles = face_triangles(False)
     fw = face_width(target_points)
     x0, y0, x1, y1 = bounds(target_points, target.shape, int(fw * 0.25))
@@ -56,7 +58,11 @@ def paste_face(canvas, target, target_points, source, source_points):
             per_pixel = cv2.GaussianBlur(per_pixel, (0, 0), max(1.0, fw * 0.02))[..., None]
             warped = warped * (1.0 - per_pixel) + twin * per_pixel
     alpha = face_alpha(local, OVAL, window.shape, fw) * covered
-    corrected = match_colors(warped, window, alpha, fw)
+    corrected = match_colors(warped, window, alpha, fw, spread_range)
+    if keep is not None:
+        alpha = alpha * (1.0 - keep[y0:y1, x0:x1])
+    if finish is not None:
+        corrected = finish(corrected, window, fw)
     canvas[y0:y1, x0:x1] = pyramid_blend(canvas[y0:y1, x0:x1], corrected, alpha)
     return canvas
 

@@ -2,12 +2,14 @@ import cv2
 import numpy as np
 
 
-def match_colors(source, target, mask, face_w):
+def match_colors(source, target, mask, face_w, spread_range=(0.6, 1.6)):
     """Makes `source` (a face moved onto another person) take the skin tone
     and light of `target`. First a Reinhard transfer in Lab (mean and spread
     of each channel inside the mask), then the broad shading of the target:
     the ratio of both lightness channels blurred at a tenth of the face
-    width, so a face lit from the left stays lit from the left."""
+    width, so a face lit from the left stays lit from the left.
+    `spread_range` bounds how much each channel may shrink or grow; an old
+    black and white photo needs it to reach 0 so the color goes away."""
     inside = mask > 0.5
     if inside.sum() < 50:
         return source
@@ -15,7 +17,7 @@ def match_colors(source, target, mask, face_w):
     dst = cv2.cvtColor(np.clip(target, 0, 255).astype(np.uint8), cv2.COLOR_BGR2LAB).astype(np.float32)
     for channel in range(3):
         s, d = src[..., channel][inside], dst[..., channel][inside]
-        spread = np.clip(d.std() / (s.std() + 1e-3), 0.6, 1.6)
+        spread = np.clip(d.std() / (s.std() + 1e-3), *spread_range)
         src[..., channel] = (src[..., channel] - s.mean()) * spread + d.mean()
     sigma = max(2.0, face_w / 10.0)
     weight = cv2.GaussianBlur(mask.astype(np.float32), (0, 0), sigma) + 1e-3
