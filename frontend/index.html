@@ -539,10 +539,12 @@
               <span class="step-label">Paso 1 · Escanea</span>
               <h2>Gira una vuelta en la silla</h2>
               <ol class="turn-steps">
-                <li>Siéntate frente a la cámara, mirando de frente.</li>
-                <li>Pulsa Empezar y gira despacio hacia un lado, una vuelta completa (unos 15 s).</li>
-                <li>Vuelve a mirar de frente: el anillo se completa y la peluca se arma sola.</li>
+                <li>Usa una silla que gire y siéntate a un metro de la cámara, con todo el pelo en el cuadro.</li>
+                <li>Pulsa Empezar: tienes 3 segundos para acomodarte mirando de frente.</li>
+                <li>Gira despacio una vuelta completa, unos 15 s. La voz te va diciendo cómo vas.</li>
+                <li>Al volver de frente, la peluca se arma sola sobre tu cara.</li>
               </ol>
+              <label class="check"><span>Guía por voz</span><input type="checkbox" id="turn-voice" data-voice-toggle checked></label>
               <div class="actions">
                 <button id="turn-start" data-icon="rotate-3d">Empezar escaneo 360°</button>
                 <button class="quiet-button" id="turn-stop" disabled>Terminar</button>
@@ -584,8 +586,19 @@
             </details>
             <div class="card inspector ticket">
               <span class="step-label">Paso 2 · Míralo en 3D</span>
-              <label class="check"><span>Mostrar cabeza</span><input type="checkbox" id="hair3d-mannequin" checked></label>
-              <label class="check"><span>Usar mi cara</span><input type="checkbox" id="hair3d-myface" disabled></label>
+              <div class="field">
+                <span class="field-label">Ver la peluca sobre</span>
+                <div class="style-group options head-choice" id="hair3d-head" role="radiogroup" aria-label="Ver la peluca sobre">
+                  <button type="button" class="style-btn" data-head="face" role="radio" aria-checked="false" disabled>Mi cara</button>
+                  <button type="button" class="style-btn active" data-head="mannequin" role="radio" aria-checked="true">Maniquí</button>
+                  <button type="button" class="style-btn" data-head="none" role="radio" aria-checked="false">Solo pelo</button>
+                </div>
+                <p class="field-note" id="hair3d-head-note">«Mi cara» se activa sola después de la vuelta 360 o de escanear tu cara.</p>
+              </div>
+              <div hidden>
+                <input type="checkbox" id="hair3d-mannequin" checked>
+                <input type="checkbox" id="hair3d-myface" disabled>
+              </div>
               <label class="check"><span>Rotación automática</span><input type="checkbox" id="hair3d-auto" checked></label>
               <label class="check"><span>Ver cada gaussiana</span><input type="checkbox" id="hair3d-splats"></label>
               <label class="check"><span>Luz 3D</span><input type="checkbox" id="hair3d-light" checked></label>
@@ -1324,6 +1337,7 @@
   <div class="toast" id="toast" role="status" aria-live="polite" data-icon="check" hidden></div>
 
   <script src="js/splat3d.js"></script>
+  <script src="js/voz.js"></script>
   <script src="js/app.js"></script>
   <script src="js/turn360.js"></script>
   <script src="js/lab.js"></script>

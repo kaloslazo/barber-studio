@@ -1,3 +1,13 @@
 .stage-col:has(> #hair3d-stage:not([hidden])) > .turn-stage {
   display: none;
 }
+
+.turn-empty { background: var(--stage); }
+.turn-empty.failed .dz-icon { color: #e25c50; }
+.turn-empty.failed .dz-title { font-size: 20px; }
+.turn-empty.failed .dz-sub { max-width: 36ch; color: var(--on-stage); opacity: 0.86; }
+.turn-stage .pose-badge#turn-badge { top: auto; bottom: 18px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 18px; font-size: clamp(15px, 2.2vw, 22px); font-weight: 600; line-height: 1.25; text-align: center; width: max-content; text-wrap: balance; }
+#hair3d-head.head-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+#hair3d-head.head-choice .style-btn { justify-content: center; padding: 0 8px; }
+#panel-transfer .ticket > .field { margin-bottom: 6px; }
+.turn-stage .live-meta { padding: 8px 12px 10px; }
