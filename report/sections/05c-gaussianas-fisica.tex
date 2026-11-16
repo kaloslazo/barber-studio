@@ -160,7 +160,17 @@ donde $\mathbf{n}_k$ es el promedio de las normales de los triángulos que tocan
 
 \textbf{Color del pelo.} El color de la peluca se oscurece un poco (luminosidad $\times 0{,}86$, croma $\times 0{,}85$) y se recortan los brillos que pasan de 1,3 veces la media, conservando un 20~\% de ellos, para quitar la luz de la habitación sin perder la textura de los mechones. Una versión anterior oscurecía más ($\times 0{,}66$) y la peluca quedaba casi negra, como un casco.
 
-La figura~\ref{fig:peluca} muestra una peluca construida desde una sola foto, el caso mínimo; con el escaneo de 180° o la vuelta completa se cierra también la parte de atrás. La vista para probar la peluca sobre otra persona en vivo (\texttt{/api/transfer/asset} y \texttt{/api/transfer/tryon}, \archivo{compositing/bald.py}) quedó fuera de la interfaz final; los \emph{endpoints} siguen en la API.
+\textbf{Busto con tu ropa.} Para que la peluca no se vea como una cabeza flotando, debajo del cuello se agregan hombros y pecho de gaussianas (\texttt{\_torso} en \archivo{splatting/hair3d.py}). La sección horizontal a la altura $y$ es una superelipse de exponente $n=2{,}6$, entre redonda y cuadrada:
+\begin{equation}
+  \left|\frac{x}{w(y)}\right|^{n}+\left|\frac{z}{d(y)}\right|^{n}=1,
+\end{equation}
+donde el ancho $w(y)$ crece con un \emph{smoothstep} de $0{,}29$ en el cuello a $1{,}18$ anchos de cara en los hombros, y la profundidad $d(y)$ de $0{,}25$ a $0{,}44$. Las alturas se muestrean en proporción al área de cada franja, para que las gaussianas queden repartidas parejo; la normal es el gradiente de la superficie (incluye la pendiente de los hombros, así que la luz los sombrea bien). El color es la mediana de los píxeles que el segmentador de MediaPipe marca como ropa en las vistas del escaneo, y la opacidad baja a cero en la parte de abajo, como un busto.
+
+\textbf{Cambiar de cabeza al instante.} Al principio, pasar entre «Mi cara», «Maniquí» y «Solo pelo» volvía a pedir toda la peluca al servidor (unos 7~s). Como el pelo no depende de la cabeza, ahora el servidor arma una sola vez el pelo, la cara, el maniquí y el torso (\texttt{heads=both}) y avisa cuántas gaussianas tiene cada parte; el visor solo elige qué tramos dibujar, y el cambio tarda unos 10~ms. Para que girar no se trabe con unas 180~mil gaussianas, las normales para la luz se calculan una sola vez por peluca, los \emph{buffers} de la GPU se reusan con \texttt{bufferSubData}, el orden por profundidad se rehace cada $0{,}7^\circ$ en vez de en cada cuadro, y si el navegador pierde el contexto WebGL el visor lo recupera. Al cortar con las tijeras, cortar puntas o rapar, los pelos cortados caen como partículas con gravedad, del color de la peluca y desde la posición en pantalla de cada gaussiana.
+
+\textbf{Guía por voz.} Escanear girando en una silla sin ver bien la pantalla es incómodo, así que la vuelta completa y los escaneos de 7 y 12~s se guían con la voz del navegador (\texttt{speechSynthesis}, sin internet) y sonidos sintetizados con WebAudio: una cuenta regresiva de 3~s, un clic por cada sector nuevo que sube de tono con el avance, avisos como «más despacio» o «vuelve a mirar de frente», y una campanita al terminar. Si el escaneo falla, se dice el motivo y qué hacer («giraste muy rápido», «casi no te vi», «no te vi de frente»), y al terminar la vuelta la peluca sale directamente sobre la cara de ese giro.
+
+La figura~\ref{fig:peluca} muestra una peluca construida desde una sola foto, el caso mínimo, con el busto; con el escaneo de 180° o la vuelta completa se cierra también la parte de atrás. La vista para probar la peluca sobre otra persona en vivo (\texttt{/api/transfer/asset} y \texttt{/api/transfer/tryon}, \archivo{compositing/bald.py}) quedó fuera de la interfaz final; los \emph{endpoints} siguen en la API.
 
 \textbf{Vuelta completa en una silla.} El escaneo de 180° no ve bien la nuca. Ahora la persona también puede dar una vuelta completa sentada en una silla giratoria, frente a la cámara o en un video que se sube (\archivo{splatting/turntable.py}, \archivo{splatting/turn_session.py}). De espaldas no hay malla de la cara, así que \texttt{HeadTracker} mide el giro con flujo óptico. Trata la cabeza como una esfera que gira sobre un eje vertical: un punto en la columna normalizada $u=\sin\varphi$ pasa a $\sin(\varphi+\Delta\theta)$, así que cada punto seguido con Lucas--Kanade piramidal vota por
 \begin{equation}
@@ -170,8 +180,8 @@ y el giro entre dos cuadros es la mediana ponderada de los votos. Al final, el �
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=0.55\linewidth]{peluca3d.jpg}
-  \caption{Peluca de gaussianas sobre el maniquí, construida desde un único retrato frontal.}
+  \includegraphics[width=\linewidth]{peluca_busto.jpg}
+  \caption{Peluca de gaussianas construida desde un único retrato frontal: sobre la cara escaneada (de frente y a 40°), sobre el maniquí y solo el pelo. Los hombros toman el color de la ropa.}
   \label{fig:peluca}
 \end{figure}
 
@@ -187,7 +197,7 @@ En cada cuadro de la cámara, la malla nueva reconstruye el marco de cada trián
 \subsection{Contrarreloj: el juego de afeitado}
 \label{sec:juego}
 
-La persona tiene 30 segundos para afeitar una barba con física hasta dejar un estilo objetivo: candado, bigote o collar (\archivo{game/speedrun.py}). La ``máquina'' puede ser el mouse o la punta del dedo índice, detectada con el modelo de mano de MediaPipe; corta solo con el índice extendido y el dedo medio doblado. La figura~\ref{fig:diag-juego} resume una ronda.
+La persona tiene 30 segundos para afeitar una barba con física hasta dejar un estilo objetivo: candado, bigote o collar (\archivo{game/speedrun.py}). La barba que se afeita es la misma de la barba en vivo, sobre la malla 3D de la cara; las hebras de la física solo deciden qué parte queda y cuál se cortó. La ``máquina'' puede ser el mouse o la punta del dedo índice, detectada con el modelo de mano de MediaPipe; corta solo con el índice extendido y el dedo medio doblado. La figura~\ref{fig:diag-juego} resume una ronda.
 
 \begin{figure}[ht]
   \centering

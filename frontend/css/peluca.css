@@ -52,3 +52,4 @@
   #transfer-splat.active .inspector-col > *, #transfer-splat.active .stage-col > *, .turn-steps li, .swatch.active, .wig-swatch.active { animation: none; }
   #hair3d-stats.building { animation: none; color: var(--on-stage-muted); background: none; }
 }
+.mirror-stage canvas.hair-fall { background: transparent; border-radius: 0; cursor: default; }

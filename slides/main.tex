@@ -440,15 +440,19 @@
 \begin{frame}{Peluca 3D}
   \begin{columns}[T]
     \begin{column}{0.52\textwidth}
+      \small
       \begin{itemize}
         \item Escaneo de 12~s girando la cabeza 180°.
         \item \emph{Visual hull} por cortes: cada vista limita dónde hay pelo en cada altura y dirección.
         \item Textura de las vistas que mejor ven cada punto; la nuca, del último pelo de cada perfil.
-        \item Estudio: color, largo y tijeras sobre las gaussianas.
+        \item Estudio: color, largo y tijeras; los pelos cortados caen como partículas.
+        \item Busto: superelipse con el color de tu ropa.
+        \item Cara, maniquí o solo pelo al instante: el servidor arma todo una vez.
+        \item Vuelta 360 guiada por voz y con el motivo de cada falla.
       \end{itemize}
     \end{column}
     \begin{column}{0.42\textwidth}
-      \includegraphics[width=\linewidth]{peluca3d.jpg}
+      \includegraphics[width=\linewidth]{peluca_busto.jpg}
     \end{column}
   \end{columns}
 \end{frame}
@@ -518,9 +522,9 @@
       \textbf{Escala local} con \emph{smoothstep}; un anillo fijo deja quieto el resto.
       \vspace{0.6em}
 
-      \textbf{Fusión}: forma intermedia y mezcla
-      \[ I_t = (1-t)\,W_A(S_t) + t\,W_B(S_t) \]
-      \nota{$t=0{,}5$ es ``el hijo''. El pelo no está en la malla: se ve doble.}
+      \textbf{Fusión}: forma intermedia y mezcla solo de la cara
+      \[ C_t = (1-t)\,W_A(S_t) + t\,W_B(S_t) \]
+      \nota{$C_t$ entra con la pirámide laplaciana sobre la foto de uno: sin fantasmas. $t=0{,}5$ es ``el hijo''.}
     \end{column}
     \begin{column}{0.58\textwidth}
       \includegraphics[width=\linewidth]{fiesta_caricatura.jpg}\\[0.4em]

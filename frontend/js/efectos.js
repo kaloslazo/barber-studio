@@ -105,6 +105,7 @@ const freshFx = (() => {
       });
     });
     if (fall.strands.length > 900) fall.strands.splice(0, fall.strands.length - 900);
+    fall.canvas.style.display = "";
     if (!fall.running) {
       fall.running = true;
       fall.last = performance.now();
@@ -143,6 +144,7 @@ const freshFx = (() => {
     } else {
       fall.running = false;
       context.clearRect(0, 0, fall.canvas.width, fall.canvas.height);
+      fall.canvas.style.display = "none";
     }
   }
 
