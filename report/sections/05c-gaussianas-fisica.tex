@@ -154,6 +154,12 @@ La peluca 3D escanea el peinado de una persona con la cámara y lo convierte en 
 
 \textbf{Prueba en vivo.} Para probar la peluca sobre otra persona, el navegador sigue la cabeza con MediaPipe en JavaScript y el servidor quita el pelo propio de esa persona. El fondo se aprende de cuadros anteriores o se rellena, y el cuero cabelludo se sombrea a partir de la piel de la cara. La figura~\ref{fig:peluca} muestra una peluca construida desde una sola foto, el caso mínimo; con el escaneo de 180° se cierra también la parte de atrás.
 
+\textbf{Vuelta completa en una silla.} El escaneo de 180° no ve bien la nuca. Ahora la persona también puede dar una vuelta completa sentada en una silla giratoria, frente a la cámara o en un video que se sube (\archivo{splatting/turntable.py}, \archivo{splatting/turn_session.py}). De espaldas no hay malla de la cara, así que \texttt{HeadTracker} mide el giro con flujo óptico. Trata la cabeza como una esfera que gira sobre un eje vertical: un punto en la columna normalizada $u=\sin\varphi$ pasa a $\sin(\varphi+\Delta\theta)$, así que cada punto seguido con Lucas--Kanade piramidal vota por
+\begin{equation}
+  \Delta\theta=\arcsin u_1-\arcsin u_0,
+\end{equation}
+y el giro entre dos cuadros es la mediana ponderada de los votos. Al final, el ángulo de cada cuadro sale de un problema de mínimos cuadrados sobre la cadena de cuadros: los cuadros con la cara visible (giro de la malla de hasta 65°) fijan la deriva, y entre ellos la corrección se reparte entre los pasos, lo que cierra la vuelta. De cada sector de 12° se toma el cuadro más nítido (varianza del laplaciano). Los videos HDR en HLG, como los de un iPhone, se pasan a SDR antes de medir (\archivo{splatting/hdr.py}). Los \emph{endpoints} son \texttt{/api/turn/frame}, \texttt{/api/turn/solve} y \texttt{/api/turn/video}. Esta parte la hizo Gianpier Segovia.
+
 \begin{figure}[ht]
   \centering
   \includegraphics[width=0.55\linewidth]{peluca3d.jpg}

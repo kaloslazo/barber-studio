@@ -16,7 +16,7 @@
   const menuItems = $$(".menu-item");
   const groupTabs = $$(".group-tab");
   const subnav = byId("subnav");
-  const lastInGroup = { inicio: "inicio", estilos: "beard", "3d": "mirror", juegos: "speedrun", looks: "looks" };
+  const lastInGroup = { inicio: "inicio", estilos: "beard", "3d": "mirror", juegos: "speedrun", fiesta: "swap", looks: "looks" };
   let fromHistory = false;
 
   function syncNav(item) {
@@ -60,7 +60,7 @@
     fromHistory = false;
   });
 
-  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input"];
+  const PHOTO_INPUTS = ["beard-input", "photo-input", "hc-input", "mirror-input", "splat-input", "fiesta-input"];
   const sharedInput = byId("shared-input");
   const chip = byId("photo-chip");
   const chipImg = byId("photo-chip-img");
@@ -94,7 +94,7 @@
     chip.title = "Cambiar la foto";
   }
 
-  const LOADED = "Foto cargada en Barba, Tinte, Corte, Espejo 3D y Gaussianas";
+  const LOADED = "Foto cargada en Barba, Tinte, Corte, Espejo 3D, Gaussianas y Fiesta";
 
   PHOTO_INPUTS.forEach((id) => {
     const input = byId(id);
@@ -105,6 +105,7 @@
       }
     });
     const zone = input.closest(".drop-zone");
+    if (!zone) return;
     zone.addEventListener("drop", (event) => {
       const file = event.dataTransfer.files[0];
       if (file) sharePhoto(file, id);
@@ -131,7 +132,7 @@
 
   async function useSample(goTo) {
     try {
-      const blob = await fetch("assets/samples/muestra.jpg").then((response) => response.blob());
+      const blob = await fetch("assets/samples/ejemplo.jpg").then((response) => response.blob());
       sharePhoto(new File([blob], "foto-de-ejemplo.jpg", { type: "image/jpeg" }), null);
       if (goTo) go(goTo);
       toast("Foto de ejemplo cargada");
@@ -545,7 +546,13 @@
 
   const MESSAGES = [
     [/^Invalid image file.*$/i, "El archivo no es una imagen válida."],
-    [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz."],
+    [/^No hair detected in the image.*$/i, "No encontramos pelo en la foto. Usa una foto de frente, con el pelo a la vista y buena luz. Si no tienes pelo, la Peluca 3D te presta uno."],
+    [/^Need two faces in the photo.*$/i, "Hacen falta dos caras en la foto. Pónganse dos frente a la cámara o elige «Dos fotos»."],
+    [/^Choose a face to wear first.*$/i, "Primero guarden la cara que se van a poner."],
+    [/^No face detected in the second photo.*$/i, "No encontramos una cara en la segunda foto."],
+    [/^No face detected in one of the photos.*$/i, "No encontramos una cara en una de las dos fotos."],
+    [/^Unknown caricature preset: (.*)$/i, "Efecto desconocido: $1"],
+    [/^Unknown face mode: (.*)$/i, "Modo desconocido: $1"],
     [/^Failed to encode result.*$/i, "No se pudo generar el resultado."],
     [/^No face detected.*$/i, "No encontramos una cara en la foto. Usa una foto de frente y con buena luz."],
     [/^Unknown beard style: (.*)$/i, "Estilo de barba desconocido: $1"],

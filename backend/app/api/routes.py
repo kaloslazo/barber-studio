@@ -3,7 +3,10 @@ import hashlib
 import io
 import json
 import threading
+import time
 import zipfile
+from collections import deque
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -16,18 +19,24 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.detection.landmarks import MODELS_DIR
+from app.core.faces.session import FaceStudio
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
 from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
 from app.core.splatting.face3d import face_scan_debug_image
 from app.core.splatting.head3d import to_ply
+from app.core.splatting import turn_store
 
 MAX_SIDE = 2048
 
 router = APIRouter(prefix="/api")
 pipeline = StylePipeline()
 lab = LabSession(pipeline)
+studio = FaceStudio()
 work_lock = threading.Lock()
+LIVE_DEBUG_FRAMES = 60
+LIVE_DEBUG_DIR = Path(__file__).resolve().parents[3] / "data" / "live_debug"
+live_debug = deque(maxlen=LIVE_DEBUG_FRAMES)
 
 
 def locked(fn, *args, **kwargs):
@@ -259,6 +268,47 @@ async def transfer_photos(
     )
 
 
+@router.post("/turn/frame")
+async def turn_frame(session: str = Form(...), image: UploadFile = File(...)):
+    frame = decode_image(await image.read())
+    try:
+        return await work(pipeline.turn_frame, session, frame)
+    except ValueError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@router.post("/turn/solve")
+async def turn_solve(session: str = Form(...), bin_degrees: float = Form(12.0)):
+    found = pipeline.turn_sessions.get(session, create=False)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Unknown scan session")
+    try:
+        yaw, picks, fraction, bins = found.solve(bin_degrees)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return {
+        "yaws": [float(value) for value in yaw],
+        "picks": [int(index) for index in picks],
+        "coverage": float(fraction),
+        "bins": [int(value) for value in bins],
+        "frames": len(yaw),
+    }
+
+
+@router.post("/turn/video")
+async def turn_video(video: UploadFile = File(...)):
+    path = await turn_store.spool(video)
+    try:
+        result = await work(pipeline.turn_video, path)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    finally:
+        turn_store.discard(path)
+    result["frames"] = ["data:image/jpeg;base64," + base64.b64encode(frame).decode("ascii") for frame in result["frames"]]
+    result["face_frames"] = ["data:image/jpeg;base64," + base64.b64encode(frame).decode("ascii") for frame in result["face_frames"]]
+    return result
+
+
 @router.post("/transfer/splat")
 async def transfer_splat(
     frames: List[UploadFile] = File(...),
@@ -266,6 +316,8 @@ async def transfer_splat(
     mannequin: str = Form("true"),
     format: str = Form("raw"),
     head: str = Form("mannequin"),
+    turn: str = Form("false"),
+    face_mirror: str = Form("false"),
     face_frames: List[UploadFile] = File(None),
 ):
     angle_values = [float(value) for value in angles.split(",") if value.strip()]
@@ -278,11 +330,17 @@ async def transfer_splat(
         if not face_frames:
             raise HTTPException(status_code=400, detail="Scan your face first in 3D Peluca > Your face")
         face_data = [await frame.read() for frame in face_frames]
-        faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data))
+        faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data) + face_mirror.encode())
+        if face_mirror == "true":
+            faces = [cv2.flip(face, 1) for face in faces]
     try:
-        rows, meta = await work(
-            pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
-        )
+        if turn == "true":
+            turn_store.save(data, angle_values)
+            rows, meta = await work(pipeline.hair3d_turn, images, angle_values, mannequin != "false", faces, face_key)
+        else:
+            rows, meta = await work(
+                pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
+            )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     if rows is None:
@@ -391,17 +449,24 @@ async def live(
     style: str = Form("full"),
     strength: float = Form(0.75),
     length: float = Form(1.0),
+    debug: str = Form("0"),
 ):
     if mode not in ("dye", "beard", "mesh", "physics"):
         raise HTTPException(status_code=400, detail=f"Unknown live mode: {mode}")
-    image_bgr = decode_image(await image.read())
+    raw = await image.read()
+    image_bgr = decode_image(raw)
     h, w = image_bgr.shape[:2]
     if mode == "beard":
         if w > 1280:
             image_bgr = cv2.resize(image_bgr, (1280, int(h * 1280 / w)), interpolation=cv2.INTER_AREA)
-        result = await work(pipeline.apply_beard_live_hd, image_bgr, style, strength)
+        info = {} if debug == "1" else None
+        result = await work(pipeline.apply_beard_live_hd, image_bgr, style, strength, 640, info)
         response = encode_jpeg(result if result is not None else image_bgr, 90)
-        response.headers["X-Face-Found"] = "0" if result is None else "1"
+        response.headers["X-Face-Found"] = "0" if result is None or (info and not info.get("face", True)) else "1"
+        if info is not None:
+            clean = info.pop("clean", None)
+            live_debug.append({"input": raw, "output": response.body, "style": style, "info": info,
+                               "clean": None if clean is None else encode_jpeg(clean, 90).body})
         return response
     if w > 640:
         scale = 640 / w
@@ -422,6 +487,25 @@ async def live(
     return response
 
 
+@router.post("/live/debug/save")
+def live_debug_save():
+    if not live_debug:
+        raise HTTPException(status_code=409, detail="No debug frames yet: turn on Depurar with the camera running")
+    folder = LIVE_DEBUG_DIR / time.strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True, exist_ok=True)
+    meta = []
+    for index, item in enumerate(list(live_debug)):
+        (folder / f"{index:03d}_in.jpg").write_bytes(item["input"])
+        (folder / f"{index:03d}_out.jpg").write_bytes(item["output"])
+        if item["clean"]:
+            (folder / f"{index:03d}_clean.jpg").write_bytes(item["clean"])
+        meta.append({"frame": index, "style": item["style"], **item["info"]})
+    if pipeline.live_reference_frame is not None:
+        (folder / "reference.jpg").write_bytes(encode_jpeg(pipeline.live_reference_frame, 95).body)
+    (folder / "meta.json").write_text(json.dumps(meta, indent=1))
+    return {"folder": str(folder), "frames": len(meta)}
+
+
 @router.post("/lab/build")
 async def lab_build(frames: List[UploadFile] = File(...), beard: str = Form("none")):
     if beard != "none" and beard not in STYLES:
@@ -439,3 +523,77 @@ async def lab_build(frames: List[UploadFile] = File(...), beard: str = Form("non
 async def lab_mesh(image: UploadFile = File(...)):
     image_bgr = decode_image(await image.read())
     return JSONResponse({"mesh": await work(lab.live_mesh, image_bgr)})
+
+
+async def read_optional(upload):
+    if upload is None:
+        return None
+    data = await upload.read()
+    return decode_image(data) if data else None
+
+
+async def run_faces(image_bgr, mode, preset, amount, live=False, other=None):
+    try:
+        return await work(studio.apply, image_bgr, mode, preset, amount, live, other)
+    except LookupError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    except ValueError as error:
+        status = 422 if str(error).startswith("No face") else 400
+        raise HTTPException(status_code=status, detail=str(error))
+
+
+@router.post("/faces/source")
+async def faces_source(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    face = await work(studio.set_source, image_bgr)
+    if face is None:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    return encode_jpeg(face)
+
+
+@router.post("/faces/photo")
+async def faces_photo(
+    image: UploadFile = File(...),
+    other: UploadFile = File(None),
+    mode: str = Form("swap"),
+    preset: str = Form("caricature"),
+    amount: float = Form(0.8),
+):
+    image_bgr = decode_image(await image.read())
+    other_bgr = await read_optional(other)
+    result, count = await run_faces(image_bgr, mode, preset, amount, other=other_bgr)
+    if count == 0:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    if mode == "swap" and other_bgr is None and count < 2:
+        raise HTTPException(status_code=422, detail="Need two faces in the photo")
+    response = encode_png(result)
+    response.headers["X-Faces"] = str(count)
+    return response
+
+
+@router.post("/faces/live")
+async def faces_live(
+    image: UploadFile = File(...),
+    mode: str = Form("swap"),
+    preset: str = Form("caricature"),
+    amount: float = Form(0.8),
+):
+    image_bgr = decode_image(await image.read())
+    h, w = image_bgr.shape[:2]
+    if w > 640:
+        image_bgr = cv2.resize(image_bgr, (640, int(h * 640 / w)), interpolation=cv2.INTER_AREA)
+    result, count = await run_faces(image_bgr, mode, preset, amount, live=True)
+    response = encode_jpeg(result, 85)
+    response.headers["X-Faces"] = str(count)
+    return response
+
+
+@router.post("/faces/fusion")
+async def faces_fusion(image: UploadFile = File(...), other: UploadFile = File(None), steps: int = Form(13)):
+    image_bgr = decode_image(await image.read())
+    other_bgr = await read_optional(other)
+    try:
+        frames = await work(studio.fusion, image_bgr, other_bgr, int(np.clip(steps, 3, 25)))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return JSONResponse({"frames": [to_data_url(frame, 88) for frame in frames]})

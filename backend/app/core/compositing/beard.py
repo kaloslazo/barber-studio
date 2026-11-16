@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from app.core.compositing.alpha import inside_feather, organic_feather
+from app.core.compositing.alpha import inside_feather, local_feather, organic_feather
 from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.warp import warp_template
 
@@ -24,6 +24,12 @@ PALETTE = [
     (100, 92, 80),
     (22, 19, 17),
 ]
+
+LIVE_EDGE_FEATHER = 0.5
+MUSTACHE_ENDS = 0.12
+MUSTACHE_STRAND = (0.025, 0.05)
+MUSTACHE_NOSE_GAP = 0.2
+MOUTH_HOLE_LIVE = (0.48, 0.46)
 
 STYLES = {
     "full": {"region": "full", "density": 0.95, "min_contrast": 15},
@@ -63,36 +69,52 @@ def _mustache_ellipse(shape, pts):
     return _ellipse_mask(shape, center, (half_w, max(2.0, half_w * 0.24)))
 
 
-def _mustache_band(shape, pts):
+def _mustache_band(shape, pts, live=False):
     """Arched band: comisura -> subnasal -> comisura, thickest at the center."""
     mask = np.zeros(shape, np.uint8)
+    pts = np.asarray(pts, np.float32)
     left, top, right = pts[48], pts[33], pts[54]
     lip_h = np.linalg.norm(pts[51] - pts[57])
-    t = np.linspace(0, 1, 32)[:, None]
+    ends = MUSTACHE_ENDS if live else 0.0
+    t = np.linspace(ends, 1 - ends, 32)[:, None]
     curve = (1 - t) ** 2 * left + 2 * (1 - t) * t * top + t**2 * right
     for i, (cx, cy) in enumerate(curve):
         arch = np.sin(np.pi * i / 31)
         radius = lip_h * (0.35 + 0.45 * arch)
         cv2.circle(mask, (int(cx), int(cy)), max(2, int(radius)), 255, -1)
+    if live:
+        across = pts[35] - pts[31]
+        down = np.array([-across[1], across[0]], np.float32)
+        down /= np.linalg.norm(down) + 1e-6
+        if down @ (pts[51] - pts[33]) < 0:
+            down = -down
+        philtrum = float(np.linalg.norm(pts[51] - pts[33]))
+        ys, xs = np.mgrid[0:shape[0], 0:shape[1]].astype(np.float32)
+        below = (xs - pts[33][0]) * down[0] + (ys - pts[33][1]) * down[1]
+        mask[below < MUSTACHE_NOSE_GAP * philtrum] = 0
     return cv2.GaussianBlur(mask, (0, 0), 2.0)
 
 
-def beard_mask(image_shape, points, style):
+def mouth_hole_mask(shape, pts, live=False):
+    mouth = pts[MOUTH_OUTER]
+    scale = MOUTH_HOLE_LIVE if live else (0.55, 0.65)
+    half_w = np.linalg.norm(pts[48] - pts[54]) * scale[0]
+    half_h = np.linalg.norm(pts[51] - pts[57]) * scale[1]
+    return _ellipse_mask(shape, mouth.mean(axis=0), (half_w, half_h))
+
+
+def beard_mask(image_shape, points, style, live=False):
     h, w = image_shape[:2]
     pts = np.asarray(points, np.float32)
     centroid = pts.mean(axis=0)
     face_w = np.linalg.norm(pts[16] - pts[0])
 
-    mouth = pts[MOUTH_OUTER]
-    mouth_center = mouth.mean(axis=0)
-    mouth_half_w = np.linalg.norm(pts[48] - pts[54]) * 0.55
-    mouth_half_h = np.linalg.norm(pts[51] - pts[57]) * 0.65
-    mouth_hole = _ellipse_mask((h, w), mouth_center, (mouth_half_w, mouth_half_h))
+    mouth_hole = mouth_hole_mask((h, w), pts, live)
     mustache = _mustache_ellipse((h, w), pts)
 
     region = STYLES[style]["region"]
     if region == "mustache":
-        mask = _mustache_band((h, w), pts)
+        mask = _mustache_band((h, w), pts, live)
     elif region == "full":
         jaw = _expand(pts[JAW], centroid, face_w * 0.04)
         upper_line = np.array([
@@ -112,7 +134,7 @@ def beard_mask(image_shape, points, style):
         right = pts[54] + along * mouth_width * 0.18
         mask = _polygon_mask((h, w), np.vstack([left, chin, right]))
         mask = cv2.subtract(mask, mouth_hole)
-        mask = cv2.add(mask, _mustache_band((h, w), pts))
+        mask = cv2.add(mask, _mustache_band((h, w), pts, live))
 
     if region != "full":
         lips = _polygon_mask((h, w), pts[MOUTH_OUTER])
@@ -361,7 +383,7 @@ def _gradient_detail(texture_rgb, face_w):
     """
     sigma = max(1.0, face_w / 70.0)
     low = cv2.GaussianBlur(texture_rgb, (0, 0), sigma)
-    return texture_rgb - low
+    return (texture_rgb - low).mean(axis=2, keepdims=True)
 
 
 def _inject_detail(out, texture_rgb, weight, face_w, gain):
@@ -422,6 +444,7 @@ class LiveAnchor:
         self.stale = False
         self.strands = None
         self.triangles = None
+        self.beard = None
         rng = np.random.default_rng(5)
         self.streak_noise = rng.random((h, w)).astype(np.float32)
         grain = cv2.GaussianBlur(rng.random((h, w)).astype(np.float32), (0, 0), 1.5)
@@ -477,13 +500,30 @@ class LiveAnchor:
             self.ref_ext = _extended_points(self.ref)
             self.triangles = np.asarray(delaunay_triangles(self.ref_ext))
 
+    def bind(self, beard, xy, front):
+        """Pin the strands to the 3D face mesh (a MeshBeard) instead of the 2D
+        triangulation of the landmarks, which collapses on a turned head:
+        `xy` is the current mesh in crop coordinates and `front` the mask of
+        triangles that face the camera."""
+        if self.beard is not beard:
+            self.strands = None
+        self.beard, self.mesh_xy, self.mesh_front = beard, xy, front
+
     def locate_origins(self):
+        if self.beard is not None:
+            self.strand_tri, self.strand_bary, self.strand_valid = self.beard.locate(self.strands["origins"])
+            return
         self.ensure_mesh()
         self.strand_tri, self.strand_bary, self.strand_valid = barycentric_locate(
             self.strands["origins"], self.ref_ext, self.triangles,
         )
 
     def map_origins(self, count):
+        if self.beard is not None:
+            tri = self.strand_tri[:count]
+            pos = (self.strand_bary[:count, :, None] * self.mesh_xy[self.beard.triangles[tri]]).sum(axis=1)
+            pos[~self.strand_valid[:count] | ~self.mesh_front[tri]] = -10000.0
+            return pos.astype(np.float32)
         return barycentric_map(
             self.strands["origins"][:count], self.strand_tri[:count], self.strand_bary[:count],
             self.strand_valid[:count], self.triangles, self.cur_ext, self.M,
@@ -498,7 +538,8 @@ class LiveAnchor:
 
     def build_strands(self, region, style):
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31))
-        area = cv2.dilate((region > 0).astype(np.uint8), kernel)
+        source = region if self.beard is None else self.beard.texture(style)
+        area = cv2.dilate((source > 0).astype(np.uint8), kernel)
         ys, xs = np.where(area > 0)
         rng = np.random.default_rng(7)
         fraction = {"stubble": 0.04, "full": 0.06, "mustache": 0.06}.get(style, 0.10)
@@ -507,7 +548,7 @@ class LiveAnchor:
         stubble = style == "stubble"
         self.strands = {
             "origins": np.stack([xs[chosen], ys[chosen]], axis=1).astype(np.float32),
-            "length": rng.uniform(0.012, 0.025, count) if stubble else rng.uniform(0.045, 0.10, count),
+            "length": rng.uniform(0.012, 0.025, count) if stubble else rng.uniform(*MUSTACHE_STRAND, count) if style == "mustache" else rng.uniform(0.045, 0.10, count),
             "curl": rng.uniform(-0.7, 0.7, count),
             "jitter": rng.uniform(0.6, 1.0, count) if style in ("stubble", "goatee") else rng.uniform(0.72, 1.08, count),
             "alpha": rng.integers(150, 235, count),
@@ -567,9 +608,24 @@ def _anchored_strand_layer(anchor, region, dx, dy, style, face_w, density, tint)
     return canvas[..., :3].astype(np.float32), canvas[..., 3].astype(np.float32) / 255.0
 
 
+def style_region(shape, pts, style, live=False):
+    h, w = shape
+    pts = np.asarray(pts, np.float32)
+    region = beard_mask((h, w), pts, style, live)
+    if style != "full":
+        face_w = np.linalg.norm(pts[16] - pts[0])
+        face_hull = np.zeros((h, w), np.uint8)
+        cv2.fillConvexPoly(face_hull, cv2.convexHull(pts).astype(np.int32), 255)
+        grow = max(1, int(face_w * 0.03))
+        face_hull = cv2.dilate(face_hull, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * grow + 1, 2 * grow + 1)))
+        region = cv2.bitwise_and(region, face_hull)
+    return region
+
+
 def apply_real_beard(
     image_bgr, points, style, strength, templates,
     base_strength=0.26, texture_strength=1.0, hair_yccrb=None, anchor=None, live_detail=True,
+    region_mask=None, region_gain=None,
 ):
     h, w = image_bgr.shape[:2]
     pts = np.asarray(points, np.float32)
@@ -633,13 +689,7 @@ def apply_real_beard(
     # symmetric), not from the template's own patchy alpha. The warped template
     # is used only for bonus texture/detail further below. This is what removes
     # the holes, the left/right asymmetry and the stubble "clumps".
-    region = beard_mask((h, w), pts, style)
-    if style != "full":
-        face_hull = np.zeros((h, w), np.uint8)
-        cv2.fillConvexPoly(face_hull, cv2.convexHull(pts).astype(np.int32), 255)
-        grow = max(1, int(face_w * 0.03))
-        face_hull = cv2.dilate(face_hull, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * grow + 1, 2 * grow + 1)))
-        region = cv2.bitwise_and(region, face_hull)
+    region = region_mask if region_mask is not None else style_region((h, w), pts, style)
     if refined:
         nose = np.zeros((h, w), np.uint8)
         cv2.fillConvexPoly(nose, cv2.convexHull(pts[27:36]).astype(np.int32), 255)
@@ -651,12 +701,16 @@ def apply_real_beard(
             cv2.polylines(jaw_line, [pts[:17].astype(np.int32)], False, 255, 1)
             jaw_dist = cv2.distanceTransform(255 - jaw_line, cv2.DIST_L2, 5)
             density_field = np.clip(1.15 - 0.85 * jaw_dist / (0.30 * face_w), 0.30, 1.0)
+    if region_mask is not None:
+        feather = local_feather(region, feather * LIVE_EDGE_FEATHER)
     region_alpha = organic_feather(
         region, feather, noise_scale=0.6,
         noise=anchor.t_edge if anchor is not None else None,
     )
     if density_field is not None:
         region_alpha = region_alpha * density_field.astype(np.float32)
+    inside = cv2.distanceTransform((region > 0).astype(np.uint8), cv2.DIST_L2, 5)
+    hair_alpha = region_alpha * np.clip(inside / np.maximum(0.5 * feather, 1.0), 0.0, 1.0)
 
     tex_visible = warped_alpha > 0.3
     if tex_visible.any():
@@ -682,6 +736,8 @@ def apply_real_beard(
     #    streak/grain variation so the density reads the same everywhere.
     body_strength = {"full": 0.55, "goatee": 0.55, "mustache": 0.50, "stubble": 0.20}[style]
     body_alpha = region_alpha * (0.78 + 0.22 * streak) * body_strength * density
+    if region_gain is not None:
+        body_alpha = np.clip(body_alpha * region_gain, 0.0, 1.0)
     body_rgb = np.empty((h, w, 3), np.float32)
     for channel in range(3):
         body_rgb[..., channel] = beard_color[channel] * (0.90 + 0.20 * grain)
@@ -702,7 +758,7 @@ def apply_real_beard(
         low = cv2.GaussianBlur(region_alpha, (0, 0), max(2.0, face_w / 25.0))
         threshold = 0.95 - 1.2 * density - 0.25 * (low - 0.5)
         dots = np.clip((fine - threshold) * 1.1, 0.0, 1.0)
-        dot_alpha = (region_alpha * dots * 0.5)[..., None]
+        dot_alpha = (hair_alpha * dots * 0.5)[..., None]
         dot_rgb = np.asarray(beard_color, np.float32).reshape(1, 1, 3) * 0.85
         if light_ratio is not None:
             dot_rgb = dot_rgb * light_ratio[..., None]
@@ -724,14 +780,14 @@ def apply_real_beard(
         strand_gain = 0.55 if style != "stubble" else 0.45
     if light_ratio is not None:
         strand_rgb = strand_rgb * light_ratio[..., None]
-    strand_alpha = strand_alpha * region_alpha * strand_gain
+    strand_alpha = strand_alpha * hair_alpha * strand_gain
     out = out * (1.0 - strand_alpha[..., None]) + strand_rgb * strand_alpha[..., None]
 
     # 3) Bonus real-hair detail where the warped template actually provides it.
-    if anchor is not None and not live_detail:
+    if anchor is not None and (not live_detail or style == "mustache"):
         detail_scale = 0.0
     if detail_scale > 0:
-        detail_w = region_alpha * np.clip(warped_alpha, 0.0, 1.0) * density * detail_scale
+        detail_w = hair_alpha * np.clip(warped_alpha, 0.0, 1.0) * density * detail_scale
         detail_gain = 1.0 if style == "stubble" else 1.3
         out = _inject_detail(out, warped_rgb, detail_w, face_w, detail_gain)
 

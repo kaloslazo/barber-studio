@@ -58,7 +58,7 @@ Todos los modelos necesarios están en \archivo{backend/models/}:
   \item \archivo{lbfmodel.yaml}: puntos de respaldo de OpenCV.
   \item \archivo{hair_best.pt}: el YOLO de pelo entrenado por el equipo.
 \end{itemize}
-Si falta \archivo{hair_best.pt} o no está instalado Ultralytics, la aplicación usa MediaPipe y el selector de modelo no aparece. La interfaz carga dos recursos desde internet: las fuentes tipográficas, que tienen respaldo local si no cargan, y la versión en JavaScript de MediaPipe, que solo usa la prueba en vivo de la peluca.
+Fiesta usa además la cara promedio \archivo{backend/app/assets/faces/mean_face.npy}, que también está en el repositorio; se puede recalcular con \archivo{backend/training/mean_face.py} (sección~\ref{sec:fiesta}). Si falta \archivo{hair_best.pt} o no está instalado Ultralytics, la aplicación usa MediaPipe y el selector de modelo no aparece. La interfaz carga dos recursos desde internet: las fuentes tipográficas, que tienen respaldo local si no cargan, y la versión en JavaScript de MediaPipe, que solo usa la prueba en vivo de la peluca.
 
 \subsection{Pruebas}
 
@@ -66,7 +66,7 @@ Desde \archivo{backend}, con el entorno activado:
 \begin{lstlisting}
 python -m pytest tests -q
 \end{lstlisting}
-El resultado esperado es \texttt{54 passed}.
+El resultado esperado es \texttt{103 passed}.
 
 \subsection{Reentrenar el segmentador de pelo}
 
@@ -92,4 +92,5 @@ python backend/training/train_hair.py --epochs 60 --device cuda
   \item Guardar el look o descargar la ficha para el barbero.
   \item En \emph{3D}, construir la cabeza en el \emph{Espejo 3D} o escanear una peluca en \emph{Peluca 3D}.
   \item En \emph{Juegos}, jugar Contrarreloj con la cámara o adivinar el retrato en \emph{Gaussianas}.
+  \item En \emph{Fiesta}, encender la cámara con dos o más personas para cambiar caras, elegir un efecto de caricatura, o tomar una foto de dos personas para la fusión.
 \end{enumerate}

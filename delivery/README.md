@@ -39,3 +39,4 @@ El código se toma del último commit (`HEAD`). Hay que hacer commit de los camb
 - `guion-video-corto.md`: guion del pitch de 1:30, con tiempos, pantalla y narración.
 - `guion-video-largo.md`: guion del video de 20 minutos, por bloques y por integrante, con lo que cada uno tiene que explicar.
 - `preguntas-defensa.md`: preguntas probables de la exposición por integrante, con respuestas y el archivo de cada cosa. No va en el `.zip`: es para preparar la defensa.
+- `demo-en-vivo.md`: plan minuto a minuto de la demo de la exposición presencial, con lista de control y plan B. Tampoco va en el `.zip`.

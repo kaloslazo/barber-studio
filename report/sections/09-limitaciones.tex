@@ -10,7 +10,10 @@
   \item \textbf{Una sola vista en el espejo 3D.} El espejo se construye desde una foto: no tiene nuca, y con giros de más de unos 40° se estira el relieve detrás de la cara.
   \item \textbf{Velocidad en vivo.} El modo en vivo corre a unos 10 cuadros por segundo; con giros rápidos la barba se atrasa un poco.
   \item \textbf{Clasificación de la cara.} Es una heurística calibrada estadísticamente, no un diagnóstico; caras en el límite entre dos formas pueden caer en cualquiera de ellas.
-  \item \textbf{Un solo usuario en vivo.} El estado del modo en vivo es único por servidor: dos cámaras a la vez compartirían el anclaje.
+  \item \textbf{Un solo usuario en vivo.} El estado del modo en vivo es único por servidor: dos cámaras a la vez compartirían el anclaje. Lo mismo pasa con la cara guardada de Fiesta.
+  \item \textbf{Cambio de cara con poses distintas.} El \emph{warp} es 2D, así que el cambio de cara necesita caras de frente y en poses parecidas. Si una cara está girada, la otra se estira para cubrir la mejilla del lado lejano y aparecen zonas que su foto no tiene.
+  \item \textbf{Caricatura en poses extremas.} Con la cabeza muy girada, los puntos de un lado de la cara quedan muy juntos y los efectos fuertes pueden invertir triángulos: la foto se pliega sobre sí misma.
+  \item \textbf{Pelo doble en la fusión.} El pelo y el fondo no están en la malla: en los cuadros intermedios solo se mezclan, y se ven dos contornos superpuestos.
 \end{itemize}
 
 \textbf{Trabajo futuro.}

@@ -23,7 +23,7 @@ from app.core.coloring.dye import hex_to_bgr  # noqa: E402
 from app.core.compositing import beard as beard_module  # noqa: E402
 from app.core.compositing import haircut  # noqa: E402
 from app.core.geometry.warp import warp_template  # noqa: E402
-from app.core.segmentation.mask_refiner import refine_hair_mask  # noqa: E402
+from app.core.segmentation.mask_refiner import hair_matte, refine_hair_mask  # noqa: E402
 from app.core.geometry.delaunay import draw_mesh  # noqa: E402
 from app.core.geometry.delaunay_fortune import delaunay_triangles  # noqa: E402
 from app.core.pipeline import StylePipeline  # noqa: E402
@@ -144,14 +144,15 @@ mp_mask, _ = pipeline.transfer_hair_mask(photo, face, points, soft=True)
 save("t_mediapipe", overlay(dim(photo, 0.6), (mp_mask > 0).astype(np.float32), (26, 161, 217), 0.75))
 if raw is not None:
     yolo = refine_hair_mask(photo, raw)
-    save("t_yolo", overlay(dim(photo, 0.6), (yolo > 0).astype(np.float32), (46, 111, 224), 0.75))
+    save("t_yolo", overlay(dim(photo, 0.6), hair_matte(photo, raw), (46, 111, 224), 0.75))
     union = np.count_nonzero((yolo > 0) | (mp_mask > 0))
     print("IoU YOLO / MediaPipe:", round(np.count_nonzero((yolo > 0) & (mp_mask > 0)) / union, 3))
 lightness = cv2.cvtColor(photo, cv2.COLOR_BGR2LAB)[..., 0].astype(np.float32)
-blurred = cv2.GaussianBlur(lightness, (0, 0), 1.5)
-detail = np.clip(128 + 4.0 * (lightness - blurred), 0, 255).astype(np.uint8)
-save("t_detalle", cv2.cvtColor(detail, cv2.COLOR_GRAY2BGR))
-shading = cv2.normalize(cv2.GaussianBlur(lightness, (0, 0), 6), None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+smooth = cv2.bilateralFilter(lightness, 7, 18.0, 5.0)
+broad = cv2.GaussianBlur(smooth, (0, 0), 3.0)
+for name, band, gain in (("t_detalle", lightness - smooth, 8.0), ("t_finos", smooth - broad, 4.0)):
+    save(name, cv2.cvtColor(np.clip(128 + gain * band, 0, 255).astype(np.uint8), cv2.COLOR_GRAY2BGR))
+shading = cv2.normalize(broad, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 save("t_sombreado", cv2.cvtColor(shading, cv2.COLOR_GRAY2BGR))
 
 portrait = pipeline.gaussian_portrait(photo, 1500, False, None)

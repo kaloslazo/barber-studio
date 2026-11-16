@@ -21,6 +21,7 @@
 \definecolor{blue}{HTML}{2E6FE0}
 \definecolor{yellow}{HTML}{D9A11A}
 \definecolor{green}{HTML}{23A06A}
+\definecolor{pink}{HTML}{E8649F}
 
 \setbeamercolor{background canvas}{bg=paper}
 \setbeamercolor{normal text}{fg=ink}
@@ -74,7 +75,8 @@
     \fill[red] (0,0) rectangle (1.6,0.12);
     \fill[blue] (1.6,0) rectangle (3.2,0.12);
     \fill[yellow] (3.2,0) rectangle (4.8,0.12);
-    \fill[green] (4.8,0) rectangle (6.4,0.12);
+    \fill[pink] (4.8,0) rectangle (6.4,0.12);
+    \fill[green] (6.4,0) rectangle (8.0,0.12);
   \end{tikzpicture}
 \end{frame}
 
@@ -101,26 +103,30 @@
 
 \begin{frame}{Qué hace Fresh}
   \begin{columns}[T]
-    \begin{column}{0.24\textwidth}
+    \begin{column}{0.19\textwidth}
       \tono{red}{\textbf{Estilos}}\\[0.2em]
       \small Barba, tinte (también en la barba), 8 cortes, en vivo con la cámara.
     \end{column}
-    \begin{column}{0.24\textwidth}
+    \begin{column}{0.19\textwidth}
       \tono{blue}{\textbf{3D}}\\[0.2em]
-      \small Espejo 3D desde una foto, peluca 3D escaneada, avatar en vivo.
+      \small Espejo 3D desde una foto, peluca 3D escaneada o desde una vuelta en silla.
     \end{column}
-    \begin{column}{0.24\textwidth}
+    \begin{column}{0.19\textwidth}
       \tono{yellow}{\textbf{Juegos}}\\[0.2em]
       \small Contrarreloj de afeitado y ``¿cuántas gaussianas eres?''.
     \end{column}
-    \begin{column}{0.24\textwidth}
+    \begin{column}{0.19\textwidth}
+      \tono{pink}{\textbf{Fiesta}}\\[0.2em]
+      \small Cambio de cara, caricatura y fusión de dos caras.
+    \end{column}
+    \begin{column}{0.19\textwidth}
       \tono{green}{\textbf{Mis looks}}\\[0.2em]
       \small Combinar estilos, guardar y ficha para el barbero.
     \end{column}
   \end{columns}
-  \vspace{1em}
+  \vspace{0.6em}
   \centering
-  \includegraphics[width=0.5\linewidth]{ui_corte.jpg}
+  \includegraphics[width=0.46\linewidth]{ui_corte.jpg}
 \end{frame}
 
 \begin{frame}{Arquitectura}
@@ -151,6 +157,7 @@
         \item Física de hebras (Verlet + PBD)
         \item Gaussianas 2D y 3D, visor WebGL2, \texttt{.ply}
         \item Peluca 3D multivista
+        \item Fiesta: cambio de cara, caricatura, fusión
         \item Ajuste fino de YOLO para pelo (mAP50 0{,}968)
       \end{itemize}
     \end{column}
@@ -171,21 +178,23 @@
     \begin{column}{0.48\textwidth}
       \textbf{6.1 Imágenes}
       \begin{itemize}
-        \item Color: tinte en CIELAB, barba en YCrCb
-        \item Muestreo: pirámide pull-push
-        \item Interpolación: bilineal y baricéntricas
+        \item Color: tinte en CIELAB, barba en YCrCb, Reinhard al cambiar de cara
+        \item Muestreo: pull-push, pirámides laplacianas
+        \item Interpolación: bilineal con mapeo inverso, baricéntricas, \emph{morphing}
       \end{itemize}
       \textbf{6.2 Geometría computacional}
       \begin{itemize}
         \item Línea de barrido: Fortune
         \item Voronoi y Delaunay, casco convexo
+        \item Topología fija sobre la cara promedio
       \end{itemize}
     \end{column}
     \begin{column}{0.48\textwidth}
       \textbf{6.3 Sistemas 3D}
       \begin{itemize}
         \item Shaders propios en WebGL2
-        \item Rasterización por baricéntricas
+        \item Mallas: Procrustes, similitud, caricatura
+        \item Rasterización por baricéntricas y por índice
         \item Lambert y mapeo de texturas
         \item Algoritmo del pintor (counting sort)
         \item Gaussian Splatting con proyección EWA
@@ -254,16 +263,16 @@
   \begin{columns}[T]
     \begin{column}{0.44\textwidth}
       \begin{itemize}
-        \item La luminosidad base va hacia el tinte; el detalle de cada mechón se conserva:
+        \item Tres bandas: detalle, mechones y sombreado. La base va el 82~\% hacia el tinte:
       \end{itemize}
       {\small
       \begin{align*}
-        L' &= \underbrace{0{,}72L_t+0{,}28\bar L}_{\text{base}}\\
-           &\quad + k\,(0{,}8\,\text{sombra}+1{,}2\,\text{detalle})
+        L' &= \underbrace{m+0{,}82\,(L_t-m)}_{\text{base}}\\
+           &\quad + g\,(0{,}85\,s+f+0{,}9\,d)
       \end{align*}}
       \begin{itemize}
-        \item El croma baja en las sombras, como un pigmento real.
-        \item Máscara: MediaPipe o \textbf{nuestro YOLO}; la app muestra la IoU entre los dos.
+        \item Piso suave: sin puntos negros. El croma baja en las sombras.
+        \item Máscara: \emph{matte} del \textbf{YOLO propio} con filtro guiado, o MediaPipe.
       \end{itemize}
     \end{column}
     \begin{column}{0.54\textwidth}
@@ -463,11 +472,62 @@
   \includegraphics[width=0.92\linewidth]{contrarreloj.jpg}
 \end{frame}
 
+\begin{frame}{Fiesta: el proceso}
+  \centering
+  \vfill
+  \includegraphics[width=0.94\linewidth]{diagrama_fiesta.pdf}
+  \vfill
+  \nota{La topología se calcula una vez con Fortune sobre la cara promedio; las tres herramientas solo cambian hacia dónde van los puntos.}
+\end{frame}
+
+\begin{frame}{Cambio de cara}
+  \small
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{itemize}
+        \item 468 puntos por cara; los mismos triángulos en las dos mallas.
+        \item Afín por triángulo resuelta en lote, mapeo inverso y bilineal propia: $(u,\,v) = (x,\,y,\,1)\,M$.
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{itemize}
+        \item Color de Reinhard en CIELAB y razón de luz de baja frecuencia.
+        \item Mezcla multibanda (Burt--Adelson): sin costura.
+        \item En vivo, unos 15 cuadros por segundo con dos caras.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+  \vspace{0.5em}
+  \centering
+  \includegraphics[width=0.86\linewidth]{fiesta_swap.jpg}
+  \nota{Horowitz, Rubio, Horowitz con la cara de Rubio y Rubio con la de Horowitz.}
+\end{frame}
+
+\begin{frame}{Caricatura y fusión}
+  \begin{columns}[T]
+    \begin{column}{0.4\textwidth}
+      \small
+      \textbf{Brennan}: exagerar la diferencia con la cara promedio
+      \[ P' = A + (1+k)\,(P-A) \]
+      \textbf{Escala local} con \emph{smoothstep}; un anillo fijo deja quieto el resto.
+      \vspace{0.6em}
+
+      \textbf{Fusión}: forma intermedia y mezcla
+      \[ I_t = (1-t)\,W_A(S_t) + t\,W_B(S_t) \]
+      \nota{$t=0{,}5$ es ``el hijo''. El pelo no está en la malla: se ve doble.}
+    \end{column}
+    \begin{column}{0.58\textwidth}
+      \includegraphics[width=\linewidth]{fiesta_caricatura.jpg}\\[0.4em]
+      \includegraphics[width=\linewidth]{fiesta_fusion.jpg}
+    \end{column}
+  \end{columns}
+\end{frame}
+
 \begin{frame}{Calidad y rendimiento}
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
       \begin{itemize}
-        \item 54 pruebas automáticas, integración continua en GitHub Actions.
+        \item 103 pruebas automáticas, integración continua en GitHub Actions.
         \item Docker: un comando, con modelos incluidos.
         \item Probado en 26 caras: piel clara, morena y negra; pelo liso, rizado, largo, corto.
         \item Funciona con o sin YOLO instalado.
@@ -484,6 +544,7 @@
         Espejo 3D, 105\,000 gaussianas & 2{,}6~s \\
         Barba en vivo, por cuadro & 61~ms \\
         Física, por cuadro & 72~ms \\
+        Fiesta en vivo, por cuadro & 44 -- 49~ms \\
         \bottomrule
       \end{tabularx}
     \end{column}
@@ -497,6 +558,7 @@
     \item Flequillo sobre un ojo u orejas tapadas: no se inventa el ojo ni la oreja.
     \item Espejo 3D desde una sola vista: sin nuca.
     \item En vivo, unos 10~fps.
+    \item Cambio de cara: caras de frente y en poses parecidas.
   \end{itemize}
   \vspace{0.8em}
   \textbf{Siguiente paso:} tinte en vivo en el navegador con un shader de WebGL.
@@ -509,11 +571,9 @@
 
   \Large
   \begin{enumerate}
-    \item ¿Cuántas gaussianas eres?
-    \item Barba, tinte y corte combinados $\rightarrow$ ficha
-    \item En vivo con física
-    \item Contrarreloj: ¿quién juega?
+    \item Un voluntario: barba, tinte y corte combinados $\rightarrow$ ficha
     \item Espejo 3D
+    \item Fiesta: cambio de cara, la cara del profe para todos, caricatura y fusión
   \end{enumerate}
   \vfill
 \end{frame}

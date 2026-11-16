@@ -99,9 +99,30 @@ cockrell, bigote & 646 & 0{,}98 & 0{,}66 \\
 \label{tab:juego}
 \end{table}
 
+\subsection{Fiesta}
+\label{sec:res-fiesta}
+
+La figura~\ref{fig:fiesta-swap} muestra el cambio de cara entre dos retratos. La cara nueva toma el tono y la luz de la persona que la recibe, y el pelo, las orejas y el fondo no cambian. El bigote viaja con la cara: Rubio lo recibe y Horowitz lo pierde. Los seis efectos de caricatura (figura~\ref{fig:fiesta-caricatura}) mueven solo lo que está dentro del anillo fijo; el uniforme y el fondo quedan quietos.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{fiesta_swap.jpg}
+  \caption{Cambio de cara con dos retratos de dominio público de la NASA. De izquierda a derecha: Horowitz, Rubio, Horowitz con la cara de Rubio y Rubio con la cara de Horowitz.}
+  \label{fig:fiesta-swap}
+\end{figure}
+
+La figura~\ref{fig:fiesta-fusion} muestra cinco cuadros de la fusión. Los rasgos de la cara pasan de una persona a otra sin saltos, porque están en la malla. El pelo y el fondo no están en la malla: solo se mezclan, y en los cuadros intermedios se ven dobles. En el último cuadro, lo que está sobre la cabeza es un reflejo del borde, porque el retrato de Rubio corta la cabeza arriba.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{fiesta_fusion.jpg}
+  \caption{Fusión de Horowitz a Rubio con $t=0$; 0{,}25; 0{,}5; 0{,}75 y 1. El cuadro del centro es ``el hijo'' de los dos.}
+  \label{fig:fiesta-fusion}
+\end{figure}
+
 \subsection{Interfaz}
 
-La interfaz (figuras~\ref{fig:inicio}, \ref{fig:ui} y~\ref{fig:ficha}) organiza las herramientas en cuatro grupos: \emph{Estilos}, \emph{3D}, \emph{Juegos} y \emph{Mis looks}. La foto es compartida entre todas las herramientas y cada resultado se ve en un comparador antes/después. La tarjeta ``Tu cara'' muestra la forma detectada y marca los estilos sugeridos. La interfaz se adapta al celular.
+La interfaz (figuras~\ref{fig:inicio}, \ref{fig:ui} y~\ref{fig:ficha}) organiza las herramientas en cinco grupos: \emph{Estilos}, \emph{3D}, \emph{Juegos}, \emph{Fiesta} y \emph{Mis looks}. La foto es compartida entre todas las herramientas y cada resultado se ve en un comparador antes/después. La tarjeta ``Tu cara'' muestra la forma detectada y marca los estilos sugeridos. La interfaz se adapta al celular.
 
 \begin{figure}[ht]
   \centering
@@ -136,6 +157,9 @@ Tinte con YOLO y barba (contenedor Docker, modelo ya cargado) & 2{,}5~s \\
 Construcción del espejo 3D (unas 105\,000 gaussianas) & 2{,}6~s \\
 Barba en vivo, por cuadro & 61~ms \\
 Física de la barba en vivo, por cuadro & 72~ms \\
+Fiesta en vivo, $640\times360$ con dos caras (Mac, CPU): detección & 12~ms \\
+Fiesta en vivo: cambio de cara / caricatura, por cuadro & 44 / 49~ms \\
+Fusión de 13 cuadros (Mac, CPU) & 1{,}5~s \\
 \bottomrule
 \end{tabularx}
 \caption{Tiempos medidos.}
@@ -145,14 +169,7 @@ Física de la barba en vivo, por cuadro & 72~ms \\
 \subsection{Pruebas automáticas}
 \label{sec:pruebas}
 
-El proyecto tiene 54 pruebas con pytest, que GitHub Actions ejecuta en cada cambio:
-\begin{itemize}
-  \item 33 de la API y de los módulos de estilo;
-  \item 10 de \emph{splatting} y física;
-  \item 5 de la transferencia de pelo;
-  \item 4 de la triangulación de Delaunay;
-  \item 2 del laboratorio.
-\end{itemize}
+El proyecto tiene 103 pruebas con pytest, que GitHub Actions ejecuta en cada cambio. Cubren la API y los módulos de estilo, Fiesta, \emph{splatting} y física, la luz y el color de la peluca 3D, la barba sobre la malla 3D, la vuelta completa en la silla, la transferencia de pelo, la triangulación de Delaunay, la vista de depuración en vivo y el laboratorio.
 
 Entre otras cosas, verifican:
 \begin{itemize}
@@ -165,6 +182,9 @@ Entre otras cosas, verifican:
   \item \textbf{física}: se asienta en reposo y se atrasa al mover la raíz;
   \item \textbf{espejo 3D}: las covarianzas son semidefinidas positivas y el \texttt{.ply} reconstruye exactamente la covarianza original;
   \item \textbf{juego}: no corta nada con la máquina apagada y conserva su objetivo entre cuadros;
+  \item \textbf{Fiesta}: la afín de cada triángulo se recupera, el \emph{warp} con la misma malla es la identidad, la mezcla multibanda respeta la máscara y la caricatura con intensidad 0 no cambia la foto;
+  \item \textbf{barba sobre la malla 3D}: al girar, la región sigue a los vértices y se oculta el lado lejano;
+  \item \textbf{vuelta completa}: el seguidor mide el giro de una esfera con textura, y los anclajes de la cara corrigen la deriva y cierran la vuelta;
   \item \textbf{servidor}: corre un solo proceso, para no partir el estado del modo en vivo y del juego.
 \end{itemize}
 Además, la aplicación arranca y aprueba las pruebas tanto con YOLO instalado como sin él.

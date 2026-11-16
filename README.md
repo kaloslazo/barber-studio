@@ -2,7 +2,7 @@
 
 Try on beards, hair dyes and haircuts on your own photo or webcam before going to the barber. Course project for CS4016 (Computer Graphics, UTEC). The repository keeps its original name, `barber-studio`; the app is called **Fresh**.
 
-The app does not generate a new face: it models the geometry of your face and hair and composites every style over the original photo, on the CPU. The only learned models are MediaPipe (face points, hands, segmentation) and our own fine-tuned YOLOv8n-seg for hair; everything else (Delaunay, warping, dye, haircut engine, physics, Gaussian splatting) is written by the team.
+The app does not generate a new face: it models the geometry of your face and hair and composites every style over the original photo, on the CPU. The only learned models are MediaPipe (face points, hands, segmentation) and our own fine-tuned YOLOv8n-seg for hair; everything else (Delaunay, warping, dye, haircut engine, physics, Gaussian splatting, face swap, caricature and morphing) is written by the team.
 
 ## Team
 
@@ -12,25 +12,28 @@ The app does not generate a new face: it models the geometry of your face and ha
 
 ## Features
 
-- **Beard** on a photo and live: 478 MediaPipe points mapped to the 68-point layout, Delaunay triangulation with our own Fortune sweep, piecewise-affine warp of 10 real beard templates (CelebAMask-HQ), layered compositing (multiply, Bézier strands, high-frequency detail).
-- **Hair dye** in CIELAB, keeping the strands' detail. Hair mask from our YOLOv8n-seg (mask mAP50 0.968, Figaro1k + CelebAMask-HQ) or MediaPipe, with the IoU between both reported per photo. It can also dye the beard.
+- **Beard** on a photo and live: 478 MediaPipe points mapped to the 68-point layout, Delaunay triangulation with our own Fortune sweep, piecewise-affine warp of 10 real beard templates (CelebAMask-HQ), layered compositing (multiply, Bézier strands, high-frequency detail). Live, the beard region is a texture on the 3D face mesh: back-facing triangles are culled and the rest drawn far to near.
+- **Hair dye** in CIELAB: a soft hair matte from two guided-filter passes, lightness clamped to the hair's own range and split in three bands (strands, clumps, shading), base moved toward the dye. Hair mask from our YOLOv8n-seg (mask mAP50 0.968, Figaro1k + CelebAMask-HQ) or MediaPipe, with the IoU between both reported per photo. It can also dye the beard.
 - **Haircuts** (low, mid and high fade, taper, undercut, hard part, crew cut, buzz): pull-push fill of the background, head frame measured in head widths, superellipse skull fitted to the crown, hairline from the visible forehead, short hair with its own color and Lambert shading.
 - **Combine** beard, dye and cut on one result, plus a sheet for the barber with the clipper numbers.
 - **Face shape**: measured on the 3D mesh and classified against means calibrated on 419 CelebAMask-HQ faces, with suggested cuts and beards.
 - **Beard physics** live: Verlet chains with distance constraints anchored to the face mesh.
 - **Gaussians 2D**: a photo rebuilt from N 2D Gaussians with analytic gradients and a hand-written Adam, with a guessing game.
 - **3D Mirror**: your head as more than 100k 3D Gaussians from one photo and the MediaPipe 3D mesh, drawn by our own WebGL2 splatting viewer (EWA projection, counting sort), exportable as `.ply`.
-- **3D Wig**: a 12 s webcam scan turned into a hair volume (visual hull per slice), textured from the best views; recolor, shorten and trim it with scissors. The lab keeps Gaussians in each triangle's local frame so they follow the face live.
+- **3D Wig**: a 12 s webcam scan, or one full turn on a swivel chair (head yaw tracked without a face), turned into a hair volume (visual hull per slice), textured from the best views; recolor, shorten and trim it with scissors. The lab keeps Gaussians in each triangle's local frame so they follow the face live.
 - **Speedrun** (game): shave a physics beard down to a target style in 30 s with your index finger (MediaPipe Hands) or the mouse.
+- **Fiesta** (face games, photo or live, several faces at once): face swap between the people in front of the camera or one saved face for everybody, caricatures (Brennan's exaggeration against a mean face of 400 people, plus five local warps) and a morph between two faces with the "child" at t = 0.5. All three share one Delaunay topology computed once on the mean face, a batched piecewise-affine warp by inverse mapping, Reinhard color transfer in Lab and Laplacian-pyramid blending. About 15 fps live on the CPU.
 
 ## Course topics covered
 
 | Topic | Where it applies |
 |---|---|
-| Color theory (6.1.1) | Hair dye in CIELAB, beard recoloring in YCrCb |
-| Sampling and interpolation (6.1.3-6.1.4) | Own bilinear sampling in the warp, pull-push pyramid fill |
+| Color theory (6.1.1) | Hair dye in CIELAB, beard recoloring in YCrCb, Reinhard transfer in Lab for face swaps |
+| Sampling and interpolation (6.1.3-6.1.4) | Own bilinear sampling in the warp, pull-push pyramid fill, Laplacian-pyramid blending, shape interpolation in the morph |
 | Convex hull (6.2.2) | Face and beard region masks |
-| Delaunay triangulation (6.2.5) | Fortune sweep line, facial mesh for warping |
+| Delaunay triangulation (6.2.5) | Fortune sweep line, facial mesh for warping, one shared topology for the Fiesta tools |
+| Rasterization (6.3.3.1) | Barycentric warp of beard templates, triangle-index buffer for the Fiesta warp |
+| Similarity transforms and least squares | Umeyama fit of the mean face, generalized Procrustes to build it |
 | OpenCV (6.4.4) | Image I/O, filters, guided filter |
 | YOLO + fine-tuning (6.4.5-6.4.6) | Hair segmentation (`backend/training/`) |
 | Physics simulation | Verlet integration and position-based constraints for beard strands |
@@ -38,7 +41,7 @@ The app does not generate a new face: it models the geometry of your face and ha
 
 ## Architecture
 
-- **Backend** (`backend/`): one FastAPI app that serves the UI and the API. Endpoints in `backend/app/api/routes.py` stay thin; the graphics code lives in `backend/app/core/`, one package per technique: `detection`, `segmentation`, `geometry`, `coloring`, `compositing`, `splatting`, `game`, `lab`. `backend/app/core/pipeline.py` ties them together.
+- **Backend** (`backend/`): one FastAPI app that serves the UI and the API. Endpoints in `backend/app/api/routes.py` stay thin; the graphics code lives in `backend/app/core/`, one package per technique: `detection`, `segmentation`, `geometry`, `coloring`, `compositing`, `splatting`, `game`, `lab`, `faces`. `backend/app/core/pipeline.py` ties them together.
 - **Frontend** (`frontend/`): vanilla HTML, CSS and JavaScript, no build step. `frontend/js/splat3d.js` is the WebGL2 Gaussian viewer. The animated details in `frontend/js/bits.js` (rotating headline, blur-in titles, threads divider, pill nav fill, spotlight, count up) are vanilla ports of components from [React Bits](https://reactbits.dev) (MIT + Commons Clause).
 - **One server process on purpose.** Live mode, the 3D wig try-on and the game keep per-session state in memory (face anchor, hair color, current round). Uvicorn runs a single process, and every call into the pipeline runs in a worker thread behind one lock, so the server keeps answering while a photo is processed.
 - **Fine-tuning** scripts and the Colab notebook live in `backend/training/`.
@@ -59,7 +62,7 @@ Without Docker, from the repo root (creates the venv and installs dependencies o
 ./run.sh
 ```
 
-Tests (54):
+Tests (103):
 
 ```bash
 cd backend && venv/bin/python -m pytest tests/ -q
@@ -76,6 +79,10 @@ All the models the app needs are in `backend/models/`:
 - `hand_landmarker.task`: MediaPipe hand points for the game. Without it the game falls back to the mouse.
 - `hair_best.pt`: our fine-tuned YOLOv8n-seg hair model. Retrain it with `backend/training/barberstudio_colab.ipynb` (about 3.5 h on a free Colab T4).
 - `lbfmodel.yaml`: OpenCV LBF landmarks, a fallback when MediaPipe is not available.
+
+The Fiesta tools also need `backend/app/assets/faces/mean_face.npy`, the mean 468-point face mesh, which ships with the code. It was built from 400 frontal CelebAMask-HQ faces aligned with generalized Procrustes; rebuild it with `cd backend && venv/bin/python training/mean_face.py <CelebA-HQ-img folder> 400`.
+
+The sample photo, `frontend/assets/samples/ejemplo.jpg`, is the official NASA portrait of Scott Horowitz (public domain), with the whole hair in view so the dye and the cuts can be checked on it. The home page demo uses Frank Rubio's NASA portrait.
 
 YOLO needs `requirements-yolo.txt`. Without it, or without `hair_best.pt`, the app uses MediaPipe and the model switch in the dye panel is hidden. Install order matters, because ultralytics pulls `opencv-python`, which hides the `cv2.face` and `cv2.ximgproc` modules:
 
@@ -106,6 +113,12 @@ The UI loads two things from the internet: the Google fonts (with local fallback
 | `POST /api/lab/build`, `/lab/mesh` | Lab: Gaussians bound to the face mesh and the live mesh |
 | `POST /api/game/start` | Starts a Speedrun round. Field: `target` (`goatee`/`mustache`/`chinstrap`) |
 | `POST /api/game/frame` | One game frame. Fields: `image`, `pointer_x`, `pointer_y`, `pointer_down`, `use_hand`. Returns JSON (image + score) |
+| `POST /api/live/debug/save` | Saves the last live beard frames (with mesh and region overlay) to a folder for debugging |
+| `POST /api/turn/frame`, `/turn/solve`, `/turn/video` | 3D wig from one turn on a chair: one frame of a scan session, the yaw of every frame and the chosen views, or a whole video of the turn |
+| `POST /api/faces/source` | Saves the biggest face of the photo as the face everybody wears. Field: `image`. Returns the face crop (JPEG) |
+| `POST /api/faces/photo` | Fiesta on a photo. Fields: `image`, optional `other` (puts the face of the second photo on the first), `mode` (`swap`/`wear`/`caricature`), `preset` (`caricature`/`eyes`/`nose`/`big-head`/`tiny-face`/`alien`), `amount` (0-1). Returns PNG and `X-Faces` |
+| `POST /api/faces/live` | One webcam frame (scaled to 640 px). Fields: `image`, `mode`, `preset`, `amount`. Returns JPEG and `X-Faces` |
+| `POST /api/faces/fusion` | Morph between two faces. Fields: `image`, optional `other`, `steps` (3-25, default 13). Without `other`, uses the two biggest faces of the photo, left to right. Returns JSON `{frames: [data URLs]}` |
 
 ## Documentation
 
@@ -119,4 +132,4 @@ The UI loads two things from the internet: the Google fonts (with local fallback
 - `report/`: LaTeX report (Spanish), see its README to build `main.pdf`.
 - `paper/`: a 4-page paper-style summary of the report (Spanish).
 - `slides/`: Beamer slides for the final presentation.
-- `delivery/`: title, short description, offline web page, video scripts and `build_zip.py`, which builds the `.zip` the course asks for.
+- `delivery/`: title, short description, offline web page, video scripts, the live demo plan, defense questions and `build_zip.py`, which builds the `.zip` the course asks for.

@@ -17,6 +17,7 @@ Este proyecto aborda el problema con técnicas de computación gráfica: en luga
   \item Simular cortes de pelo cortos (degradados, \emph{taper}, \emph{undercut}, raya marcada, \emph{crew cut} y rapado) quitando el pelo original y reconstruyendo el fondo y la piel.
   \item Representar la cara y el pelo con gaussianas en 2D y en 3D, y renderizarlas en el navegador.
   \item Añadir interacción en tiempo real: modo en vivo con la cámara, física de la barba y un juego de afeitado.
+  \item Ofrecer juegos con las caras para usar en grupo (cambio de cara, caricatura y fusión) sobre la misma maquinaria de mallas y \emph{warps}.
   \item Entregar el sistema con pruebas, integración continua, documentación y un contenedor reproducible.
 \end{enumerate}
 
@@ -25,12 +26,13 @@ Este proyecto aborda el problema con técnicas de computación gráfica: en luga
 Las piezas de visión que detectan la cara y sus puntos (MediaPipe) y la segmentación base del pelo se toman de modelos preentrenados; todo lo demás es implementación propia. En particular:
 \begin{itemize}
   \item triangulación de Delaunay con el algoritmo de barrido de Fortune, \emph{warp} afín por triángulo, prueba de interior con coordenadas baricéntricas e interpolación bilineal (sección~\ref{sec:barba});
-  \item tinte en CIELAB que separa la luminosidad base del detalle de cada mechón (sección~\ref{sec:tinte});
+  \item tinte en CIELAB que separa la luminosidad en tres bandas y mueve solo la base hacia el color del tinte (sección~\ref{sec:tinte});
   \item motor de cortes con relleno \emph{pull-push}, modelo de cráneo, línea del pelo a partir de la frente y sombreado de Lambert (sección~\ref{sec:corte});
   \item detección de barba real por textura y tensor de estructura, y clasificación de la forma de la cara (secciones~\ref{sec:barbatinte} y~\ref{sec:forma});
   \item gaussianas 2D ajustadas con gradientes analíticos y Adam escrito a mano, \emph{Gaussian Splatting} 3D con proyección EWA en WebGL2, exportación a \texttt{.ply} y peluca 3D multivista (secciones~\ref{sec:gauss2d} a~\ref{sec:peluca});
   \item física de la barba con Verlet y restricciones de distancia, y el juego de afeitado con detección de corte por cápsula (secciones~\ref{sec:fisica} y~\ref{sec:juego});
-  \item ajuste fino de YOLOv8 para segmentar pelo con Figaro1k y CelebAMask-HQ (sección~\ref{sec:segmentacion}).
+  \item ajuste fino de YOLOv8 para segmentar pelo con Figaro1k y CelebAMask-HQ (sección~\ref{sec:segmentacion});
+  \item cambio de cara con transferencia de color de Reinhard y mezcla multibanda, caricatura de Brennan sobre una cara promedio calculada con Procrustes generalizado, y \emph{morphing} entre dos caras (sección~\ref{sec:fiesta}).
 \end{itemize}
 
 \begin{figure}[ht]
@@ -45,23 +47,23 @@ Las piezas de visión que detectan la cara y sus puntos (MediaPipe) y la segment
 
 Los modelos preentrenados resuelven una sola pregunta: dónde están la cara, el pelo y la mano. Todo lo que la persona ve en pantalla lo calcula código del equipo. En el núcleo del servidor y el visor 3D hay unas 4\,000 líneas de algoritmos gráficos propios y unas 600 líneas que llaman a modelos, es decir, cerca del 87~\% es computación gráfica propia. La tabla~\ref{tab:temas} relaciona cada tema del sílabo del curso con la parte del proyecto que lo aplica.
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \small
 \begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.9cm} X l@{}}
 \toprule
 Tema del sílabo & Dónde se aplica en Fresh & Sección \\
 \midrule
-6.1.1 Teoría del color & Tinte en CIELAB; color de la barba en YCrCb; croma que baja en las sombras & \ref{sec:tinte}, \ref{sec:barba} \\
+6.1.1 Teoría del color & Tinte en CIELAB; color de la barba en YCrCb; croma que baja en las sombras; color de Reinhard en el cambio de cara & \ref{sec:tinte}, \ref{sec:barba}, \ref{sec:fiesta} \\
 6.1.2 Representación de imágenes & Una foto como suma de gaussianas 2D; capas con alfa & \ref{sec:gauss2d} \\
-6.1.3 Muestreo & Pirámide \emph{pull-push}; resolución de trabajo fija; gaussianas por área 3D con muestreo estratificado & \ref{sec:corte}, \ref{sec:espejo} \\
-6.1.4 Interpolación & Bilineal propia en el \emph{warp}; baricéntricas para anclar hebras y gaussianas; curvas de Bézier y Chaikin & \ref{sec:barba}, \ref{sec:fisica} \\
+6.1.3 Muestreo & Pirámide \emph{pull-push}; resolución de trabajo fija; gaussianas por área 3D con muestreo estratificado; pirámides laplacianas en la mezcla multibanda & \ref{sec:corte}, \ref{sec:espejo}, \ref{sec:fiesta} \\
+6.1.4 Interpolación & Bilineal propia y mapeo inverso en el \emph{warp}; baricéntricas para anclar hebras y gaussianas; curvas de Bézier y Chaikin; formas intermedias del \emph{morphing} & \ref{sec:barba}, \ref{sec:fisica}, \ref{sec:fiesta} \\
 6.2.1 Producto vectorial, áreas, Montecarlo & Orientación y área de triángulos; distancia punto--segmento del juego; inicialización aleatoria por importancia de las gaussianas 2D & \ref{sec:juego}, \ref{sec:gauss2d} \\
-6.2.2 Línea de barrido y casco convexo & Fortune es un algoritmo de barrido; casco convexo para recortar regiones & \ref{sec:barba} \\
-6.2.5 Voronoi y Delaunay & Cada evento de círculo de Fortune es un vértice de Voronoi y un triángulo de Delaunay & \ref{sec:barba} \\
+6.2.2 Línea de barrido y casco convexo & Fortune es un algoritmo de barrido; casco convexo para recortar regiones y la máscara de la cara & \ref{sec:barba}, \ref{sec:fiesta} \\
+6.2.5 Voronoi y Delaunay & Cada evento de círculo de Fortune es un vértice de Voronoi y un triángulo de Delaunay; topología fija sobre la cara promedio & \ref{sec:barba}, \ref{sec:fiesta} \\
 6.3.1 GPU & \emph{Vertex} y \emph{fragment shaders} propios en WebGL2 & \ref{sec:espejo} \\
-6.3.2 Procesamiento de mallas & Malla de 478 puntos elevada a 3D; normales y marcos tangentes; parametrización por triángulo con un marco local ortonormal & \ref{sec:espejo}, \ref{sec:lab} \\
-6.3.3.1 Rasterización & El \emph{warp} recorre el rectángulo envolvente y prueba cada píxel con baricéntricas & \ref{sec:barba} \\
+6.3.2 Procesamiento de mallas & Malla de 478 puntos elevada a 3D; normales y marcos tangentes; parametrización por triángulo con un marco local ortonormal; cara promedio con Procrustes, similitud por mínimos cuadrados y caricatura & \ref{sec:espejo}, \ref{sec:lab}, \ref{sec:fiesta} \\
+6.3.3.1 Rasterización & El \emph{warp} recorre el rectángulo envolvente y prueba cada píxel con baricéntricas; triángulos rasterizados con su índice como color & \ref{sec:barba}, \ref{sec:fiesta} \\
 6.3.3.2 Iluminación y texturas & Lambert en el pelo corto; textura de barba por triángulo; textura de la peluca desde varias vistas & \ref{sec:corte}, \ref{sec:peluca} \\
 6.3.3.3 Superficies visibles & Algoritmo del pintor: gaussianas ordenadas de atrás hacia adelante con \emph{counting sort} & \ref{sec:espejo} \\
 6.3.3.5 \emph{Gaussian Splatting} & \emph{Render} 3DGS con proyección EWA y exportación \texttt{.ply}; gaussianas 2D ajustadas con gradientes analíticos & \ref{sec:espejo}, \ref{sec:gauss2d} \\

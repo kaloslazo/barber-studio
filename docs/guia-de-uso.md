@@ -20,7 +20,7 @@ Los resultados salen mejor con una foto de frente, con luz pareja, fondo liso y 
 ![Inicio](guia/inicio.jpg)
 
 - **Subir foto**, **Tomar foto** o **usa la foto de ejemplo**. La foto queda cargada en todas las herramientas, así que se sube una sola vez.
-- Arriba se elige el grupo: **Estilos**, **3D**, **Juegos** o **Mis looks**. En el celular esa barra queda abajo.
+- Arriba se elige el grupo: **Estilos**, **3D**, **Juegos**, **Fiesta** o **Mis looks**. En el celular esa barra queda abajo.
 - La lista de herramientas indica si cada una usa una foto o la cámara.
 - **Cómo funciona por dentro** (o la pestaña **Cómo funciona** junto a Inicio) abre los diagramas de cada herramienta y la tabla de qué se usa para cada cosa.
 
@@ -66,6 +66,7 @@ Los resultados salen mejor con una foto de frente, con luz pareja, fondo liso y 
 1. Elegir el modo: **Tinte**, **Barba**, **Malla facial** o **Física de barba**.
 2. Tocar **Encender cámara**.
 3. En **Física de barba**, el **Largo de la barba** cambia el largo de las hebras. Al girar la cabeza rápido, las puntas se atrasan.
+4. En **Barba**, **Depurar: ver malla y zona** dibuja la malla 3D y la región de la barba. Si algo sale mal, **Marcar fallo** (o la tecla F) guarda los últimos cuadros para revisarlos.
 
 Cada cuadro se procesa en el servidor, a unos 10 cuadros por segundo.
 
@@ -84,6 +85,7 @@ Cada cuadro se procesa en el servidor, a unos 10 cuadros por segundo.
 
 1. En **Escanear**, tocar **Encender cámara** y luego **Empezar escaneo**. Empezar mirando a la izquierda y girar despacio hacia la derecha durante 12 segundos.
 2. En **Mis pelucas**, elegir el escaneo y construir la peluca 3D. También se puede construir desde una foto.
+   - Otra forma, en la pestaña **Peluca 3D**: sentarse en una silla giratoria, tocar **Empezar escaneo 360°** y dar una vuelta completa despacio (unos 15 s), o subir un video de esa vuelta con **Usar un video de una vuelta**.
 3. En la vista 3D:
    - cambiar el color y la intensidad;
    - recortar con **Largo**, **Cortar puntas** o **Rapar**;
@@ -112,6 +114,35 @@ Puntaje = afeitado × objetivo intacto × 1000.
 2. Tocar **Empezar**. La foto se rehace con 20, 60, 200, 600 y 2000 gaussianas.
 3. En **Modo adivinanza**, tocar **La reconozco** apenas se reconozca la cara: con menos gaussianas, más puntos.
 
+## Fiesta
+
+Tres herramientas para usar en grupo, con la cámara o con una foto. **Usar tu foto** toma la foto cargada en Inicio; si no hay ninguna, pide una. **Descargar** baja lo que se ve en pantalla.
+
+### Cambio de cara
+
+1. Elegir el modo:
+   - **Entre ustedes**: dos o más personas frente a la cámara. Cada una recibe la cara de quien tiene a su derecha; con dos, se intercambian.
+   - **Una cara para todos**: primero se guarda la cara que todos van a llevar puesta, con **Sacarla de la cámara** (cuenta 3, 2, 1 y toma la foto), **Subir una foto** o **La del astronauta**. La cara guardada aparece en el panel.
+2. Tocar **Encender cámara**. Sobre la imagen se ven los cuadros por segundo y un aviso si falta la segunda cara o si no se ve ninguna.
+3. O tocar **Usar tu foto**. En «Entre ustedes», la foto necesita dos caras.
+
+### Caricatura
+
+1. Elegir el efecto: **Caricatura**, **Ojotes**, **Narizón**, **Cachetón**, **Carita** o **Alien**.
+2. Ajustar la **Intensidad**.
+3. Tocar **Encender cámara** o **Usar tu foto**. Se aplica a todas las caras que se vean a la vez.
+
+### Fusión
+
+1. Elegir de dónde salen las dos caras:
+   - **Juntos en una foto**: las dos personas frente a la cámara y tocar **Foto a los dos en 3 s**. Cuenta 3, 2, 1, «¡Fusión!» y toma la foto. Se usan las dos caras más grandes, de izquierda a derecha. **Fusionar** hace lo mismo con la foto cargada, si tiene dos caras.
+   - **Dos fotos**: tocar **Tu foto** y **Otra persona** para elegir cada una, y luego **Fusionar**.
+2. Opcional: escribir los dos **Nombres**, el de la izquierda y el de la derecha. Bajo el resultado aparece el nombre del hijo.
+3. Mover el control entre los dos nombres, o tocar **Animar** para que vaya y vuelva solo. **Detener** lo para.
+4. **Descargar** baja el cuadro que se ve, con el nombre del hijo como nombre del archivo.
+
+Funciona mejor con las caras de frente y con luz de frente. Con la cabeza muy girada, el lado lejano de la cara se estira.
+
 ## Mis looks
 
 ![Mis looks](guia/looks.jpg)
@@ -125,7 +156,9 @@ Puntaje = afeitado × objetivo intacto × 1000.
 | Mensaje o síntoma | Qué hacer |
 |---|---|
 | No se detectó la cara | Usar una foto de frente, con la cara completa y buena luz. |
-| No se detectó pelo | El tinte y el corte necesitan pelo visible; con la cabeza rapada no hay nada que teñir ni cortar. |
+| No se detectó pelo | El tinte y el corte necesitan pelo visible; con la cabeza rapada no hay nada que teñir ni cortar. La app sugiere probarse una peluca en Peluca 3D. |
+| Fiesta: «Falta la segunda cara» o «Hacen falta dos caras» | Que las dos personas se acerquen, miren de frente y tengan luz de frente. Para una sola persona, usar «Una cara para todos» o «Dos fotos». |
+| Fiesta: «Primero guarden la cara que se van a poner» | Se perdió la cara guardada, por ejemplo porque se reinició el servidor. Volver a guardarla. |
 | La cámara no enciende | Aceptar el permiso del navegador y cerrar otras apps que usen la cámara. |
 | La primera vez tarda | Los modelos se cargan al primer uso; las siguientes fotos tardan de 0,1 a 2,5 s. |
 | Sin internet, la prueba en vivo de la peluca no sigue la cabeza | Esa parte carga MediaPipe para JavaScript desde internet; el resto funciona sin conexión. |

@@ -22,6 +22,9 @@ Todos los \emph{endpoints} reciben \texttt{multipart/form-data} y viven bajo \te
 \texttt{POST /head3d} & Gaussianas 3D del espejo, o archivo \texttt{.ply}. \\
 \texttt{POST /transfer/*} & Escaneo, reconstrucción, cara 3D, fotos y peluca de gaussianas. \\
 \texttt{POST /lab/build}, \texttt{/lab/mesh} & Avatar del laboratorio. \\
+\texttt{POST /live/debug/save} & Guarda en disco los últimos cuadros de la vista de depuración de la barba en vivo. \\
+\texttt{POST /turn/*} & Peluca desde una vuelta completa en una silla: un cuadro (\texttt{frame}), el cálculo final de los ángulos (\texttt{solve}) o un video (\texttt{video}). \\
+\texttt{POST /faces/*} & Fiesta: cara guardada (\texttt{source}), foto (\texttt{photo}), cuadro en vivo (\texttt{live}) y fusión (\texttt{fusion}); detalle en la tabla~\ref{tab:api-fiesta}. \\
 \texttt{GET /models/face\_landmarker.task} & Modelo de malla facial para el navegador. \\
 \bottomrule
 \end{tabularx}
@@ -39,13 +42,18 @@ backend/
     core/segmentation/     pelo (MediaPipe, YOLO), barba, mascaras
     core/geometry/         Delaunay (Fortune, Bowyer-Watson), warp, forma de cara
     core/coloring/         tinte en CIELAB
-    core/compositing/      barba, fisica, corte, cabeza sin pelo
-    core/splatting/        gaussianas 2D, cabeza 3D, peluca 3D, cara 3D
+    core/compositing/      barba, barba sobre la malla 3D, fisica, corte,
+                           cabeza sin pelo
+    core/splatting/        gaussianas 2D, cabeza 3D, peluca 3D, cara 3D,
+                           vuelta completa en una silla
     core/game/             Contrarreloj
     core/lab/              avatar en vivo
+    core/faces/            Fiesta: mallas, warp, mezcla, cambio de cara,
+                           caricatura y fusion
+    assets/faces/          cara promedio (mean_face.npy)
   models/                  modelos de MediaPipe y hair_best.pt
-  tests/                   54 pruebas con pytest
-  training/                preparacion de datos y entrenamiento de YOLO
+  tests/                   103 pruebas con pytest
+  training/                entrenamiento de YOLO y cara promedio
 frontend/
   index.html, css/, js/    interfaz y visor WebGL2
 docs/                      documentacion tecnica y capturas

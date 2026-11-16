@@ -14,6 +14,7 @@
   \item Sugerir estilos según la forma de la cara.
   \item Mostrar la cabeza y una peluca en 3D, girables y exportables.
   \item Probar estilos en vivo con la cámara, con física de la barba y un juego de afeitado.
+  \item Cambiar caras entre las personas de una foto o de la cámara, hacer caricaturas y fusionar dos caras.
 \end{enumerate}
 
 \textbf{No funcionales y restricciones.}
@@ -40,6 +41,7 @@ Iteración & Contenido \\
 2 (16 -- 19 sep) & Barba con plantillas, Delaunay propio y \emph{warp}; primera versión de transferencia de pelo. \\
 3 (21 oct -- 6 nov) & Física de la barba, gaussianas 2D, juego, espejo 3D, laboratorio, peluca 3D multivista con color y recorte. \\
 4 (9 -- 10 nov) & Producto: interfaz Fresh, Docker e integración continua, cámara, motor de cortes, combinación de looks, forma de cara, tinte de barba y YOLO propio en la aplicación. \\
+5 (15 -- 16 nov) & Grupo Fiesta (cambio de cara, caricatura y fusión), tinte corregido, barba en vivo sobre la malla 3D y peluca desde una vuelta completa en una silla. \\
 \bottomrule
 \end{tabularx}
 \caption{Iteraciones del proyecto.}
@@ -55,7 +57,7 @@ Iteración & Contenido \\
 
 \textbf{Verificación de requisitos.} Cada requisito se verificó de tres maneras complementarias:
 \begin{itemize}
-  \item 54 pruebas automáticas (sección~\ref{sec:pruebas});
+  \item 103 pruebas automáticas (sección~\ref{sec:pruebas});
   \item recorridos completos en el navegador: Chrome sin ventana controlado por el protocolo DevTools, con cámara simulada;
   \item revisión visual de cuadrículas de resultados sobre 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto; con flequillo y con entradas.
 \end{itemize}
@@ -72,8 +74,8 @@ El equipo se dividió por módulos, con un responsable principal por cada uno. L
 \toprule
 Integrante & Aportes principales \\
 \midrule
-Kalos Lazo Mera & Arquitectura del backend y de la API; tinte; preparación de datos y entrenamiento de YOLO; interfaz Fresh; motor de cortes; combinación de looks; forma de cara; tinte de barba; Docker, integración continua y pruebas. \\
-Gianpier Segovia & Barba con plantillas reales; Delaunay de Fortune; \emph{warp} afín; física de la barba; gaussianas 2D; juego de afeitado; espejo 3D; laboratorio (compartido). \\
+Kalos Lazo Mera & Arquitectura del backend y de la API; tinte; preparación de datos y entrenamiento de YOLO; interfaz Fresh; motor de cortes; combinación de looks; forma de cara; tinte de barba; Fiesta (cambio de cara, caricatura y fusión); Docker, integración continua y pruebas. \\
+Gianpier Segovia & Barba con plantillas reales; Delaunay de Fortune; \emph{warp} afín; física de la barba; barba en vivo sobre la malla 3D; gaussianas 2D; juego de afeitado; espejo 3D; peluca desde una vuelta completa; laboratorio (compartido). \\
 Sofía Herrera & Peluca 3D: máscara de transferencia, escaneo con la cámara, peluca de gaussianas multivista, cara 3D, cabeza sin pelo y estudio de color y recorte; laboratorio (compartido). \\
 \bottomrule
 \end{tabularx}

@@ -34,6 +34,25 @@ def prune_background_gaps(image_bgr, mask, shrink=6, grow=25, margin=1.2):
     return result
 
 
+def hair_matte(image_bgr, mask):
+    """Soft alpha matte from a coarse binary hair mask.
+
+    Two guided-filter passes with the photo as guide: the first spreads the
+    mask along hair-colored regions with a radius that follows the size of
+    the hair, the second snaps the transition to real edges. The result is
+    a 0..1 matte without holes inside the hair and with soft, edge-aware
+    borders, which a dye can blend through directly."""
+    hair = (mask > 0).astype(np.float32)
+    rows = np.where(hair > 0)[0]
+    span = int(np.ptp(rows)) if len(rows) else 1
+    radius = int(np.clip(span / 60.0, 3, 16))
+    guide = image_bgr.astype(np.float32) / 255.0
+    matte = cv2.ximgproc.guidedFilter(guide=guide, src=hair, radius=radius, eps=2e-3)
+    matte = cv2.ximgproc.guidedFilter(guide=guide, src=np.clip(matte, 0.0, 1.0), radius=max(2, radius // 2), eps=1e-3)
+    matte = np.clip((matte - 0.2) / 0.6, 0.0, 1.0)
+    return matte * matte * (3.0 - 2.0 * matte)
+
+
 def refine_hair_mask(image_bgr, mask, radius=8, eps=1e-3):
     """Edge-aware refinement: snaps the coarse YOLO mask to image structure.
 

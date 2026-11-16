@@ -52,6 +52,7 @@ class LandmarkDetector:
         self._mp_failed = False
         self.last_yaw = None
         self.last_head_width = None
+        self.last_mesh3d = None
         self._lbf = None
         self._yunet = None
         self._yunet_template = str(MODELS_DIR / yunet_model)
@@ -99,6 +100,7 @@ class LandmarkDetector:
         all_points = np.array(
             [[lm.x * w, lm.y * h] for lm in mesh], dtype=np.float32
         )
+        self.last_mesh3d = np.array([[lm.x * w, lm.y * h, lm.z * w] for lm in mesh], dtype=np.float32)
         ends = np.array([[mesh[i].x * w, mesh[i].y * h, mesh[i].z * w] for i in (MP_JAW_ARC[0], MP_JAW_ARC[-1])])
         self.last_head_width = float(np.linalg.norm(ends[1] - ends[0]))
         self.last_yaw = float(np.degrees(np.arctan2(ends[1, 2] - ends[0, 2], ends[1, 0] - ends[0, 0])))
@@ -182,6 +184,7 @@ class LandmarkDetector:
     def landmarks(self, image_bgr, face_box=None):
         self.last_yaw = None
         self.last_head_width = None
+        self.last_mesh3d = None
         points = self._mediapipe_landmarks(image_bgr)
         if points is not None:
             return points

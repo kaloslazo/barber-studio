@@ -7,9 +7,9 @@ import cv2
 import numpy as np
 
 from app.core.coloring.dye import apply_dye, hex_to_hsv
-from app.core.compositing.alpha import inside_feather
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
+from app.core.compositing.beard_mesh import MeshBeard
 from app.core.compositing.beard_physics import BeardPhysics
 from app.core.detection.hands import FingerTracker, draw_hand
 from app.core.game.speedrun import SpeedrunGame
@@ -23,12 +23,23 @@ from app.core.geometry.delaunay_fortune import delaunay_triangles
 from app.core.geometry.face_shape import face_shape
 from app.core.segmentation.facial_hair import facial_hair_alpha
 from app.core.segmentation.hair_region import provisional_hair_mask
-from app.core.segmentation.mask_refiner import refine_hair_mask
+from app.core.segmentation.mask_refiner import hair_matte, refine_hair_mask
 from app.core.segmentation.transfer_mask import head_geometry, head_window, transfer_mask
 from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, render_gaussians
 from app.core.splatting.face3d import FaceView, face_splats, scan_face
 from app.core.splatting.hair3d import HairView, build_hair_splats
 from app.core.splatting.head3d import build_head_splats
+from app.core.splatting import turntable
+from app.core.splatting.hdr import hlg_to_sdr, video_is_hdr
+from app.core.splatting.turn_session import FAST_STEP, TurnSessions
+from app.core.splatting.turntable import head_extent
+
+VIDEO_HEAD_WINDOW = 5.2
+VIDEO_FACE_WINDOW = 2.7
+VIDEO_FACE_FRAMES = 9
+VIDEO_MAX_SIDE = 900
+VIDEO_FOLLOW = 0.8
+VIDEO_PUSH = 0.15
 
 try:
     from app.core.segmentation.yolo_segmenter import HairSegmenter
@@ -39,6 +50,12 @@ try:
     from app.core.segmentation.mp_segmenter import FACE_SKIN, HAIR, MultiClassSegmenter
 except ImportError:
     MultiClassSegmenter = None
+
+
+LIVE_LOST_YAW = 40.0
+MESH_REFERENCE_YAW = 12.0
+LIVE_RESTART_GAP = 1.0
+LIVE_HAIR_EVERY = 8
 
 
 class StylePipeline:
@@ -52,6 +69,10 @@ class StylePipeline:
         self._physics = None
         self._live_last_points = None
         self._live_misses = 0
+        self._live_yaw = None
+        self._live_clock = None
+        self._mesh_beard = None
+        self.live_reference_frame = None
         self._live_last_gray = None
         self.game = None
         self.finger_tracker = FingerTracker()
@@ -65,6 +86,7 @@ class StylePipeline:
         self._tryon_width = None
         self._hair_views = OrderedDict()
         self._face_scans = OrderedDict()
+        self.turn_sessions = TurnSessions()
         self._vision_lock = threading.RLock()
 
     @staticmethod
@@ -145,8 +167,7 @@ class StylePipeline:
                 union = np.count_nonzero((yolo > 0) | (mp_mask > 0))
                 info["model"] = "yolo"
                 info["agreement"] = np.count_nonzero((yolo > 0) & (mp_mask > 0)) / union if union else 0.0
-                span = max(1, int(np.ptp(np.where(yolo > 0)[0])))
-                alpha = inside_feather(yolo, max(4.0, min(25.0, span / 40.0)))
+                alpha = hair_matte(image_bgr, raw)
         if alpha is None and mp_mask.any():
             info["model"] = "mediapipe"
             alpha = mp_alpha
@@ -345,57 +366,89 @@ class StylePipeline:
         stats["target"] = self.game.target
         return out, stats
 
-    def _live_hair_estimate(self, image_bgr, face):
-        hair_mask = self.hair_mask(image_bgr, face)
-        pixels = image_bgr[hair_mask > 0]
-        if len(pixels) > 200:
+    def _live_hair_estimate(self, image_bgr, face, points=None):
+        """Median hair colour from MediaPipe's hair class (the colour-based
+        mask is only a fallback), re-measured every LIVE_HAIR_EVERY frames."""
+        self._live_hair_tick = (getattr(self, "_live_hair_tick", -1) + 1) % LIVE_HAIR_EVERY
+        if self._live_hair_color is not None and self._live_hair_tick:
+            return self._live_hair_color
+        pixels, trusted = None, False
+        if points is not None:
+            probabilities = self._part_probabilities(image_bgr, self._head_geometry(points, face, live=True))
+            if probabilities is not None and (probabilities[HAIR] > 0.6).sum() > 150:
+                pixels, trusted = image_bgr[probabilities[HAIR] > 0.6], True
+        if pixels is None:
+            pixels = image_bgr[self.hair_mask(image_bgr, face) > 0]
+        if len(pixels) > 150:
             ycc = cv2.cvtColor(
                 np.median(pixels, axis=0).reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2YCrCb,
             )[0, 0].astype(np.float32)
-            ycc[1] = max(ycc[1], 136.0)
-            ycc[2] = min(ycc[2], 121.0)
+            ycc[1] = max(ycc[1], 131.0 if trusted else 136.0)
+            ycc[2] = min(ycc[2], 126.0 if trusted else 121.0)
             if self._live_hair_color is not None:
                 ycc = 0.9 * self._live_hair_color + 0.1 * ycc
             self._live_hair_color = ycc
         return self._live_hair_color
 
-    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640):
+    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640, debug=None):
         """Live beard rendered at the camera's full resolution, but only inside
         a fixed-size crop around the face. Landmarks run on a small copy (fast);
         the beard is painted on the high-resolution crop (sharp hair, like photo
         mode). The crop keeps a constant size so the face-anchored textures
         (no jitter) survive while the crop window follows the face."""
         h, w = image_bgr.shape[:2]
+        now = time.monotonic()
+        if self._live_clock is None or now - self._live_clock > LIVE_RESTART_GAP:
+            self._mesh_beard = None
+        self._live_clock = now
         scale = min(1.0, work_width / w)
         small = cv2.resize(image_bgr, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1 else image_bgr
         points = self._live_points(small)
         if points is None:
             self._live_anchor = None
-            return None
-        hair = self._live_hair_estimate(small, self._box_from_landmarks(points))
+            return None if debug is None else self._debug_view(image_bgr, debug, "sin cara")
+        if self._lost_turned_face():
+            self._live_anchor = None
+            return image_bgr if debug is None else self._debug_view(image_bgr, debug, "cara girada perdida")
+        hair = self._live_hair_estimate(small, self._box_from_landmarks(points), points)
         pts = points / scale
         face_w = float(np.linalg.norm(pts[16] - pts[0]))
-        wanted = (int(min(w, face_w * 1.45)) // 8 * 8, int(min(h, face_w * 1.35)) // 8 * 8)
+        mesh = self._live_mesh(scale)
+        window_w = face_w if mesh is None else self.live_landmark_detector.last_head_width / scale
+        wanted = (int(min(w, window_w * 1.45)) // 8 * 8, int(min(h, window_w * 1.35)) // 8 * 8)
         size = getattr(self, "_hd_size", None)
         if size is None or abs(wanted[0] - size[0]) > 0.25 * size[0] or size[0] > w or size[1] > h:
             size = wanted
             self._hd_size = size
             self._live_anchor = None
         cw, ch = size
-        cx = float(0.5 * (pts[0, 0] + pts[16, 0]))
+        cx = float(0.5 * (pts[0, 0] + pts[16, 0])) if mesh is None else float(0.5 * (mesh[:, 0].min() + mesh[:, 0].max()))
         top = float(min(pts[0, 1], pts[16, 1], pts[29, 1])) - 0.08 * face_w
         x0 = int(np.clip(cx - cw / 2, 0, w - cw))
         y0 = int(np.clip(top, 0, h - ch))
         crop = image_bgr[y0:y0 + ch, x0:x0 + cw]
         local = (pts - np.array([x0, y0], np.float32)).astype(np.float32)
+        previous = self._mesh_beard
+        view = self._mesh_region(mesh, style, pts, (h, w), (x0, y0), (ch, cw), local, face_w, crop)
+        if self._mesh_beard is not previous:
+            self.live_reference_frame = image_bgr
+        region = None if view is None or view is False else view["region"]
+        if view is False:
+            self._live_anchor = None
+            return image_bgr if debug is None else self._debug_view(image_bgr, debug, "sin referencia: mira de frente", mesh)
         current = self._live_anchor
         if current is None or current.stale or current.style != style or current.shape != (ch, cw):
             current = LiveAnchor(local, (ch, cw), style)
             self._live_anchor = current
+            if debug is not None:
+                debug["anchor_new"] = True
+        if view is not None:
+            current.bind(self._mesh_beard, view["xy"], view["front"])
         try:
             painted = apply_real_beard(
                 crop, local, style, strength, self.beard_templates,
-                hair_yccrb=hair, anchor=current,
+                hair_yccrb=hair, anchor=current, region_mask=region,
+                region_gain=None if view is None else view["gain"],
             )
         except Exception:
             painted = None
@@ -403,7 +456,75 @@ class StylePipeline:
             painted = render_beard(crop, local, style, strength)
         result = image_bgr.copy()
         result[y0:y0 + ch, x0:x0 + cw] = painted
-        return result
+        if debug is None:
+            return result
+        return self._debug_view(result, debug, "2D" if region is None else "3D", mesh, region, (x0, y0), (ch, cw))
+
+    def _debug_view(self, image_bgr, info, source, mesh=None, region=None, origin=(0, 0), window=None):
+        """Live beard diagnostics: fills `info` (pose, source of the region,
+        size) and draws on a copy of the frame the front-facing triangles of
+        the 3D mesh, the contour of the beard region and a text panel."""
+        out = image_bgr.copy()
+        detector = self.live_landmark_detector
+        m = detector.last_mesh3d if detector is not None else None
+        info.update(clean=image_bgr, source=source, face=source != "sin cara", yaw=None, pitch=None, roll=None, mouth=None,
+                    region_px=0 if region is None or region is False else int((region > 0).sum()),
+                    window=None if window is None else f"{window[1]}x{window[0]}")
+        if detector is not None and detector.last_yaw is not None:
+            info["yaw"] = round(float(detector.last_yaw), 1)
+        if m is not None:
+            chin_to_brow = m[152] - m[10]
+            info["roll"] = round(float(np.degrees(np.arctan2(m[263, 1] - m[33, 1], m[263, 0] - m[33, 0]))), 1)
+            info["pitch"] = round(float(np.degrees(np.arctan2(chin_to_brow[2], chin_to_brow[1]))), 1)
+            info["mouth"] = round(float(np.linalg.norm(m[13] - m[14]) / max(np.linalg.norm(chin_to_brow), 1e-6)), 3)
+        beard = self._mesh_beard
+        if mesh is not None and beard is not None:
+            shown = beard.extended(mesh)
+            info["triangles"] = int(len(beard.visible(mesh)))
+            for index in beard.visible(mesh):
+                cv2.polylines(out, [np.round(shown[beard.triangles[index], :2]).astype(np.int32)], True, (255, 200, 0), 1, cv2.LINE_AA)
+        if region is not None and region is not False:
+            contours, _ = cv2.findContours((region > 0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            color = (0, 200, 0) if source == "3D" else (0, 0, 255)
+            cv2.drawContours(out, contours, -1, color, 2, offset=(int(origin[0]), int(origin[1])))
+        scale = max(0.5, image_bgr.shape[1] / 1280.0)
+        lines = [f"yaw {info['yaw']}  cabeceo {info['pitch']}  giro {info['roll']}",
+                 f"fuente {source}  zona {info['region_px']} px  boca {info['mouth']}  ventana {info['window']}"]
+        for row, text in enumerate(lines):
+            for color, thickness in (((0, 0, 0), 4), ((255, 255, 255), 1)):
+                cv2.putText(out, text, (14, int(30 * scale) + row * int(30 * scale)), cv2.FONT_HERSHEY_SIMPLEX, 0.7 * scale, color, thickness, cv2.LINE_AA)
+        if source not in ("3D", "2D"):
+            for color, thickness in (((0, 0, 0), 6), ((0, 0, 255), 2)):
+                cv2.putText(out, "SIN BARBA: " + source, (14, int(100 * scale)), cv2.FONT_HERSHEY_SIMPLEX, 0.9 * scale, color, thickness, cv2.LINE_AA)
+        return out
+
+    def _live_mesh(self, scale):
+        detector = self.live_landmark_detector
+        if detector is None or detector.last_mesh3d is None or detector.last_yaw is None:
+            return None
+        return detector.last_mesh3d / scale
+
+    def _mesh_region(self, mesh, style, pts, frame_shape, origin, crop_shape, local, face_w, crop):
+        """Beard view from the 3D face mesh (see MeshBeard.view). None when
+        there is no mesh this frame (the 2D region is used); False while
+        there is no frontal reference yet and the head is turned."""
+        if mesh is None:
+            return None
+        if self._mesh_beard is None:
+            if abs(self.live_landmark_detector.last_yaw) > MESH_REFERENCE_YAW:
+                return False
+            self._mesh_beard = MeshBeard(mesh, pts, frame_shape)
+        return self._mesh_beard.view(mesh, style, origin, crop_shape, local, max(1, int(0.015 * face_w)), crop)
+
+    def _lost_turned_face(self):
+        """MediaPipe lost a face turned past LIVE_LOST_YAW: the fallback
+        points collapse onto the cheek, so no beard is drawn."""
+        detector = self.live_landmark_detector
+        yaw = detector.last_yaw if detector is not None else None
+        if yaw is not None:
+            self._live_yaw = abs(yaw)
+            return False
+        return self._live_yaw is not None and self._live_yaw > LIVE_LOST_YAW
 
     def apply_beard_physics(self, image_bgr, strength=0.9, now=None, length=1.0):
         base = self.apply_beard(image_bgr, "full", strength, live=True, detail=False)
@@ -743,6 +864,202 @@ class StylePipeline:
                                   tracked=analysed["points"] is not None))
         if not views:
             return None, None
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
+
+    def turn_frame(self, key, image_bgr):
+        """One frame of a scan in which the person turns on the chair: the
+        face yaw while the mesh is found, the head tracker everywhere (also
+        with the back of the head to the camera), and the coverage so far."""
+        session = self.turn_sessions.get(key)
+        h, w = image_bgr.shape[:2]
+        if w > 900:
+            image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
+        with self._vision_lock:
+            pose, face, points, visible = self._transfer_head(image_bgr)
+            detector = self.landmark_detector
+            face_yaw = detector.last_yaw if points is not None and detector is not None else None
+            probabilities = self._part_probabilities(image_bgr)
+        if probabilities is None:
+            raise ValueError("The part segmenter is not available")
+        head = ((probabilities[HAIR] > 0.5) | (probabilities[FACE_SKIN] > 0.5)).astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(head)
+        if count > 1:
+            head = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        step = session.tracker.step(gray, head)
+        if face_yaw is not None and points is not None:
+            mid = np.asarray(points, np.float32).mean(axis=0)
+            row, col = int(np.clip(mid[1], 0, head.shape[0] - 1)), int(np.clip(mid[0], 0, head.shape[1] - 1))
+            if not head[row, col]:
+                face_yaw = None
+        ys, xs = np.nonzero(head)
+        center = [float(xs.mean()), float(ys.mean())] if len(xs) > 200 else None
+        yaw, delta = session.add(step, face_yaw, turntable.sharpness(gray, head))
+        fraction, bins = session.covered()
+        edge = max(2, int(0.02 * head.shape[0]))
+        touch = [bool(len(xs) > 200 and xs.min() < edge), bool(len(xs) > 200 and ys.min() < edge),
+                 bool(len(xs) > 200 and xs.max() >= head.shape[1] - edge), bool(len(xs) > 200 and ys.max() >= head.shape[0] - edge)]
+        return {
+            "center": center,
+            "touch": touch,
+            "index": len(session.deltas) - 1,
+            "yaw": float(turntable.wrap(yaw)),
+            "delta": float(delta),
+            "face": face_yaw is not None,
+            "head": step is not None,
+            "features": int(step["features"]) if step else 0,
+            "fast": abs(delta) > FAST_STEP,
+            "coverage": float(fraction),
+            "bins": bins,
+            "turned": float(abs(session.online[-1] - session.online[0])),
+        }
+
+    @staticmethod
+    def _sdr_jpeg(data):
+        image = hlg_to_sdr(cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR))
+        return cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 93])[1].tobytes()
+
+    def turn_video(self, path, fps_target=10.0, max_seconds=60.0):
+        """A video of a person turning on a swivel chair, as if it were a live
+        scan: frames are sampled at `fps_target`, cropped around the head
+        (followed through the turn, so a full-body phone video works), measured
+        like live frames, and the angles solved over the whole chain. Returns
+        the solved yaws, the chosen frames (JPEG bytes) and the coverage."""
+        capture = cv2.VideoCapture(str(path))
+        if not capture.isOpened():
+            raise ValueError("The video could not be opened")
+        hdr = video_is_hdr(path)
+        fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+        every = max(1, int(round(fps / fps_target)))
+        key = f"v{time.time_ns()}"
+        crops, tights, center, size, index = [], [], None, None, 0
+        try:
+            while index / fps <= max_seconds:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                index += 1
+                if (index - 1) % every:
+                    continue
+                if center is None:
+                    with self._vision_lock:
+                        _, face, points, visible = self._transfer_head(frame)
+                    if points is None and not visible:
+                        continue
+                    center = [face[0] + face[2] / 2.0, face[1] + face[3] / 2.0]
+                    size = int(round(max(face[2], face[3]) * VIDEO_HEAD_WINDOW))
+                    size = int(np.clip(size, 240, min(frame.shape[:2])))
+                h, w = frame.shape[:2]
+                x0 = int(np.clip(center[0] - size / 2, 0, max(0, w - size)))
+                y0 = int(np.clip(center[1] - size / 2, 0, max(0, h - size)))
+                crop = frame[y0:y0 + size, x0:x0 + size]
+                tight = int(np.clip(round(size / VIDEO_HEAD_WINDOW * VIDEO_FACE_WINDOW), 160, min(frame.shape[:2])))
+                tx0 = int(np.clip(center[0] - tight / 2, 0, max(0, w - tight)))
+                ty0 = int(np.clip(center[1] - tight / 2, 0, max(0, h - tight)))
+                _, encoded = cv2.imencode(".jpg", frame[ty0:ty0 + tight, tx0:tx0 + tight], [cv2.IMWRITE_JPEG_QUALITY, 93])
+                tights.append(encoded.tobytes())
+                if size > VIDEO_MAX_SIDE:
+                    crop = cv2.resize(crop, (VIDEO_MAX_SIDE, VIDEO_MAX_SIDE), interpolation=cv2.INTER_AREA)
+                if hdr:
+                    crop = hlg_to_sdr(crop)
+                ratio = size / crop.shape[1]
+                info = self.turn_frame(key, crop)
+                crops.append(cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 92])[1].tobytes())
+                if info["center"] is not None:
+                    measured = [x0 + info["center"][0] * ratio, y0 + info["center"][1] * ratio]
+                    center = [(1 - VIDEO_FOLLOW) * center[0] + VIDEO_FOLLOW * measured[0],
+                              (1 - VIDEO_FOLLOW) * center[1] + VIDEO_FOLLOW * measured[1]]
+                    left, top, right, bottom = info["touch"]
+                    center[0] += VIDEO_PUSH * size * (right - left)
+                    center[1] += VIDEO_PUSH * size * (bottom - top)
+        finally:
+            capture.release()
+        session = self.turn_sessions.get(key, create=False)
+        if session is None or len(crops) < 8:
+            raise ValueError("The video has no person turning in front of the camera")
+        yaw, picks, fraction, bins = session.solve()
+        self.turn_sessions.drop(key)
+        frames = [crops[i] for i in picks]
+        wrapped = turntable.wrap(yaw)
+        faces = turntable.pick_views(wrapped[np.abs(wrapped) <= 54], np.asarray(session.quality)[np.abs(wrapped) <= 54])
+        frontal = np.flatnonzero(np.abs(wrapped) <= 54)
+        faces = [int(frontal[i]) for i in faces][:VIDEO_FACE_FRAMES]
+        return {
+            "face_frames": [self._sdr_jpeg(tights[i]) if hdr else tights[i] for i in faces],
+            "face_yaws": [float(wrapped[i]) for i in faces],
+            "yaws": [float(turntable.wrap(yaw[i])) for i in picks],
+            "frames": frames,
+            "coverage": float(fraction),
+            "bins": [int(b) for b in bins],
+            "sampled": len(crops),
+        }
+
+    def _untracked_view(self, image_bgr, face_w, eye_ratio):
+        """Hair view of a frame with no face mesh (profile, back of the head):
+        the head frame comes from the segmentation itself, with the face
+        width of the frontal frames, so the nape is seen as clearly as the
+        front."""
+        probabilities = self._part_probabilities(image_bgr)
+        if probabilities is None:
+            return None
+        head = ((probabilities[HAIR] > 0.5) | (probabilities[FACE_SKIN] > 0.5)).astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(head)
+        if count <= 1:
+            return None
+        head = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        extent = head_extent(head)
+        if extent is None:
+            return None
+        size = face_w / 0.92
+        center_y = extent[2] + eye_ratio * face_w
+        geometry = head_geometry(None, (extent[0] - size / 2, center_y - 0.4 * size, size, size), face_w)
+        geometry["face_visible"] = False
+        mask, alpha = transfer_mask(image_bgr, geometry, probabilities, None)
+        if not mask.any():
+            return None
+        skin = ((probabilities[FACE_SKIN] > 0.5) & (head > 0)).astype(np.uint8) * 255
+        skin[mask > 0] = 0
+        return {"image": image_bgr, "mask": mask, "alpha": alpha, "face_mask": skin, "geometry": geometry, "points": None, "pose": "back", "yaw": None}
+
+    def turn_views(self, images_bgr, yaws):
+        """HairViews of a full turn on a swivel chair. Frames where the face
+        mesh is found use the normal analysis; the others are built from the
+        segmentation with the scale and eye height measured on the frontal
+        ones."""
+        analysed = []
+        with self._vision_lock:
+            for image_bgr in images_bgr:
+                analysed.append(self._analyse_hair(image_bgr, None))
+            frontal = [a for a in analysed if a["points"] is not None and a["yaw"] is not None and abs(a["yaw"]) < 45 and a["mask"].any()]
+            if not frontal:
+                raise ValueError("The turn has no frontal frame with a visible face")
+            face_w = float(np.median([a["geometry"]["face_w"] for a in frontal]))
+            ratios = []
+            for a in frontal:
+                top = head_extent(((a["alpha"] > 0.4) | (a["face_mask"] > 0)).astype(np.uint8))
+                if top is not None:
+                    ratios.append((a["geometry"]["center"][1] - top[2]) / a["geometry"]["face_w"])
+            eye_ratio = float(np.median(ratios)) if ratios else 0.9
+            views = []
+            for a, image_bgr, yaw in zip(analysed, images_bgr, yaws):
+                tracked = a["points"] is not None and a["yaw"] is not None and abs(a["yaw"]) < 70 and a["mask"].any()
+                if not tracked:
+                    h, w = image_bgr.shape[:2]
+                    resized = a["image"]
+                    a = self._untracked_view(resized, face_w, eye_ratio)
+                    if a is None:
+                        continue
+                views.append(HairView(a["image"], a["alpha"], a["face_mask"], a["geometry"], yaw, tracked=tracked))
+        return views
+
+    def hair3d_turn(self, images_bgr, yaws, mannequin=True, face_images=None, face_key=None):
+        views = self.turn_views(images_bgr, yaws)
+        if len(views) < 3:
+            return None, None
+        head = None
+        if face_images is not None:
+            scan = self.face_scan(face_images, face_key)
+            head = lambda axes: face_splats(scan, axes)
         return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
 
     def reconstruct_transfer_mesh(self, images_bgr, angles):

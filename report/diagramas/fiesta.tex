@@ -1,0 +1,48 @@
+\documentclass{article}
+\input{estilo}
+\definecolor{pink}{HTML}{E8649F}
+\begin{document}
+\begin{tikzpicture}
+
+\node[foto] (a) at (0, 1.05) {\includegraphics[width=1.45cm]{fi_foto.jpg}};
+\node[foto] (b) at (0, -1.25) {\includegraphics[width=1.45cm]{fi_otra.jpg}};
+\node[nota, below=2pt of b] (bl) {otra foto, otra persona\\o la cara guardada};
+\node[grupo=muted, fit=(a)(b)(bl)] (g0) {};
+\node[titulo=muted] at (g0.north west) {Fotos o cámara};
+
+\node[foto] (pts) at (2.85, -0.1) {\includegraphics[width=2.05cm]{fi_puntos.jpg}};
+\node[etapa, above=4pt of pts] {Puntos};
+\node[nota, below=3pt of pts] (ptsl) {468 por cara\\(MediaPipe)};
+
+\node[foto] (mesh) at (5.6, -0.1) {\includegraphics[width=2.05cm]{fi_malla.jpg}};
+\node[etapa, above=4pt of mesh] {Malla};
+\node[nota, below=3pt of mesh] (meshl) {Delaunay con Fortune,\\una vez, sobre la\\cara promedio};
+
+\node[foto] (r1) at (8.75, 2.05) {\includegraphics[width=1.3cm]{fi_swap.jpg}};
+\node[nota, right=5pt of r1, align=left, text width=3.3cm] (r1l) {\textbf{\color{ink}Cambio de cara}\\warp de la cara donante,\\color de Reinhard y\\mezcla multibanda};
+\node[foto] (r2) at (8.75, -0.1) {\includegraphics[width=1.3cm]{fi_cari.jpg}};
+\node[nota, right=5pt of r2, align=left, text width=3.3cm] (r2l) {\textbf{\color{ink}Caricatura}\\Brennan y escalas locales;\\un anillo fijo deja\\quieto el resto de la foto};
+\node[foto] (r3) at (8.75, -2.15) {\includegraphics[width=1.3cm]{fi_fusion.jpg}};
+\node[nota, right=5pt of r3, align=left, text width=3.3cm] (r3l) {\textbf{\color{ink}Fusión}\\forma intermedia y\\mezcla con pesos $1-t$, $t$;\\$t=0{,}5$ es ``el hijo''};
+\node[grupo=pink, fit=(r1)(r1l)(r2)(r2l)(r3)(r3l)] (g3) {};
+\node[titulo=pink] at (g3.north west) {Warp afín por triángulo: mapeo inverso y bilineal};
+
+\coordinate (mid) at (0, -0.1);
+\draw[flecha] (g0.east |- mid) -- (pts.west);
+\draw[flecha] (pts.east) -- (mesh.west);
+\coordinate (fan) at ($(mesh.east) + (0.3, 0)$);
+\draw[line width=0.7pt, ink] (mesh.east) -- (fan);
+\foreach \r in {r1, r2, r3} {
+  \draw[flecha, line width=0.5pt] (fan) to[out=0, in=180, looseness=0.9] (\r.west);
+}
+
+\coordinate (base) at ($(g3.south) + (0, -0.06)$);
+\draw[llave=muted] (pts.west |- base) -- (pts.east |- base)
+  node[midway, below=9pt, llavetexto=muted] {Modelo};
+\draw[llave=blue] (mesh.west |- base) -- (mesh.east |- base)
+  node[midway, below=9pt, llavetexto=blue] {Geometría};
+\draw[llave=pink] (g3.west |- base) -- (g3.east |- base)
+  node[midway, below=9pt, llavetexto=pink] {Warp, color y mezcla};
+
+\end{tikzpicture}
+\end{document}
