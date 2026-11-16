@@ -2320,6 +2320,8 @@ label[data-icon],
   --yellow-line: #D9A11A;
   --green: #39BF84;
   --green-line: #23A06A;
+  --pink: #FF8FC2;
+  --pink-line: #E8649F;
   --tone: var(--ink);
   --tone-line: var(--ink);
 }
@@ -2328,6 +2330,7 @@ body[data-group="estilos"] { --tone: var(--red); --tone-line: var(--red-line); }
 body[data-group="3d"] { --tone: var(--blue); --tone-line: var(--blue-line); }
 body[data-group="juegos"] { --tone: var(--yellow); --tone-line: var(--yellow-line); }
 body[data-group="looks"] { --tone: var(--green); --tone-line: var(--green-line); }
+body[data-group="fiesta"] { --tone: var(--pink); --tone-line: var(--pink-line); }
 
 .brand {
   display: inline-flex;
@@ -2361,6 +2364,7 @@ body[data-group="looks"] { --tone: var(--green); --tone-line: var(--green-line);
 .group-tab[data-group="3d"] { --tab: var(--blue); }
 .group-tab[data-group="juegos"] { --tab: var(--yellow); }
 .group-tab[data-group="looks"] { --tab: var(--green); }
+.group-tab[data-group="fiesta"] { --tab: var(--pink); }
 
 .group-tab::before {
   background: var(--tab, currentColor);
@@ -2473,6 +2477,8 @@ body[data-group="inicio"] .drop-zone:hover {
 .carta-col:nth-child(1) { --col: var(--red); --col-line: var(--red-line); }
 .carta-col:nth-child(2) { --col: var(--blue); --col-line: var(--blue-line); }
 .carta-col:nth-child(3) { --col: var(--yellow); --col-line: var(--yellow-line); }
+.carta-col .carta-sub,
+.carta-col .carta-sub ~ .carta-row { --col: var(--pink); --col-line: var(--pink-line); }
 
 .carta-col h3 {
   display: flex;
@@ -3330,3 +3336,115 @@ button.is-working::before {
 .other-ways > summary::after { content: "+"; float: right; font-weight: 400; }
 .other-ways[open] > summary::after { content: "–"; }
 .other-ways > .inspector, .other-ways > .drop-zone, .other-ways > .card { margin: 0 12px 12px; }
+
+.fiesta-stage {
+  position: relative;
+}
+
+.fiesta-stage img,
+.fiesta-stage video {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+}
+
+#fusion-view,
+#fusion-video {
+  width: auto;
+  max-width: 100%;
+  max-height: min(62vh, 560px);
+  margin: 0 auto;
+}
+
+#fusion-video {
+  transform: scaleX(-1);
+}
+
+.fiesta-count {
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  place-content: center;
+  font-family: var(--font-display);
+  font-size: clamp(64px, 12vw, 150px);
+  color: var(--on-stage);
+  background: rgba(10, 10, 10, 0.35);
+  border-radius: 18px;
+  pointer-events: none;
+}
+
+.fiesta-bar {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.fusion-child {
+  margin: 0 auto 0 4px;
+  font-size: 15px;
+}
+
+.fusion-child strong {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--pink-line);
+}
+
+.fusion-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px 4px;
+  color: var(--on-stage);
+  font-size: 14px;
+}
+
+.fusion-slider input {
+  flex: 1;
+}
+
+.face-source img {
+  width: 104px;
+  height: 104px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.source-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fusion-faces {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fusion-face {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 10px;
+  border-radius: 18px;
+  background: var(--raised);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.fusion-face img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.fusion-names {
+  display: grid;
+  gap: 8px;
+}

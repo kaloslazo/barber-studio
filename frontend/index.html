@@ -18,6 +18,7 @@
       <button class="group-tab" type="button" data-group="estilos" data-icon="scissors"><span>Estilos</span></button>
       <button class="group-tab" type="button" data-group="3d" data-icon="cube-3d-sphere"><span>3D</span></button>
       <button class="group-tab" type="button" data-group="juegos" data-icon="device-gamepad-2"><span>Juegos</span></button>
+      <button class="group-tab" type="button" data-group="fiesta" data-icon="confetti"><span>Fiesta</span></button>
       <button class="group-tab" type="button" data-group="looks" data-icon="bookmarks"><span>Mis looks</span><span class="count" id="looks-count" hidden></span></button>
     </nav>
     <button class="photo-chip" id="photo-chip" type="button" data-icon="photo-up">
@@ -39,6 +40,9 @@
     <button class="menu-item" data-panel="lab" data-group="3d" data-icon="flask">Laboratorio <small>beta</small></button>
     <button class="menu-item" data-panel="speedrun" data-group="juegos" data-icon="stopwatch">Contrarreloj</button>
     <button class="menu-item" data-panel="splats" data-group="juegos" data-icon="grain">Gaussianas</button>
+    <button class="menu-item" data-panel="swap" data-group="fiesta" data-icon="arrows-exchange">Cambio de cara</button>
+    <button class="menu-item" data-panel="caricature" data-group="fiesta" data-icon="mood-crazy-happy">Caricatura</button>
+    <button class="menu-item" data-panel="fusion" data-group="fiesta" data-icon="users">Fusión</button>
     <button class="menu-item" data-panel="looks" data-group="looks">Mis looks</button>
   </nav>
 
@@ -97,6 +101,10 @@
             <h3>Juegos</h3>
             <button class="carta-row" type="button" data-go="speedrun"><span class="carta-icon" data-icon="stopwatch"></span><span class="carta-name">Contrarreloj</span><span class="carta-dots"></span><span class="carta-tag">Cámara · 30 s</span><span class="carta-desc">Afeita hasta el estilo objetivo con el dedo.</span></button>
             <button class="carta-row" type="button" data-go="splats"><span class="carta-icon" data-icon="grain"></span><span class="carta-name">Gaussianas</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Reconoce la cara con la menor cantidad.</span></button>
+            <h3 class="carta-sub">Fiesta</h3>
+            <button class="carta-row" type="button" data-go="swap"><span class="carta-icon" data-icon="arrows-exchange"></span><span class="carta-name">Cambio de cara</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Dos personas, caras cruzadas. O todos con la cara del profe.</span></button>
+            <button class="carta-row" type="button" data-go="caricature"><span class="carta-icon" data-icon="mood-crazy-happy"></span><span class="carta-name">Caricatura</span><span class="carta-dots"></span><span class="carta-tag">Cámara</span><span class="carta-desc">Ojotes, narizón, carita o alien.</span></button>
+            <button class="carta-row" type="button" data-go="fusion"><span class="carta-icon" data-icon="users"></span><span class="carta-name">Fusión</span><span class="carta-dots"></span><span class="carta-tag">Foto</span><span class="carta-desc">Dos caras en una y el nombre del hijo.</span></button>
           </div>
         </div>
       </section>
@@ -812,6 +820,168 @@
       <div class="splat-grid" id="splat-grid"></div>
     </section>
 
+    <section class="panel" id="panel-swap">
+      <header class="page-head">
+        <h1>Cambio de cara</h1>
+        <p>Pónganse dos frente a la cámara y cada uno se queda con la cara del otro. O guarden una cara y que todos la lleven puesta.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card stage-empty">
+            <span class="dz-icon" data-icon="arrows-exchange"></span>
+            <p class="dz-title">Cámara apagada</p>
+            <p class="dz-sub">Enciéndela desde el panel o usa una foto con dos personas.</p>
+          </div>
+          <div class="card stage-card result fiesta-stage" id="swap-stage" hidden>
+            <img id="swap-view" alt="Cambio de cara">
+            <div class="fiesta-count" id="swap-count" hidden></div>
+            <div class="live-meta">
+              <span id="swap-fps"></span>
+              <span id="swap-status" class="live-status" hidden></span>
+            </div>
+          </div>
+          <div class="fiesta-bar" id="swap-bar" hidden>
+            <button type="button" class="quiet-button" id="swap-download" data-icon="download">Descargar</button>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Modo</span>
+            <div class="style-group options">
+              <button class="style-btn active" data-swap-mode="swap">Entre ustedes</button>
+              <button class="style-btn" data-swap-mode="wear">Una cara para todos</button>
+            </div>
+          </div>
+          <div class="field" id="swap-source-field" hidden>
+            <span class="field-label">La cara que se ponen</span>
+            <div class="face-source">
+              <img id="swap-source-img" alt="Cara guardada" hidden>
+              <p class="hint" id="swap-source-empty">Todavía no hay una cara guardada.</p>
+            </div>
+            <div class="source-actions">
+              <button type="button" class="quiet-button" id="swap-source-camera" data-icon="camera">Sacarla de la cámara</button>
+              <button type="button" class="quiet-button" id="swap-source-upload" data-icon="upload">Subir una foto</button>
+              <button type="button" class="quiet-button" id="swap-source-sample" data-icon="photo">La del astronauta</button>
+            </div>
+            <input type="file" id="swap-source-input" accept="image/*" hidden>
+          </div>
+          <p class="hint" id="swap-hint">Dos caras de frente y con buena luz. Si son tres, cada uno recibe la cara del que tiene a su derecha.</p>
+          <div class="actions fiesta-actions">
+            <button id="swap-camera" data-icon="camera">Encender cámara</button>
+            <button class="quiet-button" id="swap-photo" data-icon="photo">Usar tu foto</button>
+          </div>
+          <div class="banner" id="swap-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-caricature">
+      <header class="page-head">
+        <h1>Caricatura</h1>
+        <p>La malla de tu cara se compara con una cara promedio de 400 personas y lo que te hace distinto se agranda. Los demás efectos estiran una parte de la malla.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card stage-empty">
+            <span class="dz-icon" data-icon="mood-crazy-happy"></span>
+            <p class="dz-title">Cámara apagada</p>
+            <p class="dz-sub">Enciéndela desde el panel o usa tu foto.</p>
+          </div>
+          <div class="card stage-card result fiesta-stage" id="cari-stage" hidden>
+            <img id="cari-view" alt="Caricatura">
+            <div class="live-meta">
+              <span id="cari-fps"></span>
+              <span id="cari-status" class="live-status" hidden></span>
+            </div>
+          </div>
+          <div class="fiesta-bar" id="cari-bar" hidden>
+            <button type="button" class="quiet-button" id="cari-download" data-icon="download">Descargar</button>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Efecto</span>
+            <div class="style-group options">
+              <button class="style-btn active" data-cari-preset="caricature">Caricatura</button>
+              <button class="style-btn" data-cari-preset="eyes">Ojotes</button>
+              <button class="style-btn" data-cari-preset="nose">Narizón</button>
+              <button class="style-btn" data-cari-preset="big-head">Cachetón</button>
+              <button class="style-btn" data-cari-preset="tiny-face">Carita</button>
+              <button class="style-btn" data-cari-preset="alien">Alien</button>
+            </div>
+          </div>
+          <label class="field">
+            <span class="field-label">Intensidad <output data-for="cari-amount" data-unit=" %"></output></span>
+            <input type="range" id="cari-amount" min="10" max="100" value="80">
+          </label>
+          <p class="hint">Funciona con todas las caras que vea la cámara a la vez.</p>
+          <div class="actions fiesta-actions">
+            <button id="cari-camera" data-icon="camera">Encender cámara</button>
+            <button class="quiet-button" id="cari-photo" data-icon="photo">Usar tu foto</button>
+          </div>
+          <div class="banner" id="cari-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-fusion">
+      <header class="page-head">
+        <h1>Fusión</h1>
+        <p>Dos caras en una: se mezcla la forma de las mallas y el color de las fotos, de una persona a la otra. A la mitad sale el hijo de los dos.</p>
+      </header>
+      <div class="workspace">
+        <div class="stage-col">
+          <div class="card stage-empty" id="fusion-empty">
+            <span class="dz-icon" data-icon="users"></span>
+            <p class="dz-title">Dos personas, una foto</p>
+            <p class="dz-sub">Tómense una foto juntos o sube dos fotos desde el panel.</p>
+          </div>
+          <div class="card stage-card result fiesta-stage" id="fusion-stage" hidden>
+            <video id="fusion-video" autoplay playsinline muted hidden></video>
+            <img id="fusion-view" alt="Fusión">
+            <div class="fiesta-count" id="fusion-count" hidden></div>
+            <div class="fusion-slider" id="fusion-slider" hidden>
+              <span id="fusion-name-a">A</span>
+              <input type="range" id="fusion-t" min="0" max="100" value="50" aria-label="Mezcla">
+              <span id="fusion-name-b">B</span>
+            </div>
+          </div>
+          <div class="fiesta-bar" id="fusion-bar" hidden>
+            <p class="fusion-child" id="fusion-child"></p>
+            <button type="button" class="quiet-button" id="fusion-play" data-icon="player-play">Animar</button>
+            <button type="button" class="quiet-button" id="fusion-download" data-icon="download">Descargar</button>
+          </div>
+        </div>
+        <aside class="card inspector ticket">
+          <div class="field">
+            <span class="field-label">Las dos caras</span>
+            <div class="style-group options">
+              <button class="style-btn active" data-fusion-source="pair">Juntos en una foto</button>
+              <button class="style-btn" data-fusion-source="two">Dos fotos</button>
+            </div>
+          </div>
+          <div class="field" id="fusion-two" hidden>
+            <span class="field-label">Fotos</span>
+            <div class="fusion-faces">
+              <button type="button" class="fusion-face" id="fusion-a"><img alt="" hidden><span>Tu foto</span></button>
+              <button type="button" class="fusion-face" id="fusion-b"><img alt="" hidden><span>Otra persona</span></button>
+            </div>
+            <input type="file" id="fusion-b-input" accept="image/*" hidden>
+          </div>
+          <div class="field fusion-names">
+            <span class="field-label">Nombres</span>
+            <input class="text-input" type="text" id="fusion-a-name" placeholder="Nombre de la izquierda" maxlength="20" autocomplete="off">
+            <input class="text-input" type="text" id="fusion-b-name" placeholder="Nombre de la derecha" maxlength="20" autocomplete="off">
+          </div>
+          <div class="actions fiesta-actions">
+            <button id="fusion-snap" data-icon="camera">Foto a los dos en 3 s</button>
+            <button class="quiet-button" id="fusion-go" data-icon="users">Fusionar</button>
+          </div>
+          <div class="banner" id="fusion-error" hidden></div>
+        </aside>
+      </div>
+    </section>
+
     <section class="panel" id="panel-docs">
       <header class="page-head">
         <h1>Cómo funciona</h1>
@@ -840,6 +1010,7 @@
           <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="espejo">Espejo 3D</button>
           <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="peluca">Peluca 3D</button>
           <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="juego">Contrarreloj</button>
+          <button type="button" class="transfer-step" role="tab" aria-selected="false" data-doc="fiesta">Fiesta</button>
         </div>
         <div class="docs-tool" data-doc-panel="barba" role="tabpanel">
           <figure class="docs-figure"><img src="assets/diagramas/barba.png" alt="Pipeline de la barba: puntos, malla de Delaunay, plantilla deformada, región y composición." loading="lazy"></figure>
@@ -856,9 +1027,9 @@
           <figure class="docs-figure"><img src="assets/diagramas/tinte.png" alt="Pipeline del tinte: máscara de YOLO o MediaPipe, sombreado y detalle de la luminosidad, y fórmula en CIELAB." loading="lazy"></figure>
           <div class="docs-tool-foot">
             <ul class="docs-points">
-              <li>La máscara sale del YOLO del equipo o de MediaPipe; la app mide cuánto coinciden.</li>
-              <li>En CIELAB la luminosidad se separa en sombreado y detalle: la base va hacia el tinte y los mechones se conservan.</li>
-              <li>El croma baja en las sombras, como un pigmento real.</li>
+              <li>La máscara sale del YOLO del equipo o de MediaPipe. Dos filtros guiados la vuelven un matte suave, sin agujeros.</li>
+              <li>En CIELAB la luminosidad se separa en tres bandas: detalle, mechones finos y sombreado. La base va hacia el tinte y las bandas se conservan.</li>
+              <li>Lo muy oscuro se comprime suave, sin puntos negros, y el croma baja en las sombras, como un pigmento real.</li>
             </ul>
             <button type="button" class="quiet-button" data-go="dye" data-icon="arrow-right">Abrir Tinte</button>
           </div>
@@ -929,6 +1100,17 @@
             <button type="button" class="quiet-button" data-go="speedrun" data-icon="arrow-right">Abrir Contrarreloj</button>
           </div>
         </div>
+        <div class="docs-tool" data-doc-panel="fiesta" role="tabpanel" hidden>
+          <figure class="docs-figure"><img src="assets/diagramas/fiesta.png" alt="Pipeline de Fiesta: fotos o cámara, puntos, malla de Delaunay y warp afín por triángulo para el cambio de cara, la caricatura y la fusión." loading="lazy"></figure>
+          <div class="docs-tool-foot">
+            <ul class="docs-points">
+              <li>Cada cara es una malla de 468 puntos. La triangulación de Delaunay se calcula una vez sobre una cara promedio de 400 personas y sirve para todas las caras y todos los cuadros.</li>
+              <li>Cambio de cara: warp afín por triángulo con mapeo inverso, color con la transferencia de Reinhard en Lab y mezcla multibanda con pirámides laplacianas, sin costura.</li>
+              <li>Caricatura: P' = A + (1 + k)(P − A), lo que te aleja de la cara promedio crece. Fusión: las dos fotos se deforman a la malla intermedia y recién ahí se mezclan.</li>
+            </ul>
+            <button type="button" class="quiet-button" data-go="swap" data-icon="arrow-right">Abrir Fiesta</button>
+          </div>
+        </div>
       </section>
 
       <section class="docs-block" aria-labelledby="docs-arch-title">
@@ -937,7 +1119,7 @@
         <ul class="docs-points">
           <li>Un solo proceso de FastAPI sirve esta interfaz y la API.</li>
           <li>Cada llamada al pipeline corre en un hilo aparte detrás de un candado, así el servidor sigue respondiendo mientras procesa.</li>
-          <li>Cada técnica vive en su paquete de <code>backend/app/core/</code>, y GitHub Actions corre 54 pruebas en cada cambio.</li>
+          <li>Cada técnica vive en su paquete de <code>backend/app/core/</code>, y GitHub Actions corre 103 pruebas en cada cambio.</li>
         </ul>
       </section>
 
@@ -963,6 +1145,9 @@
               <tr><td>Espejo 3D</td><td>Proyección EWA, counting sort, WebGL2</td><td><code>splatting/head3d.py · splat3d.js</code></td><td><span class="docs-origin">Propio</span></td></tr>
               <tr><td>Peluca 3D</td><td>Envolvente visual por cortes, textura multivista</td><td><code>splatting/hair3d.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
               <tr><td>Contrarreloj</td><td>Cápsula entre dos cuadros y puntaje</td><td><code>game/speedrun.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Cambio de cara</td><td>Mapeo inverso, Reinhard en Lab, mezcla multibanda</td><td><code>faces/swap.py · faces/blend.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Caricatura</td><td>Brennan contra la cara promedio, Umeyama</td><td><code>faces/caricature.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
+              <tr><td>Fusión</td><td>Morphing: malla interpolada y mezcla cruzada</td><td><code>faces/morph.py</code></td><td><span class="docs-origin">Propio</span></td></tr>
             </tbody>
           </table>
         </div>
@@ -1009,12 +1194,15 @@
     </div>
   </div>
 
+  <input type="file" id="fiesta-input" accept="image/*" hidden>
+
   <div class="toast" id="toast" role="status" aria-live="polite" data-icon="check" hidden></div>
 
   <script src="js/splat3d.js"></script>
   <script src="js/app.js"></script>
   <script src="js/turn360.js"></script>
   <script src="js/lab.js"></script>
+  <script src="js/fiesta.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/bits.js"></script>
 </body>

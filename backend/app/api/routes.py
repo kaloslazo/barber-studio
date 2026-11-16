@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from app.core.compositing.beard import STYLES
 from app.core.compositing.haircut import STYLES as HAIRCUT_STYLES
 from app.core.detection.landmarks import MODELS_DIR
+from app.core.faces.session import FaceStudio
 from app.core.game.speedrun import TARGETS as GAME_TARGETS
 from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
@@ -31,6 +32,7 @@ MAX_SIDE = 2048
 router = APIRouter(prefix="/api")
 pipeline = StylePipeline()
 lab = LabSession(pipeline)
+studio = FaceStudio()
 work_lock = threading.Lock()
 LIVE_DEBUG_FRAMES = 60
 LIVE_DEBUG_DIR = Path(__file__).resolve().parents[3] / "data" / "live_debug"
@@ -521,3 +523,77 @@ async def lab_build(frames: List[UploadFile] = File(...), beard: str = Form("non
 async def lab_mesh(image: UploadFile = File(...)):
     image_bgr = decode_image(await image.read())
     return JSONResponse({"mesh": await work(lab.live_mesh, image_bgr)})
+
+
+async def read_optional(upload):
+    if upload is None:
+        return None
+    data = await upload.read()
+    return decode_image(data) if data else None
+
+
+async def run_faces(image_bgr, mode, preset, amount, live=False, other=None):
+    try:
+        return await work(studio.apply, image_bgr, mode, preset, amount, live, other)
+    except LookupError as error:
+        raise HTTPException(status_code=409, detail=str(error))
+    except ValueError as error:
+        status = 422 if str(error).startswith("No face") else 400
+        raise HTTPException(status_code=status, detail=str(error))
+
+
+@router.post("/faces/source")
+async def faces_source(image: UploadFile = File(...)):
+    image_bgr = decode_image(await image.read())
+    face = await work(studio.set_source, image_bgr)
+    if face is None:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    return encode_jpeg(face)
+
+
+@router.post("/faces/photo")
+async def faces_photo(
+    image: UploadFile = File(...),
+    other: UploadFile = File(None),
+    mode: str = Form("swap"),
+    preset: str = Form("caricature"),
+    amount: float = Form(0.8),
+):
+    image_bgr = decode_image(await image.read())
+    other_bgr = await read_optional(other)
+    result, count = await run_faces(image_bgr, mode, preset, amount, other=other_bgr)
+    if count == 0:
+        raise HTTPException(status_code=422, detail="No face detected in the image")
+    if mode == "swap" and other_bgr is None and count < 2:
+        raise HTTPException(status_code=422, detail="Need two faces in the photo")
+    response = encode_png(result)
+    response.headers["X-Faces"] = str(count)
+    return response
+
+
+@router.post("/faces/live")
+async def faces_live(
+    image: UploadFile = File(...),
+    mode: str = Form("swap"),
+    preset: str = Form("caricature"),
+    amount: float = Form(0.8),
+):
+    image_bgr = decode_image(await image.read())
+    h, w = image_bgr.shape[:2]
+    if w > 640:
+        image_bgr = cv2.resize(image_bgr, (640, int(h * 640 / w)), interpolation=cv2.INTER_AREA)
+    result, count = await run_faces(image_bgr, mode, preset, amount, live=True)
+    response = encode_jpeg(result, 85)
+    response.headers["X-Faces"] = str(count)
+    return response
+
+
+@router.post("/faces/fusion")
+async def faces_fusion(image: UploadFile = File(...), other: UploadFile = File(None), steps: int = Form(13)):
+    image_bgr = decode_image(await image.read())
+    other_bgr = await read_optional(other)
+    try:
+        frames = await work(studio.fusion, image_bgr, other_bgr, int(np.clip(steps, 3, 25)))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return JSONResponse({"frames": [to_data_url(frame, 88) for frame in frames]})
