@@ -69,7 +69,7 @@ function setFile(file) {
   resultImage.removeAttribute("src");
   applyBtn.disabled = false;
   dzTitle.textContent = file.name;
-  dzSub.textContent = "toca o suelta otra foto para cambiarla";
+  dzSub.textContent = "toca para cambiarla o usar la cámara";
 }
 
 dropZone.addEventListener("click", () => photoInput.click());
@@ -194,7 +194,7 @@ function setBeardFile(file) {
   beardResult.removeAttribute("src");
   beardBtn.disabled = false;
   beardDrop.querySelector(".dz-title").textContent = file.name;
-  beardDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
+  beardDrop.querySelector(".dz-sub").textContent = "toca para cambiarla o usar la cámara";
 }
 
 beardDrop.addEventListener("click", () => beardInput.click());
@@ -438,7 +438,7 @@ function setHcFile(file) {
   hcResult.removeAttribute("src");
   hcBtn.disabled = false;
   hcDrop.querySelector(".dz-title").textContent = file.name;
-  hcDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
+  hcDrop.querySelector(".dz-sub").textContent = "toca para cambiarla o usar la cámara";
 }
 
 hcDrop.addEventListener("click", () => hcInput.click());
@@ -1827,7 +1827,7 @@ function setSplatFile(file) {
   splatGrid.innerHTML = "";
   splatBtn.disabled = false;
   splatDrop.querySelector(".dz-title").textContent = file.name;
-  splatDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
+  splatDrop.querySelector(".dz-sub").textContent = "toca para cambiarla o usar la cámara";
 }
 
 splatDrop.addEventListener("click", () => splatInput.click());
@@ -2203,7 +2203,7 @@ function setMirrorFile(file) {
   mirrorBtn.disabled = false;
   mirrorPly.disabled = false;
   mirrorDrop.querySelector(".dz-title").textContent = file.name;
-  mirrorDrop.querySelector(".dz-sub").textContent = "toca o suelta otra foto para cambiarla";
+  mirrorDrop.querySelector(".dz-sub").textContent = "toca para cambiarla o usar la cámara";
 }
 
 mirrorDrop.addEventListener("click", () => mirrorInput.click());

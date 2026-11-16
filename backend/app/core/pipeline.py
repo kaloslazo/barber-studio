@@ -8,7 +8,7 @@ import numpy as np
 
 from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.beard import apply_beard as render_beard
-from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
+from app.core.compositing.beard import LiveAnchor, _extended_points, apply_real_beard, beard_mask, load_templates
 from app.core.compositing.beard_mesh import MeshBeard
 from app.core.compositing.beard_physics import BeardPhysics
 from app.core.detection.hands import FingerTracker, draw_hand
@@ -359,18 +359,7 @@ class StylePipeline:
             tool, tool_on, source = np.asarray(pointer, np.float32), bool(pointer_down), "pointer"
         bearded = None
         if points is not None and self.beard_templates:
-            hair = self._live_hair_estimate(image_bgr, self._box_from_landmarks(points))
-            anchor = getattr(self, "_game_anchor", None)
-            if anchor is None or anchor.stale or anchor.shape != image_bgr.shape[:2] or self.game.physics is None:
-                anchor = LiveAnchor(points, image_bgr.shape[:2], "full")
-                self._game_anchor = anchor
-            try:
-                bearded = apply_real_beard(
-                    image_bgr, points, "full", 0.9, self.beard_templates,
-                    hair_yccrb=hair, anchor=anchor,
-                )
-            except Exception:
-                bearded = None
+            bearded = self.apply_beard_live_hd(image_bgr, "full", 0.9, image_bgr.shape[1], points=points)
         out, found = self.game.frame(image_bgr, points, tool, tool_on, now, self._live_tint(), bearded=bearded)
         if source == "hand" and self.finger_tracker.last_hand is not None:
             draw_hand(out, self.finger_tracker.last_hand, tool_on)
@@ -404,7 +393,7 @@ class StylePipeline:
             self._live_hair_color = ycc
         return self._live_hair_color
 
-    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640, debug=None):
+    def apply_beard_live_hd(self, image_bgr, style="full", strength=0.9, work_width=640, debug=None, points=None):
         """Live beard rendered at the camera's full resolution, but only inside
         a fixed-size crop around the face. Landmarks run on a small copy (fast);
         the beard is painted on the high-resolution crop (sharp hair, like photo
@@ -417,7 +406,8 @@ class StylePipeline:
         self._live_clock = now
         scale = min(1.0, work_width / w)
         small = cv2.resize(image_bgr, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1 else image_bgr
-        points = self._live_points(small)
+        if points is None or scale < 1:
+            points = self._live_points(small)
         if points is None:
             self._live_anchor = None
             return None if debug is None else self._debug_view(image_bgr, debug, "sin cara")
@@ -541,11 +531,23 @@ class StylePipeline:
         return self._live_yaw is not None and self._live_yaw > LIVE_LOST_YAW
 
     def apply_beard_physics(self, image_bgr, strength=0.9, now=None, length=1.0):
-        base = self.apply_beard(image_bgr, "full", strength, live=True, detail=False)
-        anchor = self._live_anchor
-        if base is None or anchor is None or getattr(anchor, "cur_ext", None) is None:
+        found = self._live_points(image_bgr)
+        if found is None:
             self._physics = None
-            return base
+            self._physics_anchor = None
+            return None
+        base = self.apply_beard_live_hd(image_bgr, "full", strength, image_bgr.shape[1], points=found)
+        anchor = getattr(self, "_physics_anchor", None)
+        if anchor is None or anchor.stale or anchor.shape != image_bgr.shape[:2]:
+            anchor = LiveAnchor(found, image_bgr.shape[:2], "full")
+            anchor.update(found)
+            anchor.ensure_mesh()
+            self._physics_anchor = anchor
+        anchor.update(found)
+        anchor.cur_ext = _extended_points(found)
+        if base is None:
+            self._physics = None
+            return None
         points = anchor.cur_ext[:68]
         face_w = float(np.linalg.norm(points[16] - points[0]))
         now = time.monotonic() if now is None else now
