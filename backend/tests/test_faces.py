@@ -221,3 +221,21 @@ def test_profile_photo_asks_to_face_the_camera():
         assert "Face turned" in str(error)
     pipeline.landmark_detector.last_yaw = 0.0
 
+
+
+def test_fusion_mixes_only_the_face():
+    from app.core.faces.morph import morph
+    from app.core.faces.session import FaceStudio
+
+    photo = sample()
+    other = cv2.flip(photo, 1)
+    other[:, :, 0] = 255
+    studio = FaceStudio()
+    face_a = studio.photo.detect(photo)[0]
+    face_b = studio.photo.detect(other)[0]
+    frames = morph(photo, face_a, other, face_b, 5, 240)
+    start, middle = frames[0].astype(np.float32), frames[2].astype(np.float32)
+    corner = (slice(0, 40), slice(0, 40))
+    assert np.abs(middle[corner] - start[corner]).mean() < 3.0
+    center = (slice(100, 140), slice(100, 140))
+    assert np.abs(middle[center] - start[center]).mean() > 3.0
