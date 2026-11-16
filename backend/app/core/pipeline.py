@@ -30,6 +30,17 @@ from app.core.splatting.gaussian_image import draw_ellipses, fit_gaussians, rend
 from app.core.splatting.face3d import FaceView, face_splats, scan_face
 from app.core.splatting.hair3d import HairView, build_hair_splats
 from app.core.splatting.head3d import build_head_splats
+from app.core.splatting import turntable
+from app.core.splatting.hdr import hlg_to_sdr, video_is_hdr
+from app.core.splatting.turn_session import FAST_STEP, TurnSessions
+from app.core.splatting.turntable import head_extent
+
+VIDEO_HEAD_WINDOW = 5.2
+VIDEO_FACE_WINDOW = 2.7
+VIDEO_FACE_FRAMES = 9
+VIDEO_MAX_SIDE = 900
+VIDEO_FOLLOW = 0.8
+VIDEO_PUSH = 0.15
 
 try:
     from app.core.segmentation.yolo_segmenter import HairSegmenter
@@ -76,6 +87,7 @@ class StylePipeline:
         self._tryon_width = None
         self._hair_views = OrderedDict()
         self._face_scans = OrderedDict()
+        self.turn_sessions = TurnSessions()
         self._vision_lock = threading.RLock()
 
     @staticmethod
@@ -854,6 +866,202 @@ class StylePipeline:
                                   tracked=analysed["points"] is not None))
         if not views:
             return None, None
+        return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
+
+    def turn_frame(self, key, image_bgr):
+        """One frame of a scan in which the person turns on the chair: the
+        face yaw while the mesh is found, the head tracker everywhere (also
+        with the back of the head to the camera), and the coverage so far."""
+        session = self.turn_sessions.get(key)
+        h, w = image_bgr.shape[:2]
+        if w > 900:
+            image_bgr = cv2.resize(image_bgr, (900, int(round(h * 900 / w))), interpolation=cv2.INTER_AREA)
+        with self._vision_lock:
+            pose, face, points, visible = self._transfer_head(image_bgr)
+            detector = self.landmark_detector
+            face_yaw = detector.last_yaw if points is not None and detector is not None else None
+            probabilities = self._part_probabilities(image_bgr)
+        if probabilities is None:
+            raise ValueError("The part segmenter is not available")
+        head = ((probabilities[HAIR] > 0.5) | (probabilities[FACE_SKIN] > 0.5)).astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(head)
+        if count > 1:
+            head = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+        step = session.tracker.step(gray, head)
+        if face_yaw is not None and points is not None:
+            mid = np.asarray(points, np.float32).mean(axis=0)
+            row, col = int(np.clip(mid[1], 0, head.shape[0] - 1)), int(np.clip(mid[0], 0, head.shape[1] - 1))
+            if not head[row, col]:
+                face_yaw = None
+        ys, xs = np.nonzero(head)
+        center = [float(xs.mean()), float(ys.mean())] if len(xs) > 200 else None
+        yaw, delta = session.add(step, face_yaw, turntable.sharpness(gray, head))
+        fraction, bins = session.covered()
+        edge = max(2, int(0.02 * head.shape[0]))
+        touch = [bool(len(xs) > 200 and xs.min() < edge), bool(len(xs) > 200 and ys.min() < edge),
+                 bool(len(xs) > 200 and xs.max() >= head.shape[1] - edge), bool(len(xs) > 200 and ys.max() >= head.shape[0] - edge)]
+        return {
+            "center": center,
+            "touch": touch,
+            "index": len(session.deltas) - 1,
+            "yaw": float(turntable.wrap(yaw)),
+            "delta": float(delta),
+            "face": face_yaw is not None,
+            "head": step is not None,
+            "features": int(step["features"]) if step else 0,
+            "fast": abs(delta) > FAST_STEP,
+            "coverage": float(fraction),
+            "bins": bins,
+            "turned": float(abs(session.online[-1] - session.online[0])),
+        }
+
+    @staticmethod
+    def _sdr_jpeg(data):
+        image = hlg_to_sdr(cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR))
+        return cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 93])[1].tobytes()
+
+    def turn_video(self, path, fps_target=10.0, max_seconds=60.0):
+        """A video of a person turning on a swivel chair, as if it were a live
+        scan: frames are sampled at `fps_target`, cropped around the head
+        (followed through the turn, so a full-body phone video works), measured
+        like live frames, and the angles solved over the whole chain. Returns
+        the solved yaws, the chosen frames (JPEG bytes) and the coverage."""
+        capture = cv2.VideoCapture(str(path))
+        if not capture.isOpened():
+            raise ValueError("The video could not be opened")
+        hdr = video_is_hdr(path)
+        fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
+        every = max(1, int(round(fps / fps_target)))
+        key = f"v{time.time_ns()}"
+        crops, tights, center, size, index = [], [], None, None, 0
+        try:
+            while index / fps <= max_seconds:
+                ok, frame = capture.read()
+                if not ok:
+                    break
+                index += 1
+                if (index - 1) % every:
+                    continue
+                if center is None:
+                    with self._vision_lock:
+                        _, face, points, visible = self._transfer_head(frame)
+                    if points is None and not visible:
+                        continue
+                    center = [face[0] + face[2] / 2.0, face[1] + face[3] / 2.0]
+                    size = int(round(max(face[2], face[3]) * VIDEO_HEAD_WINDOW))
+                    size = int(np.clip(size, 240, min(frame.shape[:2])))
+                h, w = frame.shape[:2]
+                x0 = int(np.clip(center[0] - size / 2, 0, max(0, w - size)))
+                y0 = int(np.clip(center[1] - size / 2, 0, max(0, h - size)))
+                crop = frame[y0:y0 + size, x0:x0 + size]
+                tight = int(np.clip(round(size / VIDEO_HEAD_WINDOW * VIDEO_FACE_WINDOW), 160, min(frame.shape[:2])))
+                tx0 = int(np.clip(center[0] - tight / 2, 0, max(0, w - tight)))
+                ty0 = int(np.clip(center[1] - tight / 2, 0, max(0, h - tight)))
+                _, encoded = cv2.imencode(".jpg", frame[ty0:ty0 + tight, tx0:tx0 + tight], [cv2.IMWRITE_JPEG_QUALITY, 93])
+                tights.append(encoded.tobytes())
+                if size > VIDEO_MAX_SIDE:
+                    crop = cv2.resize(crop, (VIDEO_MAX_SIDE, VIDEO_MAX_SIDE), interpolation=cv2.INTER_AREA)
+                if hdr:
+                    crop = hlg_to_sdr(crop)
+                ratio = size / crop.shape[1]
+                info = self.turn_frame(key, crop)
+                crops.append(cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 92])[1].tobytes())
+                if info["center"] is not None:
+                    measured = [x0 + info["center"][0] * ratio, y0 + info["center"][1] * ratio]
+                    center = [(1 - VIDEO_FOLLOW) * center[0] + VIDEO_FOLLOW * measured[0],
+                              (1 - VIDEO_FOLLOW) * center[1] + VIDEO_FOLLOW * measured[1]]
+                    left, top, right, bottom = info["touch"]
+                    center[0] += VIDEO_PUSH * size * (right - left)
+                    center[1] += VIDEO_PUSH * size * (bottom - top)
+        finally:
+            capture.release()
+        session = self.turn_sessions.get(key, create=False)
+        if session is None or len(crops) < 8:
+            raise ValueError("The video has no person turning in front of the camera")
+        yaw, picks, fraction, bins = session.solve()
+        self.turn_sessions.drop(key)
+        frames = [crops[i] for i in picks]
+        wrapped = turntable.wrap(yaw)
+        faces = turntable.pick_views(wrapped[np.abs(wrapped) <= 54], np.asarray(session.quality)[np.abs(wrapped) <= 54])
+        frontal = np.flatnonzero(np.abs(wrapped) <= 54)
+        faces = [int(frontal[i]) for i in faces][:VIDEO_FACE_FRAMES]
+        return {
+            "face_frames": [self._sdr_jpeg(tights[i]) if hdr else tights[i] for i in faces],
+            "face_yaws": [float(wrapped[i]) for i in faces],
+            "yaws": [float(turntable.wrap(yaw[i])) for i in picks],
+            "frames": frames,
+            "coverage": float(fraction),
+            "bins": [int(b) for b in bins],
+            "sampled": len(crops),
+        }
+
+    def _untracked_view(self, image_bgr, face_w, eye_ratio):
+        """Hair view of a frame with no face mesh (profile, back of the head):
+        the head frame comes from the segmentation itself, with the face
+        width of the frontal frames, so the nape is seen as clearly as the
+        front."""
+        probabilities = self._part_probabilities(image_bgr)
+        if probabilities is None:
+            return None
+        head = ((probabilities[HAIR] > 0.5) | (probabilities[FACE_SKIN] > 0.5)).astype(np.uint8)
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(head)
+        if count <= 1:
+            return None
+        head = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        extent = head_extent(head)
+        if extent is None:
+            return None
+        size = face_w / 0.92
+        center_y = extent[2] + eye_ratio * face_w
+        geometry = head_geometry(None, (extent[0] - size / 2, center_y - 0.4 * size, size, size), face_w)
+        geometry["face_visible"] = False
+        mask, alpha = transfer_mask(image_bgr, geometry, probabilities, None)
+        if not mask.any():
+            return None
+        skin = ((probabilities[FACE_SKIN] > 0.5) & (head > 0)).astype(np.uint8) * 255
+        skin[mask > 0] = 0
+        return {"image": image_bgr, "mask": mask, "alpha": alpha, "face_mask": skin, "geometry": geometry, "points": None, "pose": "back", "yaw": None}
+
+    def turn_views(self, images_bgr, yaws):
+        """HairViews of a full turn on a swivel chair. Frames where the face
+        mesh is found use the normal analysis; the others are built from the
+        segmentation with the scale and eye height measured on the frontal
+        ones."""
+        analysed = []
+        with self._vision_lock:
+            for image_bgr in images_bgr:
+                analysed.append(self._analyse_hair(image_bgr, None))
+            frontal = [a for a in analysed if a["points"] is not None and a["yaw"] is not None and abs(a["yaw"]) < 45 and a["mask"].any()]
+            if not frontal:
+                raise ValueError("The turn has no frontal frame with a visible face")
+            face_w = float(np.median([a["geometry"]["face_w"] for a in frontal]))
+            ratios = []
+            for a in frontal:
+                top = head_extent(((a["alpha"] > 0.4) | (a["face_mask"] > 0)).astype(np.uint8))
+                if top is not None:
+                    ratios.append((a["geometry"]["center"][1] - top[2]) / a["geometry"]["face_w"])
+            eye_ratio = float(np.median(ratios)) if ratios else 0.9
+            views = []
+            for a, image_bgr, yaw in zip(analysed, images_bgr, yaws):
+                tracked = a["points"] is not None and a["yaw"] is not None and abs(a["yaw"]) < 70 and a["mask"].any()
+                if not tracked:
+                    h, w = image_bgr.shape[:2]
+                    resized = a["image"]
+                    a = self._untracked_view(resized, face_w, eye_ratio)
+                    if a is None:
+                        continue
+                views.append(HairView(a["image"], a["alpha"], a["face_mask"], a["geometry"], yaw, tracked=tracked))
+        return views
+
+    def hair3d_turn(self, images_bgr, yaws, mannequin=True, face_images=None, face_key=None):
+        views = self.turn_views(images_bgr, yaws)
+        if len(views) < 3:
+            return None, None
+        head = None
+        if face_images is not None:
+            scan = self.face_scan(face_images, face_key)
+            head = lambda axes: face_splats(scan, axes)
         return build_hair_splats(views, mannequin=9000 if mannequin else 0, head=head)
 
     def reconstruct_transfer_mesh(self, images_bgr, angles):

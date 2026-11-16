@@ -3316,3 +3316,17 @@ button.is-working::before {
     scroll-behavior: auto !important;
   }
 }
+
+.turn-stage { padding: 0; overflow: hidden; background: var(--stage); }
+.turn-view { position: relative; aspect-ratio: 4 / 3; background: var(--stage); }
+.turn-view canvas { display: block; width: 100%; height: 100%; object-fit: cover; }
+.turn-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px; color: var(--on-stage); }
+.turn-empty[hidden] { display: none; }
+.turn-stage .pose-badge { top: 14px; left: 14px; font-size: 14px; padding: 7px 14px; }
+.turn-steps { margin: 4px 0 14px; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; color: var(--ink-soft, inherit); }
+.other-ways { padding: 0; }
+.other-ways > summary { cursor: pointer; padding: 14px 18px; font-size: 13px; font-weight: 600; list-style: none; }
+.other-ways > summary::-webkit-details-marker { display: none; }
+.other-ways > summary::after { content: "+"; float: right; font-weight: 400; }
+.other-ways[open] > summary::after { content: "–"; }
+.other-ways > .inspector, .other-ways > .drop-zone, .other-ways > .card { margin: 0 12px 12px; }

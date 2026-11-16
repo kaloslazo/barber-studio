@@ -12,9 +12,50 @@ NECK_AXES = np.array([0.24, 0.27])
 NECK_RANGE = (0.55, 1.2)
 
 
+DELIGHT_SIGMA = 0.35
+DELIGHT_RANGE = (0.65, 1.6)
+SPIKE_ROWS = 7
+HAIR_DEEPEN, HAIR_CHROMA = 0.66, 0.6
+HIGHLIGHT_KNEE = 1.15
+HIGHLIGHT_KEEP = 0.12
+
+
+def deepen_hair(color):
+    """Hair as photographed is dark with bright strands and sheen; averaged
+    over splats wider than a strand it turns into a mid grey (and picks up the
+    room's blue). The albedo goes back towards the dark mode of the hair and
+    loses part of its cast, so it reads as the hair it is."""
+    color = np.asarray(color, np.float64)
+    luma = color.mean(axis=1, keepdims=True)
+    return np.clip((luma + (color - luma) * HAIR_CHROMA) * HAIR_DEEPEN, 0.0, 1.0)
+
+
+def delight(image_bgr, alpha, face_w):
+    """Takes the room's lighting out of a hair capture: the low-frequency
+    luminance over the hair (one side brighter, a big shadow) is divided out and
+    only the strand detail and the hair's own colour stay, so the viewer can
+    light the wig again from one fixed direction. Highlights the camera
+    painted (lamp, window) are squashed above a knee for the same reason."""
+    mask = (alpha > 0.35).astype(np.float32)
+    if mask.sum() < 50:
+        return image_bgr
+    image = image_bgr.astype(np.float32)
+    luma = image.mean(axis=2)
+    sigma = max(2.0, DELIGHT_SIGMA * float(face_w))
+    low = cv2.GaussianBlur(luma * mask, (0, 0), sigma) / np.maximum(cv2.GaussianBlur(mask, (0, 0), sigma), 1e-3)
+    reference = float((luma * mask).sum() / mask.sum())
+    gain = np.clip(reference / np.maximum(low, 1.0), *DELIGHT_RANGE)
+    image = image * gain[..., None]
+    luma = image.mean(axis=2)
+    knee = HIGHLIGHT_KNEE * float((luma * mask).sum() / mask.sum())
+    squashed = knee + np.maximum(luma - knee, 0.0) * HIGHLIGHT_KEEP
+    image = image * (np.where(luma > knee, squashed, luma) / np.maximum(luma, 1.0))[..., None]
+    return np.clip(image, 0, 255).astype(np.uint8)
+
+
 class HairView:
     def __init__(self, image_bgr, alpha, face_mask, geometry, yaw, tracked=True):
-        self.image = image_bgr
+        self.image = delight(image_bgr, alpha, geometry["face_w"])
         self.alpha = alpha.astype(np.float32)
         self.face_mask = face_mask
         self.geometry = geometry
@@ -295,6 +336,25 @@ def _synthesize_back(pos, views, placements, scale, rng):
     return np.clip(color, 0, 1), found
 
 
+def _no_flare(radius):
+    """Below the widest cross-section of a direction the hull only narrows:
+    where the hair ends the silhouette merges with the neck and the shoulders
+    and would flare out into a skirt."""
+    out = radius.copy()
+    for column in range(out.shape[1]):
+        widest = int(np.argmax(out[:, column]))
+        out[widest:, column] = np.minimum.accumulate(out[widest:, column])
+    return out
+
+
+def _median_rows(values, size):
+    """Median along the height of the hull: a cross-section that one capture
+    stretched out alone (a hand, a collar) is a spike a few rows thick."""
+    half = size // 2
+    padded = np.concatenate([np.repeat(values[:1], half, axis=0), values, np.repeat(values[-1:], half, axis=0)])
+    return np.median(np.stack([padded[k:k + len(values)] for k in range(size)]), axis=0)
+
+
 def _hull_samples(views, bodies, placements, scale, budget, rng, axes=SKULL_AXES):
     """Multi-view peluca as one closed surface.
 
@@ -340,6 +400,7 @@ def _hull_samples(views, bodies, placements, scale, budget, rng, axes=SKULL_AXES
         raise ValueError("The hair silhouettes do not overlap between captures")
     axes = _fit_skull(axes, -apex)
     radius = np.clip(np.where(np.isfinite(radius), radius, 0.02), 0.02, 3.0)
+    radius = _no_flare(_median_rows(radius, SPIKE_ROWS))
     wrapped = np.hstack([radius[:, -20:], radius, radius[:, :20]]).astype(np.float32)
     radius = cv2.GaussianBlur(wrapped, (0, 0), sigmaX=5, sigmaY=2)[:, 20:-20]
     for index, level in enumerate(levels):
@@ -565,8 +626,7 @@ def _mannequin(count, rng, axes=SKULL_AXES):
     t1, t2, n = _frame(tangent, normal)
     spacing = np.sqrt(4 * np.pi * 0.6 * 0.6 / max(head, 1)) * 1.1
     scales = np.tile([spacing, spacing, spacing * 0.3], (len(pos), 1))
-    light = np.clip(n @ np.array([0.35, -0.55, 0.75]) / np.linalg.norm([0.35, -0.55, 0.75]), 0, 1)
-    color = np.array([[0.80, 0.76, 0.72]]) * (0.55 + 0.45 * light[:, None])
+    color = np.tile([[0.80, 0.76, 0.72]], (len(pos), 1))
     return pos, _covariance((t1, t2, n), scales), color, np.full(len(pos), 0.98)
 
 
@@ -619,7 +679,7 @@ def build_hair_splats(views, budget=70000, mannequin=9000, seed=5, head=None):
     hair_cov = _covariance((t1, t2, n), scales)
     pos = [samples["pos"]]
     cov = [hair_cov]
-    color = [samples["color"]]
+    color = [deepen_hair(samples["color"])]
     alpha = [samples["alpha"]]
     if head is not None or mannequin:
         m_pos, m_cov, m_color, m_alpha = head(axes) if head is not None else _mannequin(mannequin, rng, axes)

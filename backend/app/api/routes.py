@@ -24,6 +24,7 @@ from app.core.lab.session import LabSession
 from app.core.pipeline import StylePipeline
 from app.core.splatting.face3d import face_scan_debug_image
 from app.core.splatting.head3d import to_ply
+from app.core.splatting import turn_store
 
 MAX_SIDE = 2048
 
@@ -265,6 +266,47 @@ async def transfer_photos(
     )
 
 
+@router.post("/turn/frame")
+async def turn_frame(session: str = Form(...), image: UploadFile = File(...)):
+    frame = decode_image(await image.read())
+    try:
+        return await work(pipeline.turn_frame, session, frame)
+    except ValueError as error:
+        raise HTTPException(status_code=503, detail=str(error))
+
+
+@router.post("/turn/solve")
+async def turn_solve(session: str = Form(...), bin_degrees: float = Form(12.0)):
+    found = pipeline.turn_sessions.get(session, create=False)
+    if found is None:
+        raise HTTPException(status_code=404, detail="Unknown scan session")
+    try:
+        yaw, picks, fraction, bins = found.solve(bin_degrees)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    return {
+        "yaws": [float(value) for value in yaw],
+        "picks": [int(index) for index in picks],
+        "coverage": float(fraction),
+        "bins": [int(value) for value in bins],
+        "frames": len(yaw),
+    }
+
+
+@router.post("/turn/video")
+async def turn_video(video: UploadFile = File(...)):
+    path = await turn_store.spool(video)
+    try:
+        result = await work(pipeline.turn_video, path)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error))
+    finally:
+        turn_store.discard(path)
+    result["frames"] = ["data:image/jpeg;base64," + base64.b64encode(frame).decode("ascii") for frame in result["frames"]]
+    result["face_frames"] = ["data:image/jpeg;base64," + base64.b64encode(frame).decode("ascii") for frame in result["face_frames"]]
+    return result
+
+
 @router.post("/transfer/splat")
 async def transfer_splat(
     frames: List[UploadFile] = File(...),
@@ -272,6 +314,8 @@ async def transfer_splat(
     mannequin: str = Form("true"),
     format: str = Form("raw"),
     head: str = Form("mannequin"),
+    turn: str = Form("false"),
+    face_mirror: str = Form("false"),
     face_frames: List[UploadFile] = File(None),
 ):
     angle_values = [float(value) for value in angles.split(",") if value.strip()]
@@ -284,11 +328,17 @@ async def transfer_splat(
         if not face_frames:
             raise HTTPException(status_code=400, detail="Scan your face first in 3D Peluca > Your face")
         face_data = [await frame.read() for frame in face_frames]
-        faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data))
+        faces, face_key = [decode_image(item) for item in face_data], frame_key(b"".join(face_data) + face_mirror.encode())
+        if face_mirror == "true":
+            faces = [cv2.flip(face, 1) for face in faces]
     try:
-        rows, meta = await work(
-            pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
-        )
+        if turn == "true":
+            turn_store.save(data, angle_values)
+            rows, meta = await work(pipeline.hair3d_turn, images, angle_values, mannequin != "false", faces, face_key)
+        else:
+            rows, meta = await work(
+                pipeline.hair3d, images, angle_values, mannequin != "false", faces, [frame_key(item) for item in data], face_key,
+            )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error))
     if rows is None:

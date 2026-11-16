@@ -1119,6 +1119,7 @@ const hair3dInput = document.getElementById("hair3d-input");
 const hair3dMannequin = document.getElementById("hair3d-mannequin");
 const hair3dAuto = document.getElementById("hair3d-auto");
 const hair3dSplats = document.getElementById("hair3d-splats");
+const hair3dLight = document.getElementById("hair3d-light");
 const hair3dReset = document.getElementById("hair3d-reset");
 const hair3dPly = document.getElementById("hair3d-ply");
 const hair3dPhotos = document.getElementById("hair3d-photos");
@@ -1151,6 +1152,8 @@ function hair3dForm(source, extra = {}) {
   const formData = new FormData();
   source.frames.forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
   formData.append("angles", source.angles.join(","));
+  if (source.turn) formData.append("turn", "true");
+  if (faceScan && faceScan.webcam) formData.append("face_mirror", "true");
   if (hair3dMyFace.checked && faceScan) {
     formData.append("head", "face");
     faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
@@ -1410,6 +1413,9 @@ hair3dAuto.addEventListener("change", () => {
   if (hair3dAuto.checked) setScissors(false);
   if (hair3dViewer) hair3dViewer.autoRotate = hair3dAuto.checked;
 });
+hair3dLight.addEventListener("change", () => {
+  if (hair3dViewer) hair3dViewer.setLighting(hair3dLight.checked);
+});
 hair3dSplats.addEventListener("change", () => {
   if (hair3dViewer) hair3dViewer.setSplatScale(hair3dSplats.checked ? 0.32 : 1);
 });
@@ -1440,6 +1446,12 @@ async function buildHair3d(source, label) {
     updateScanPhotos();
     if (!hair3dViewer) {
       hair3dViewer = new SplatViewer(hair3dCanvas);
+      hair3dViewer.lighting = hair3dLight.checked;
+      hair3dViewer.turntable = true;
+      hair3dViewer.onManual = () => {
+        hair3dAuto.checked = false;
+        hair3dViewer.autoRotate = false;
+      };
       hair3dViewer.setView(0, 0.1, 2.1);
       setInterval(() => {
         hair3dFps.textContent = hair3dViewer.autoRotate ? `${hair3dViewer.fps.toFixed(0)} fps` : "";
@@ -1451,7 +1463,7 @@ async function buildHair3d(source, label) {
     const seconds = ((performance.now() - started) / 1000).toFixed(1);
     const views = hair3dModel.views === 1 ? "1 foto" : `${hair3dModel.views} ángulos`;
     const head = hair3dMyFace.checked ? " en tu cara" : "";
-    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} gaussianas de pelo desde ${views} · lista en ${seconds} s`;
+    hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} gaussianas de pelo desde ${views} · lista en ${seconds} s${source.note ? ` · ${source.note}` : ""}`;
     hair3dPly.disabled = false;
   } catch (error) {
     hair3dError.textContent = error.message;
@@ -1593,7 +1605,7 @@ face3dScan.addEventListener("click", async () => {
   }
   face3dHint.textContent = "¡Listo!";
   await sleep(600);
-  faceScan = { frames };
+  faceScan = { frames, webcam: true };
   updateScanPhotos();
   stopFaceCamera();
   face3dScan.disabled = true;
