@@ -245,6 +245,61 @@
     openCamera(button.closest("#panel-inicio") ? "beard" : null);
   }));
 
+  const sourceMenu = document.createElement("div");
+  sourceMenu.className = "source-menu";
+  sourceMenu.setAttribute("role", "menu");
+  sourceMenu.hidden = true;
+  [["file", "photo-up", "Elegir otra foto"], ["camera", "camera", "Tomar con la cámara"], ["sample", "photo", "Usar la foto de ejemplo"]].forEach(([source, icon, label]) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "menuitem");
+    item.dataset.source = source;
+    item.dataset.icon = icon;
+    item.textContent = label;
+    sourceMenu.append(item);
+  });
+  document.body.append(sourceMenu);
+  let sourceZone = null;
+
+  function closeSourceMenu() {
+    sourceMenu.hidden = true;
+    sourceZone = null;
+  }
+
+  function openSourceMenu(zone, x, y) {
+    sourceZone = zone;
+    sourceMenu.querySelector('[data-source="sample"]').hidden = !zone.querySelector("[data-sample]");
+    sourceMenu.hidden = false;
+    const box = sourceMenu.getBoundingClientRect();
+    sourceMenu.style.left = `${Math.max(12, Math.min(x, window.innerWidth - box.width - 12))}px`;
+    sourceMenu.style.top = `${Math.max(12, Math.min(y, window.innerHeight - box.height - 12))}px`;
+    sourceMenu.querySelector("button").focus();
+  }
+
+  sourceMenu.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-source]");
+    if (!button || !sourceZone) return;
+    const zone = sourceZone;
+    closeSourceMenu();
+    if (button.dataset.source === "file") zone.querySelector('input[type="file"]').click();
+    if (button.dataset.source === "camera") openCamera(null);
+    if (button.dataset.source === "sample") zone.querySelector("[data-sample]").click();
+  });
+  document.addEventListener("click", (event) => {
+    if (!sourceMenu.hidden && !sourceMenu.contains(event.target)) closeSourceMenu();
+    const zone = event.target.closest(".drop-zone.has-photo");
+    if (!zone || event.target.closest("button, a, input, label, select")) return;
+    const input = zone.querySelector('input[type="file"]');
+    if (!input || input.multiple) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openSourceMenu(zone, event.clientX, event.clientY);
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !sourceMenu.hidden) closeSourceMenu();
+  });
+  window.addEventListener("scroll", closeSourceMenu, { passive: true });
+
   $$(".drop-zone").forEach((zone) => {
     const input = zone.querySelector('input[type="file"]');
     const preview = zone.querySelector(".dz-preview");
