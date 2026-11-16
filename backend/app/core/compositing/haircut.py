@@ -34,6 +34,14 @@ def _blur(layer, sigma):
     return cv2.GaussianBlur(layer, (0, 0), max(0.5, float(sigma)))
 
 
+def _grow(mask, size):
+    """Dilation by a disk as wide as `_kernel(size)`, read from the distance
+    transform so wide disks cost the same as narrow ones."""
+    radius = max(3, int(size) | 1) // 2
+    distance = cv2.distanceTransform((mask <= 0).astype(np.uint8), cv2.DIST_L2, 5)
+    return (distance <= radius).astype(np.uint8)
+
+
 def pull_push(image, known):
     """Fills every pixel from the known ones only, coarse to fine, so the
     hole gets a smooth continuation of what surrounds it instead of the
@@ -180,7 +188,7 @@ def _parts(image_bgr, hair_mask, geometry, probabilities):
             "face_skin": probabilities[FACE_SKIN],
             "rest": np.maximum(probabilities[CLOTHES], probabilities[BODY_SKIN]),
         }
-    near = cv2.dilate(np.maximum(hair_mask, face), _kernel(geometry["face_w"] * 0.06)) > 0
+    near = _grow(np.maximum(hair_mask, face), geometry["face_w"] * 0.06) > 0
     face_f = (face > 0).astype(np.float32)
     return {
         "hair": hair,
@@ -196,8 +204,9 @@ def _layout(x, y, style, short, wobble, front, top):
     short hair grows everywhere else (`density`).
 
     The top is the band over the forehead that widens toward the crown;
-    the sides are the rest. Fades go from bare skin at `skin` to short
-    hair at `short`; a taper never reaches skin (`floor`); the undercut
+    the sides are the rest. Fades thin out from short hair at `short` to
+    a light stubble at `skin` that dies out a little lower; a taper never
+    reaches skin (`floor`); the undercut
     shaves the sides flat (`ceiling`) under a hard edge; the hard part
     adds a shaved line where the top meets one side; the crew cut keeps
     everything short but a bit longer on top."""
@@ -211,10 +220,11 @@ def _layout(x, y, style, short, wobble, front, top):
     if spec.get("crew"):
         return 0.3 * (1.0 - sides), short * (0.8 + 0.35 * (1.0 - sides)), none, none
     keep = 1.0 - sides
-    rise = _smoothstep((spec["skin"] - y) / max(spec["skin"] - spec["short"], 1e-3))
+    rise = _smoothstep((spec["skin"] + 0.02 * wobble - y) / max(spec["skin"] - spec["short"], 1e-3))
     floor = spec.get("floor", 0.0)
     ceiling = spec.get("ceiling", 1.0)
-    density = short * np.minimum(floor + (1.0 - floor) * np.sqrt(rise), ceiling)
+    stubble = 0.12 * _smoothstep((spec["skin"] + 0.16 - y) / 0.12)
+    density = short * np.maximum(np.minimum(floor + (1.0 - floor) * rise ** 1.4, ceiling), stubble)
     line = beyond = none
     if spec.get("part"):
         part = reach - 0.09
@@ -236,7 +246,8 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
     front = _front_hairline(x, y, geometry, parts["face_skin"])
     crown = _column_top(x, y, parts["hair"] + parts["skin"] > 0.5, front)
     top = float(np.clip(max(front - 0.33, crown + 0.03), -0.9, -0.55))
-    keep, density, line, beyond = _layout(x, y, style, SHORT_DENSITY * (1.1 - 0.4 * shortness), wobble, front, top)
+    thick = SHORT_DENSITY * (1.1 - 0.4 * shortness)
+    keep, density, line, beyond = _layout(x, y, style, thick, wobble, front, top)
     if STYLES[style] is not None and STYLES[style].get("crew"):
         top = min(top, max(top - 0.035, crown + 0.01))
 
@@ -248,7 +259,11 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
     hair_wide &= face == 0
 
     person = (parts["background"] < 0.5).astype(np.float32)
-    head = cv2.dilate(_skull(x, y, top), _kernel(fw * 0.05)) * cv2.dilate(person, _kernel(fw * 0.01))
+    head = _grow(_skull(x, y, top), fw * 0.05).astype(np.float32) * cv2.dilate(person, _kernel(fw * 0.01))
+    scalp_head = _blur(cv2.erode(head, _kernel(fw * 0.03)), fw * 0.006)
+    fiber = cv2.GaussianBlur(rng.normal(0.0, 1.0, shape).astype(np.float32), (0, 0), sigmaX=0.6, sigmaY=max(0.8, fw / 260.0))
+    fiber /= fiber.std() + 1e-6
+    head_hair = _smoothstep((_blur(head, fw * 0.012) - 0.2 + 0.08 * fiber) / 0.55)
     head = _blur(head, fw * 0.004)
     crew = STYLES[style] is not None and STYLES[style].get("crew")
     if crew:
@@ -260,54 +275,61 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
 
     loose = cv2.dilate((parts["hair"] > 0.08).astype(np.uint8), _kernel(fw * 0.02)) > 0
     loose &= (face == 0) & (parts["skin"] < 0.5)
-    remove = ((hair_wide | loose) & cut & (head < 0.5)).astype(np.uint8)
-    near = cv2.dilate(remove, _kernel(fw * 0.08)) > 0
+    remove = ((hair_wide | loose) & cut & (scalp_head < 0.5)).astype(np.uint8)
+    near = _grow(remove, fw * 0.08) > 0
     known = ((parts["background"] > 0.6) | (parts["rest"] > 0.7)) & (remove == 0) & ~hair_wide
     known &= ~near | (parts["background"] > 0.9) | (parts["rest"] > 0.9)
     plate = pull_push(original, known.astype(np.float32))
-    band = cv2.dilate(remove, _kernel(fw * 0.2)) > 0
+    band = _grow(remove, fw * 0.2) > 0
     difference = np.abs(original - _blur(plate, fw * 0.015)).sum(axis=2)
-    strands = band & (difference > 30) & (parts["skin"] < 0.4) & (parts["rest"] < 0.5) & cut & (head < 0.5)
+    strands = band & (difference > 30) & (parts["skin"] < 0.4) & (parts["rest"] < 0.5) & cut & (scalp_head < 0.5)
     strands &= face == 0
     if strands.any():
         remove = np.maximum(remove, cv2.dilate(strands.astype(np.uint8), _kernel(3)))
         known &= remove == 0
-        plate = pull_push(original, known.astype(np.float32))
     grain = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), 0.6)
     grain /= grain.std() + 1e-6
     detail = (original - _blur(original, 1.5)).mean(axis=2)
-    texture = np.sqrt(pull_push(np.repeat((detail * detail)[..., None], 3, axis=2), known.astype(np.float32))[..., 0])
+    filled = pull_push(np.dstack([original, detail * detail]), known.astype(np.float32))
+    plate, texture = filled[..., :3], np.sqrt(np.maximum(filled[..., 3], 0.0))
     plate += (grain * np.clip(texture, 0.5, 12.0))[..., None]
     removal = _blur(remove.astype(np.float32), max(0.8, fw * 0.003))
 
     light = _light(image_bgr, face > 0, x)
     shade = _shade(x, y, light, top)
-    hairline_shadow = cv2.dilate(hair, _kernel(fw * 0.09)) > 0
+    hairline_shadow = _grow(hair, fw * 0.09) > 0
     skin_known = (parts["skin"] > 0.6) & ~hairline_shadow & (y < 0.25)
     if skin_known.sum() < 50:
         skin_known = face > 0
     skin_weight = skin_known.astype(np.float32)
-    skin = pull_push(original, skin_weight)
-    scalp = skin + grain[..., None] * 1.2
+    lit = pull_push(np.dstack([original, shade]), skin_weight)
+    relight = np.clip(shade / np.maximum(lit[..., 3], 0.3), 0.8, 1.12)
+    scalp = lit[..., :3] * relight[..., None] + grain[..., None] * 1.2
 
     inner = cv2.erode(face, _kernel(fw * 0.03)) > 0
-    reskin = cv2.dilate(hair, _kernel(fw * 0.11)) > 0
+    reskin = _grow(hair, fw * 0.11) > 0
     reskin &= ~inner
     covered = np.maximum(_blur(hair_wide.astype(np.float32), fw * 0.004), _blur(reskin.astype(np.float32), fw * 0.016) * cut)
-    covered = np.clip(covered, 0.0, 1.0) * head
+    covered = np.clip(covered, 0.0, 1.0) * scalp_head
     base = original * (1.0 - removal[..., None]) + plate * removal[..., None]
     base = base * (1.0 - covered[..., None]) + scalp * covered[..., None]
 
     drift = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), fw * 0.08)
     drift /= drift.std() + 1e-6
-    zone = _smoothstep((_hairline(x, front) + 0.006 * drift - y) / 0.02)
-    ears = _smoothstep((np.abs(x) - 0.36) / 0.06)
-    paint = np.clip(1.0 - parts["skin"] * (1.0 - hair_wide) * ears, 0.0, 1.0)
+    zone = _smoothstep((_hairline(x, front) + 0.01 * drift - y) / 0.045)
+    grown = _blur((parts["hair"] > 0.5).astype(np.float32) * (face == 0), fw * 0.03)
+    temples = _smoothstep((np.abs(x) - 0.34) / 0.08) * _smoothstep((0.12 - y) / 0.05)
+    zone = _blur(np.maximum(zone, np.clip(grown * 1.4 - 0.2, 0.0, 1.0) * temples), fw * 0.012)
+    ears = _smoothstep((np.abs(x) - 0.36) / 0.06) * _smoothstep((y + 0.15) / 0.08)
+    paint = np.clip(1.0 - parts["skin"] * (1.0 - _blur(hair_wide.astype(np.float32), fw * 0.015)) * ears, 0.0, 1.0)
     streak = cv2.GaussianBlur(rng.normal(0.0, 1.0, shape).astype(np.float32), (0, 0), sigmaX=0.7, sigmaY=max(1.0, fw / 180.0))
     streak /= streak.std() + 1e-6
     patches = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), fw * 0.03)
     patches /= patches.std() + 1e-6
-    coverage = density * zone * head * paint * np.clip(1.0 + 0.08 * streak + 0.06 * patches, 0.0, 1.2)
+    amount = np.clip(density * zone * head_hair * paint * (1.0 + 0.05 * patches), 0.0, 1.0)
+    fill = np.clip(amount / thick, 0.0, 1.0)
+    grit = float(np.clip(fw / 420.0, 0.45, 1.0))
+    coverage = min(0.9, thick * 1.1) * np.clip(fill * (1.0 + grit * (0.2 + 1.0 * (1.0 - fill)) * fiber), 0.0, 1.0)
 
     color = _hair_color(image_bgr, hair_wide & (parts["hair"] > 0.6))
     lab = np.empty(shape + (3,), np.float32)
@@ -318,13 +340,18 @@ def _render(image_bgr, hair_mask, geometry, style, probabilities, seed, shortnes
     coverage = np.clip(coverage, 0.0, 1.0)[..., None]
     result = base * (1.0 - coverage) + short * coverage
 
+    clumps = _blur(rng.normal(0.0, 1.0, shape).astype(np.float32), max(0.8, fw * 0.004))
+    clumps /= clumps.std() + 1e-6
+    keep = np.clip(keep + 1.4 * keep * (1.0 - keep) * (clumps + 0.5 * fiber), 0.0, 1.0)
     kept = keep[..., None]
     result = np.where(kept > 0.999, original, original * kept + result * (1.0 - kept))
     changed = np.clip(np.maximum.reduce([removal, covered, coverage[..., 0]]) * (1.0 - keep), 0.0, 1.0)
     result = np.where(changed[..., None] > 0.0, result, original)
     inner = cv2.erode(face, _kernel(fw * 0.03)) > 0
-    result[inner] = original[inner]
-    changed[inner] = 0.0
+    seam = np.clip(_blur(inner.astype(np.float32), fw * 0.012) * 2.0, 0.0, 1.0)
+    seam[inner] = 1.0
+    result = result * (1.0 - seam[..., None]) + original * seam[..., None]
+    changed *= 1.0 - seam
     return result, changed
 
 
@@ -347,11 +374,14 @@ def apply_haircut(image_bgr, hair_mask, geometry, style, strength, probabilities
 
     Hair that the cut takes away is replaced by what was behind it, rebuilt
     only from real background pixels; inside a skull fitted to the face the
-    scalp is continued from the forehead skin and lit like the face. Short
-    hair in the person's own color then grows back above a hairline taken
-    from the face proportions. Fades keep the top and shorten the sides,
-    from bare skin at the bottom to short hair at the fade line; the buzz
-    shortens everything."""
+    scalp is continued from the forehead skin and relit with the head's
+    shading. Short hair in the person's own color then grows back above a
+    hairline taken from the face proportions and from where the temples
+    already had hair. It is drawn as fine grain, so a fade thins by
+    showing more scalp between hairs rather than by turning transparent,
+    and its outline against the background stays fuzzy. Fades keep the
+    top and shorten the sides, from bare skin at the bottom to short hair
+    at the fade line; the buzz shortens everything."""
     if style not in STYLES:
         raise ValueError(f"Unknown haircut style: {style}")
     amount = float(np.clip(strength, 0.0, 1.0))
