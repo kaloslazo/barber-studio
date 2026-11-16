@@ -1472,8 +1472,9 @@ async function buildHair3d(source, label) {
     hair3dError.hidden = false;
     hair3dStats.textContent = "--";
     if (!hair3dModel) hair3dStage.hidden = true;
-    return false;
+    return error.message || "error";
   } finally {
+    syncHeadChoice();
     hair3dScan.disabled = !(selectedPeluca && selectedPeluca.frames);
   }
 }
@@ -1516,6 +1517,36 @@ hair3dInput.addEventListener("change", () => {
   if (hair3dInput.files.length > 0) setHair3dFile(hair3dInput.files[0]);
 });
 hair3dMannequin.addEventListener("change", showHair3d);
+
+const hair3dHead = document.getElementById("hair3d-head");
+const hair3dHeadNote = document.getElementById("hair3d-head-note");
+
+function syncHeadChoice() {
+  const current = !hair3dMannequin.checked ? "none" : hair3dMyFace.checked && faceScan ? "face" : "mannequin";
+  hair3dHead.querySelectorAll("[data-head]").forEach((button) => {
+    const active = button.dataset.head === current;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-checked", String(active));
+    if (button.dataset.head === "face") button.disabled = !faceScan || hair3dMyFace.disabled;
+  });
+  hair3dHeadNote.hidden = Boolean(faceScan);
+}
+
+hair3dHead.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-head]");
+  if (!button || button.disabled) return;
+  const choice = button.dataset.head;
+  const wantFace = choice === "face" ? true : choice === "mannequin" ? false : hair3dMyFace.checked;
+  const showHead = choice !== "none";
+  const rebuild = wantFace !== hair3dMyFace.checked;
+  hair3dMyFace.checked = wantFace;
+  if (showHead !== hair3dMannequin.checked) {
+    hair3dMannequin.checked = showHead;
+    showHair3d();
+  }
+  syncHeadChoice();
+  if (rebuild && hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
+});
 
 function scanPhotosSource() {
   if (hair3dSource) return hair3dSource;
@@ -1595,9 +1626,11 @@ face3dScan.addEventListener("click", async () => {
   const frames = [];
   const total = facePlan.reduce((sum, [, shots]) => sum + shots, 0);
   face3dHint.textContent = "Prepárate…";
+  freshVoice.say("Mira a la cámara. Te voy a pedir que gires la cabeza.", { now: true });
   await sleep(1000);
   for (const [text, shots] of facePlan) {
     face3dHint.textContent = text;
+    freshVoice.say(text.toLowerCase(), { now: true });
     for (let shot = 0; shot < shots; shot += 1) {
       await sleep(780);
       if (!faceStream) return;
@@ -1608,6 +1641,7 @@ face3dScan.addEventListener("click", async () => {
     }
   }
   face3dHint.textContent = "¡Listo!";
+  freshVoice.say("Listo, ya tengo tu cara", { now: true });
   await sleep(600);
   faceScan = { frames, webcam: true };
   updateScanPhotos();
@@ -1636,9 +1670,12 @@ face3dScan.addEventListener("click", async () => {
     }
     hair3dMyFace.disabled = false;
     hair3dMyFace.checked = true;
+    hair3dMannequin.checked = true;
+    syncHeadChoice();
     if (hair3dSource) buildHair3d(hair3dSource, hair3dLabel);
   } catch (error) {
     faceScan = null;
+    syncHeadChoice();
     face3dStatus.textContent = "Todavía no escaneas tu cara";
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
