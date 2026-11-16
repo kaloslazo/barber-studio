@@ -27,7 +27,7 @@ Porque inventa la cara completa: cambia la identidad, la piel y la luz, y necesi
 La API responde 422 y la interfaz muestra el mensaje. En vivo se reutilizan los últimos puntos hasta tres cuadros, desplazados por correlación de fase. Sin puntos no hay malla, así que no se aplica ningún estilo: es la única dependencia fuerte.
 
 **¿Cómo saben que funciona?**
-Con 113 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
+Con 117 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
 
 **¿Por qué todo en CPU?**
 Es una restricción del proyecto: que cualquiera lo reproduzca con `docker compose up`, sin GPU. Todo está vectorizado con NumPy. La GPU solo se usa en el navegador, para el visor 3D.
@@ -410,6 +410,14 @@ En el navegador: la primera mitad del primer nombre (redondeando hacia arriba) y
 - Mezcla multibanda: O(N), porque N + N/4 + N/16 + … = 4N/3.
 - Fusión: cada cuadro deforma dos imágenes completas de 480 × 480, así que son 26 warps de 480² píxeles; el muestreo bilineal se lleva casi todo el tiempo.
 - Medido en una Mac con chip M, en CPU: cambio de cara 44 ms y caricatura 49 ms por cuadro, unos 15 cuadros por segundo en el servidor. Con foto: cambio de dos caras 0,1 a 0,4 s según el tamaño, caricatura 0,05–0,15 s, fusión de 13 cuadros ~1,5 s.
+
+### El practicante (`backend/app/core/compositing/look.py`)
+
+**¿En qué orden aplica el pedido y por qué?**
+Barba, tinte y corte, como un barbero. El tinte va después de la barba porque la tiñe también (con el estilo que se acaba de dibujar, así el color es parejo), y el corte al final porque no toca la cara. Si un paso no se puede hacer, se salta y se informa en vez de fallar todo.
+
+**¿Qué tiene de gráfica si es al azar?**
+Cada paso es una de nuestras técnicas (malla y warp de la barba, tinte en CIELAB, corte con pull-push y Lambert), y en el modo «Ya aprendió» la elección sale de la forma de la cara medida en la malla 3D.
 
 ### Galería (`backend/app/core/faces/gallery.py`, `faces/paint.py`, `training/gallery.py`)
 

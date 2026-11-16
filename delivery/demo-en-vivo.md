@@ -57,6 +57,7 @@ Cuando Sofía presenta, Kalos maneja la laptop.
    - **Decir:** «Para cortar hay que quitar pelo y reconstruir lo que había detrás. Rellenamos con pull-push usando solo fondo seguro (6.1.3) y el pelo corto se sombrea con Lambert, con la luz de la cara (6.3.3.2)».
 4. **Ficha (Kalos, 4:40 – 4:50).** **Ficha para tu barbero** y mostrarla.
    - **Chiste:** «Con esto ya no hay excusa para salir mal de la barbería».
+   - **Si el tiempo aprieta:** en vez de barba, tinte y corte por separado, Juegos → **El practicante** → **Primer día** → **Que decida el practicante** hace las tres cosas de una vez con la ficha. **Chiste:** «Es su primer día; tranquilo, en tres semanas crece».
 5. **Galería (Kalos, 4:50 – 5:30).** Estilos → **Galería**. Escribir el nombre del voluntario en **Nombre para la placa** y tocar **Entrar a los 7 cuadros**. Pasar por Marx, Nietzsche y Van Gogh. Si el profesor prestó su cara en Fiesta, repetirlo después con su foto: «el profe como Karl Marx».
    - **Chiste:** «Antes de pedir un corte, conviene ver si ya lo usó alguien famoso».
    - **Decir:** «Es el mismo cambio de cara de Fiesta, con el retrato como destino, pero la barba del retrato queda encima. En la foto antigua la cara se vuelve blanco y negro con la misma transferencia de color, y en el Van Gogh la repintamos con el filtro de Kuwahara: cuatro ventanas por píxel, gana la de menor varianza, calculado con imágenes integrales (6.1.2 y 6.3.3.2)».
@@ -103,7 +104,7 @@ Sofía maneja la laptop. Kalos y Gianpier se paran a un metro de la cámara, hom
 ### 10:30 – 11:15 · Calidad y límites (Sofía)
 
 - **Láminas:** «Calidad y rendimiento» y «Límites que conocemos».
-- **Decir:** «113 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
+- **Decir:** «117 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
 
 ### 11:15 – 12:00 · Cierre y preguntas (Kalos)
 
@@ -127,7 +128,7 @@ La última lámina, «Demo», todavía lista gaussianas, en vivo y Contrarreloj.
 ### La noche antes
 
 - [ ] Construir y levantar: `docker compose up -d --build app` (la primera vez tarda unos minutos). Sin Docker: `./run.sh`.
-- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (113).
+- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (117).
 - [ ] Ensayar la demo completa una vez con el reloj, en el mismo orden.
 - [ ] Carpeta en el escritorio con fotos de respaldo: `frontend/assets/samples/ejemplo.jpg` (Scott Horowitz, NASA), `frontend/assets/samples/muestra.jpg` (Frank Rubio, NASA), una foto del equipo con dos o tres caras de frente y una foto de cada uno. Solo retratos de la NASA o caras propias.
 - [ ] Video de respaldo en la laptop, sin depender de internet: `delivery/videos/video-largo.mp4`, con el bloque de Fiesta en 16:00.

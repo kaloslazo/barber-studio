@@ -1,0 +1,10 @@
+\subsection{El practicante}
+\label{sec:practicante}
+
+En \emph{Juegos}, el practicante es el aprendiz de la barbería: tú pones la cabeza y él decide la barba, el tinte y el corte. Tres rodillos, como en una máquina tragamonedas, giran mientras el servidor aplica el pedido, y se detienen uno por uno en lo que eligió. Tiene dos modos:
+\begin{itemize}
+  \item \textbf{Primer día}: elige al azar entre los cuatro estilos de barba, seis colores (verde, rosado, azul, morado, rojo, rubio) y los ocho cortes, y lo justifica con una frase de practicante («Si no te gusta, en tres semanas crece»).
+  \item \textbf{Ya aprendió}: mide la forma de la cara en la malla 3D (sección~\ref{sec:forma}) y elige al azar solo entre la barba y los cortes que esa forma tiene sugeridos, con tonos naturales o sin tinte; la frase es la explicación de la forma de la cara.
+\end{itemize}
+
+\textbf{El pedido completo.} \archivo{backend/app/core/compositing/look.py} aplica el pedido en el orden en que trabaja un barbero: primero la barba, después el tinte (que también tiñe la barba nueva, con su estilo, para que el color quede parejo) y al final el corte. Si un paso no se puede hacer, por ejemplo teñir o cortar a alguien calvo, se salta y se informa en el encabezado \texttt{X-Skipped} en lugar de fallar todo el pedido. El \emph{endpoint} es \texttt{POST /api/look} (campos \texttt{image}, \texttt{beard}, \texttt{color}, \texttt{cut}); valida los estilos y el color antes de procesar. El resultado se compara con el antes, se guarda en \emph{Mis looks} y sale como ficha para el barbero con las indicaciones de máquina de cada servicio. \archivo{backend/tests/test\_look.py} tiene 4 pruebas: el orden de los pasos, que un paso imposible se salta, el pedido completo por la API y la validación.
