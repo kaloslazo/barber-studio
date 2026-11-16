@@ -40,7 +40,7 @@ El proyecto tiene dos segmentadores de pelo intercambiables.
   \item \textbf{datos}: 9450 imágenes de Figaro1k \cite{svanera2016} y CelebAMask-HQ \cite{lee2020}, convertidas a polígonos con \archivo{backend/training/prepare_hair_dataset.py};
   \item \textbf{entrenamiento}: en Google Colab con \archivo{barberstudio_colab.ipynb} (unas 3{,}5~h en una GPU T4 gratuita);
   \item \textbf{resultado}: mAP50 de máscara de 0{,}968 en validación;
-  \item \textbf{ajuste al borde}: la máscara se ajusta al borde real con un filtro guiado \cite{he2013} (\archivo{segmentation/mask_refiner.py}). Después se descartan los píxeles cuyo color se parece más al anillo de fondo que al interior del pelo.
+  \item \textbf{ajuste al borde}: la máscara se ajusta al borde real con un filtro guiado \cite{he2013} (\archivo{segmentation/mask_refiner.py}). Después se descartan los píxeles cuyo color se parece más al anillo de fondo que al interior del pelo. Esta máscara binaria se usa para medir la coincidencia con MediaPipe; para teñir se usa un \emph{matte} suave (sección~\ref{sec:tinte}).
 \end{itemize}
 
 En el panel de tinte, el usuario elige el modelo. Si elige YOLO, el servidor calcula también la máscara de MediaPipe y devuelve la intersección sobre unión (IoU) entre ambas. Sobre retratos de prueba, la coincidencia va de 0{,}58 a 0{,}96 (sección~\ref{sec:resultados}).
@@ -148,6 +148,15 @@ El estilo ``tres días'' reemplaza las capas 2 y 3 por un grano de 1~px cuyo umb
   \item cada hebra guarda sus coordenadas baricéntricas, de modo que queda pegada a la piel en lugar de ``nadar'' sobre la imagen;
   \item el contraste del grano se restaura después del \emph{warp}, porque interpolar ruido blanco reduce su varianza.
 \end{itemize}
+
+\textbf{En vivo sobre la malla 3D.} Al girar la cabeza, los 68 puntos proyectados se juntan sobre la mejilla del lado lejano y la región de la barba se deforma. \texttt{MeshBeard} (\archivo{compositing/beard_mesh.py}) resuelve esto con la malla 3D de MediaPipe:
+\begin{itemize}
+  \item la región de cada estilo se dibuja una vez sobre un cuadro de referencia frontal, y cada vértice de la malla guarda su posición en ese cuadro, que funciona como coordenada de textura;
+  \item en cada cuadro se rasterizan solo los triángulos que miran a la cámara, del más lejano al más cercano, así la nariz y la mejilla tapan lo que queda detrás; la región se lee con las coordenadas de textura interpoladas con baricéntricas;
+  \item una franja de vértices bajo la mandíbula continúa la barba completa bajo el mentón; ahí solo se conservan los píxeles con el croma de la piel de la cara, porque de perfil parte de la franja cae sobre el fondo;
+  \item las hebras quedan clavadas a la malla con coordenadas baricéntricas, y el tono base se refuerza donde la superficie se ve de costado, con una ganancia $1/\cos\theta$ limitada a 1{,}6.
+\end{itemize}
+Para depurar, el modo en vivo puede dibujar los triángulos visibles y el contorno de la región, y la tecla F guarda los últimos cuadros de un fallo (\texttt{POST /api/live/debug/save}). Esta parte la hizo Gianpier Segovia.
 
 \begin{figure}[ht]
   \centering

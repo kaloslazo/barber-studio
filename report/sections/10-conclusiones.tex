@@ -8,6 +8,8 @@ Fresh muestra que un probador de barbería creíble se puede construir con técn
   \item un marco de la cabeza medido en anchos de cabeza, junto con un relleno \emph{pull-push} que elige sus fuentes, permite quitar y volver a crear el pelo para ocho cortes distintos.
 \end{itemize}
 
+La misma idea de malla y \emph{warp} afín por triángulo sirvió también para algo muy distinto: cambiar caras, hacer caricaturas y fusionar dos personas. Bastó con fijar la topología una vez, sobre una cara promedio, y cambiar solo hacia dónde se mueven los puntos.
+
 Las gaussianas resultaron ser una representación versátil a lo largo del proyecto: dibujan pelos sueltos en la barba con física, reconstruyen un retrato en 2D, forman una cabeza 3D girable y una peluca multivista, y siempre con el mismo principio de proyectar, acumular y componer.
 
 Varias decisiones se tomaron midiendo:
@@ -21,7 +23,7 @@ Varias decisiones se tomaron midiendo:
 El producto está terminado y se puede reproducir:
 \begin{itemize}
   \item tiene interfaz para escritorio y celular;
-  \item tiene 54 pruebas automáticas e integración continua;
+  \item tiene 103 pruebas automáticas e integración continua;
   \item se levanta con un solo comando de Docker;
   \item incluye el modelo de segmentación entrenado por el equipo.
 \end{itemize}

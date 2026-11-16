@@ -46,6 +46,8 @@ ANIMATIONS = [
     ("docs/captures/p2_physics/kim_sway.gif", "Física con otro retrato."),
     ("docs/captures/p4_speedrun/rubio_goatee.gif", "Contrarreloj hasta el candado."),
     ("docs/captures/p4_speedrun/horowitz_chinstrap.gif", "Contrarreloj hasta el collar."),
+    ("docs/captures/p6_fiesta/fusion_horowitz_rubio.gif", "Fusión: de un astronauta al otro; a la mitad, el hijo de los dos."),
+    ("docs/captures/p6_fiesta/caricaturas_horowitz.gif", "Caricatura: los seis efectos sobre la malla de la cara."),
 ]
 
 DIAGRAMS = [

@@ -24,7 +24,10 @@ pdflatex main.tex
 
 ```bash
 cd backend && venv/bin/python ../report/diagramas/miniaturas.py
+venv/bin/python ../report/diagramas/fiesta.py
 cd .. && python3 report/diagramas/build.py
 ```
+
+`fiesta.py` corre `FaceStudio` sobre los retratos de Horowitz y Rubio (NASA) y deja en `figures/` las figuras de Fiesta (`fiesta_swap.jpg`, `fiesta_caricatura.jpg`, `fiesta_fusion.jpg`) y en `img/` las miniaturas del diagrama `fiesta.tex`.
 
 `build.py` necesita `pdflatex` y `pymupdf`. Deja `figures/diagrama_<nombre>.pdf` para el informe, una copia en `slides/figures/` y un PNG en `docs/diagramas/`.

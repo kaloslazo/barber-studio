@@ -31,7 +31,7 @@
   \csname @twocolumnfalse\endcsname
   \maketitle
   \begin{abstract}
-  \noindent Fresh es una aplicación web para probarse barbas, tintes y cortes de pelo sobre la propia foto o con la cámara, antes de ir a la barbería. En lugar de generar una cara nueva con un modelo generativo, mide la geometría de la cara y del pelo de la persona y compone cada estilo sobre la foto original. Los modelos preentrenados solo ubican la cara, el pelo y la mano; todo lo demás es implementación propia: una triangulación de Delaunay con el algoritmo de Fortune, un \emph{warp} afín por triángulo, un tinte en CIELAB, un motor de ocho cortes con relleno \emph{pull-push}, física de la barba con Verlet, gaussianas 2D ajustadas con gradientes analíticos y un visor de \emph{Gaussian Splatting} 3D en WebGL2. El sistema corre en CPU, procesa una foto en 0,1 a 2,5~s y se reproduce con un solo comando de Docker.
+  \noindent Fresh es una aplicación web para probarse barbas, tintes y cortes de pelo sobre la propia foto o con la cámara, antes de ir a la barbería. En lugar de generar una cara nueva con un modelo generativo, mide la geometría de la cara y del pelo de la persona y compone cada estilo sobre la foto original. Los modelos preentrenados solo ubican la cara, el pelo y la mano; todo lo demás es implementación propia: una triangulación de Delaunay con el algoritmo de Fortune, un \emph{warp} afín por triángulo, un tinte en CIELAB, un motor de ocho cortes con relleno \emph{pull-push}, física de la barba con Verlet, gaussianas 2D ajustadas con gradientes analíticos, un visor de \emph{Gaussian Splatting} 3D en WebGL2 y juegos de cambio de cara, caricatura y fusión sobre la misma malla. El sistema corre en CPU, procesa una foto en 0,1 a 2,5~s y se reproduce con un solo comando de Docker.
 
   \medskip
   \noindent\textbf{Palabras clave:} triangulación de Delaunay, \emph{warp} afín, CIELAB, \emph{inpainting}, Verlet, \emph{Gaussian Splatting}.
@@ -79,11 +79,11 @@ Una barba real de CelebAMask-HQ se deforma a la cara con un \emph{warp} afín po
 
 \subsection{Tinte en CIELAB}
 
-En CIELAB~\cite{cie2004} la luminosidad está separada del color. La luminosidad del pelo se divide en sombreado $s=G_\sigma(L)-\bar L$ y detalle $d=L-G_\sigma(L)$, y la nueva luminosidad es
+En CIELAB~\cite{cie2004} la luminosidad está separada del color. La luminosidad $L$ del pelo, recortada a su propio rango, se divide en tres bandas con un filtro bilateral $B$~\cite{tomasi1998} y un desenfoque gaussiano $G_3$: detalle $d=L-B(L)$, mechones $f=B(L)-G_3(B(L))$ y sombreado $s=G_3(B(L))-m$, con $m$ la mediana del pelo. La nueva luminosidad es
 \begin{equation}
-  L'=0{,}72\,L_t+0{,}28\,\bar L+k\,(0{,}8\,s+1{,}2\,d),
+  L'=\underbrace{m+0{,}82\,(L_t-m)}_{\text{base}}+g\,(0{,}85\,s+f+0{,}9\,d),
 \end{equation}
-con $k=\mathrm{clip}(20/s_L,\,0{,}9,\,1{,}8)$ para normalizar el contraste. La base va hacia el tinte y el detalle se conserva, así un pelo negro puede quedar rubio. El croma baja en las sombras, como en un pigmento real.
+con $g=\mathrm{clip}\big((\text{base}+25)/(m+25),\,0{,}75,\,1{,}55\big)$: la base va hacia el tinte y las bandas crecen cuando el pelo se aclara, así un pelo negro puede quedar rubio. Un piso suave evita puntos negros y el croma baja en las sombras, como en un pigmento real. La máscara de YOLO se convierte en un \emph{matte} suave con dos pasadas de filtro guiado~\cite{he2013}.
 
 \begin{figure*}[t]
   \centering
@@ -114,9 +114,13 @@ El espejo 3D construye, desde una foto y la malla 3D de MediaPipe, más de 100\,
 \end{equation}
 un \emph{counting sort} las ordena de atrás hacia adelante y el \emph{fragment shader} las mezcla, como en 3D Gaussian Splatting~\cite{kerbl2023}. La peluca 3D, en cambio, escanea el peinado con la cámara y obtiene su forma con una envolvente visual~\cite{laurentini1994} calculada rebanada por rebanada.
 
+\subsection{Fiesta: cambio de cara, caricatura y fusión}
+
+Tres juegos para usar en grupo comparten una maquinaria: 468 puntos por cara, una triangulación calculada una sola vez con Fortune sobre una cara promedio (400 caras alineadas con Procrustes generalizado~\cite{gower1975}) y un \emph{warp} afín por triángulo con mapeo inverso y bilineal propia. El cambio de cara lleva una cara a la malla de otra, le transfiere el color con Reinhard~\cite{reinhard2001} y la mezcla por bandas de una pirámide laplaciana~\cite{burt1983}. La caricatura de Brennan~\cite{brennan1985} exagera la diferencia con la cara promedio, ajustada con Umeyama~\cite{umeyama1991}: $P'=A+(1+k)(P-A)$; un anillo de puntos fijos deja quieto el resto de la foto. La fusión es un \emph{morphing} clásico~\cite{beier1992,wolberg1998}: las dos fotos se deforman a la forma intermedia $(1-t)A+tB$ y se mezclan con pesos $1-t$ y $t$. En vivo corre a unos 15 cuadros por segundo con dos caras.
+
 \section{Resultados}
 
-La figura~\ref{fig:cortes} muestra los ocho cortes sobre tres personas con pelo distinto: en todos el fondo queda limpio y la cara no cambia. La tabla~\ref{tab:resultados} reúne las cifras principales. Además de los retratos de la NASA, los cortes y el tinte se revisaron sobre 26 caras distintas, y 54 pruebas automáticas corren en GitHub Actions en cada cambio.
+La figura~\ref{fig:cortes} muestra los ocho cortes sobre tres personas con pelo distinto: en todos el fondo queda limpio y la cara no cambia. La tabla~\ref{tab:resultados} reúne las cifras principales. Además de los retratos de la NASA, los cortes y el tinte se revisaron sobre 26 caras distintas, y 103 pruebas automáticas corren en GitHub Actions en cada cambio.
 
 \begin{figure*}[t]
   \centering
@@ -138,6 +142,7 @@ Tinte con YOLO y barba & 2,5~s \\
 Espejo 3D (105\,000 gaussianas) & 2,6~s \\
 Barba en vivo, por cuadro & 61~ms \\
 Física en vivo, por cuadro & 72~ms \\
+Fiesta en vivo, por cuadro & 44 -- 49~ms \\
 \midrule
 YOLO de pelo: mAP50 de máscara & 0,968 \\
 IoU entre YOLO y MediaPipe & 0,82 -- 0,94 \\
@@ -162,7 +167,7 @@ Delaunay con 83 puntos & 3~ms \\
 
 Fresh muestra que se puede probar un estilo de barbería de forma creíble sin modelos generativos: basta con ubicar la cara y el pelo, y resolver el resto con geometría, color, relleno de imágenes, física y \emph{splatting}. Cada pieza es explicable y corre en CPU. Como trabajo futuro quedan el tinte en vivo con un \emph{shader} de WebGL y un 3D Gaussian Splatting entrenado con varias vistas para completar la cabeza.
 
-\paragraph{Aportes.} Kalos Lazo: arquitectura, tinte, YOLO, motor de cortes, forma de cara, interfaz y despliegue. Gianpier Segovia: barba, Delaunay de Fortune, \emph{warp}, física, gaussianas 2D, juego y espejo 3D. Sofía Herrera: peluca 3D y laboratorio.
+\paragraph{Aportes.} Kalos Lazo: arquitectura, tinte, YOLO, motor de cortes, forma de cara, Fiesta, interfaz y despliegue. Gianpier Segovia: barba (también sobre la malla 3D en vivo), Delaunay de Fortune, \emph{warp}, física, gaussianas 2D, juego, espejo 3D y peluca desde una vuelta completa. Sofía Herrera: peluca 3D y laboratorio.
 
 \paragraph{Disponibilidad.} El código, el informe completo con todas las fórmulas y la guía de uso están en el repositorio del proyecto. La aplicación se levanta con \texttt{docker compose up -d --build app}.
 

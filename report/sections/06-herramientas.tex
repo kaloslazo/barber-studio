@@ -13,12 +13,12 @@ Herramienta & Qué resolvió \\
 Python 3.12 + NumPy \cite{harris2020} & Lenguaje del servidor y operaciones vectorizadas sobre imágenes. Base de todos los algoritmos propios. \\
 FastAPI \cite{fastapi} + Uvicorn & Servidor HTTP y API; también sirve la interfaz web. \\
 OpenCV \cite{bradski2000} & Lectura y escritura de imágenes, conversiones de color, desenfoques, morfología, \emph{distance transform}, clasificador de Haar, filtro guiado e \emph{inpainting} de Telea (solo como referencia de comparación). \\
-MediaPipe \cite{lugaresi2019} & Modelos preentrenados, usados solo para inferencia: malla facial de 478 puntos, segmentador multiclase y puntos de la mano. También corre en el navegador para seguir la cabeza en la prueba en vivo de la peluca. \\
+MediaPipe \cite{lugaresi2019} & Modelos preentrenados, usados solo para inferencia: malla facial de 478 puntos (también con varias caras a la vez, para Fiesta), segmentador multiclase y puntos de la mano. También corre en el navegador para seguir la cabeza en la prueba en vivo de la peluca. \\
 Ultralytics YOLOv8 + PyTorch \cite{jocher2023,paszke2019} & Ajuste fino y ejecución del segmentador de pelo propio (\archivo{hair_best.pt}). Es opcional: sin él, la aplicación usa MediaPipe. \\
 Google Colab & Entrenamiento de YOLO con GPU (\archivo{backend/training/barberstudio_colab.ipynb}). \\
 WebGL2 \cite{khronos2017} & Visor de gaussianas 3D en el navegador (\emph{shaders} propios). \\
 HTML, CSS y JavaScript nativos & Interfaz sin \emph{frameworks} ni compilación. \\
-pytest + GitHub Actions & 54 pruebas automáticas que se ejecutan en cada cambio. \\
+pytest + GitHub Actions & 103 pruebas automáticas que se ejecutan en cada cambio. \\
 Docker & Imagen reproducible con todas las dependencias y los modelos. \\
 \LaTeX{} & Este documento. \\
 \bottomrule
@@ -45,6 +45,7 @@ Física de hebras (Verlet + PBD) y juego & Propio \\
 Gaussianas 2D (gradientes analíticos, Adam) & Propio \\
 Gaussianas 3D, proyección EWA, ordenamiento, exportación \texttt{.ply} & Propio \\
 Peluca multivista (\emph{visual hull} por cortes, textura, estudio) & Propio \\
+Fiesta: cara promedio, \emph{warp} por identificador de triángulo, color de Reinhard, mezcla multibanda, caricatura y \emph{morphing} & Propio \\
 \bottomrule
 \end{tabularx}
 \caption{Qué viene de bibliotecas y qué implementó el equipo.}

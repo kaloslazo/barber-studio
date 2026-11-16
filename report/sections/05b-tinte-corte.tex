@@ -1,35 +1,54 @@
 \subsection{Tinte en CIELAB}
 \label{sec:tinte}
 
-El tinte (\archivo{coloring/dye.py}) recibe una máscara suave del pelo $\alpha\in[0,1]$ y un color objetivo con componentes $(L_t,a_t,b_t)$ en CIELAB. La figura~\ref{fig:diag-tinte} resume el proceso.
+El tinte (\archivo{coloring/dye.py}) recibe una máscara suave del pelo $\alpha\in[0,1]$ y un color objetivo con componentes $(L_t,a_t,b_t)$ en CIELAB. Los valores están en la escala de 8 bits de OpenCV: $L$ va de 0 a 255, y $a$ y $b$ están centrados en 128. La figura~\ref{fig:diag-tinte} resume el proceso.
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{diagrama_tinte.pdf}
-  \caption{Pipeline del tinte: máscara de YOLO o MediaPipe, separación de la luminosidad en sombreado y detalle, y recoloreo en CIELAB.}
+  \caption{Pipeline del tinte: \emph{matte} del YOLO propio o máscara de MediaPipe, luminosidad separada en tres bandas y recoloreo en CIELAB.}
   \label{fig:diag-tinte}
 \end{figure}
 
 
 \textbf{Por qué CIELAB.} En una primera versión se cambiaba el tono en HSV. Eso conserva la oscuridad del pelo, así que un pelo negro nunca podía quedar rubio. En CIELAB la luminosidad está separada del color, así que se puede mover la luminosidad base hacia la del tinte sin perder el detalle de cada mechón.
 
-\textbf{Paso 1: luminosidad.} Sean $\bar L$ y $s_L$ la media y la desviación de $L^*$ dentro del pelo, y $G_\sigma$ un desenfoque gaussiano con $\sigma=1{,}5$~px. La imagen se descompone en sombreado (variación lenta) y detalle (mechones):
-\begin{align}
-  \text{detalle}&=L-G_\sigma(L), & \text{sombreado}&=G_\sigma(L)-\bar L,\\
-  L' &= \underbrace{0{,}72\,L_t+0{,}28\,\bar L}_{\text{base}}+k\,(0{,}8\,\text{sombreado}+1{,}2\,\text{detalle}),
-  & k&=\operatorname{clip}(20/s_L,\;0{,}9,\;1{,}8).
-\end{align}
-El factor $k$ normaliza el contraste: un pelo de contraste bajo, como uno negro liso, gana detalle, y uno muy contrastado no se exagera.
+\textbf{Qué fallaba en la versión anterior.} Quedaban puntos negros dentro del pelo teñido, el rubio salía verdoso o gris sobre pelo oscuro, y el pelo claro (rubio, canas) se teñía a parches. Había dos causas:
+\begin{itemize}
+  \item la máscara de YOLO se binarizaba, se le quitaban huecos por color y luego se difuminaba solo hacia adentro. Quedaban agujeros, y los puntos negros eran el pelo original que asomaba por ellos; además, el pelo claro sobre un fondo oscuro se perdía;
+  \item el modelo de luz podía amplificar el detalle hasta 2{,}16 veces.
+\end{itemize}
 
-\textbf{Paso 2: color.} El croma se toma del tinte y se atenúa en las sombras más profundas, como ocurre con un pigmento real:
+\textbf{Paso 1: \emph{matte} del pelo.} Con YOLO, \texttt{hair\_matte} (\archivo{segmentation/mask_refiner.py}) convierte la máscara cruda en un \emph{matte} suave con dos pasadas del filtro guiado \cite{he2013}, con la foto como guía:
+\begin{enumerate}
+  \item radio $r$ igual al alto del pelo dividido por 60, entre 3 y 16~px, y $\varepsilon=2\cdot10^{-3}$: la máscara se extiende por las zonas del color del pelo y se cierran los huecos;
+  \item radio $r/2$ y $\varepsilon=10^{-3}$: la transición se pega a los bordes reales;
+  \item un \emph{smoothstep} final, $\alpha=S\big((x-0{,}2)/0{,}6\big)$ con $S(x)=x^2(3-2x)$.
+\end{enumerate}
+El resultado no tiene agujeros dentro del pelo y su borde sigue al pelo. La máscara binaria refinada (\texttt{refine\_hair\_mask}, sección~\ref{sec:segmentacion}) se sigue usando, pero solo para medir la IoU con MediaPipe. Con MediaPipe se usa su máscara suave.
+
+\textbf{Paso 2: luminosidad en tres bandas.} Sea $m$ la mediana de $L$ dentro del pelo. Primero, $L$ se recorta al rango propio del pelo, entre sus percentiles 3 y 97 (más 8 niveles arriba): así la piel que queda bajo el borde suave no brilla. Con $\tilde L$ esa luminosidad recortada, $B$ un filtro bilateral \cite{tomasi1998} de ventana 7~px y $G_3$ un desenfoque gaussiano con $\sigma=3$~px, las tres bandas son
 \begin{equation}
-  a'=128+(a_t-128)\,(0{,}4+0{,}5\,d),\qquad d=\operatorname{clip}\!\left(\frac{L'}{\max(L_t,40)},0,1\right),
+  d=\tilde L-B(\tilde L),\qquad f=B(\tilde L)-G_3\big(B(\tilde L)\big),\qquad s=G_3\big(B(\tilde L)\big)-m:
+\end{equation}
+el detalle de cada mechón, los mechones finos agrupados y el sombreado amplio, que es la luz propia del pelo. El filtro bilateral respeta los bordes, así que un hueco oscuro entre dos mechones no se mezcla con sus vecinos.
+
+\textbf{Paso 3: nueva luminosidad.} La base se mueve el 82~\% hacia la luminosidad del tinte, así un pelo negro sí puede quedar rubio. Las bandas se escalan según cuánto se aclara el pelo, como una superficie más clara que muestra más textura:
+\begin{align}
+  \text{base}&=m+0{,}82\,(L_t-m), & g&=\operatorname{clip}\!\left(\frac{\text{base}+25}{m+25},\;0{,}75,\;1{,}55\right),\\
+  L'&=\text{base}+g\,(0{,}85\,s+f+0{,}9\,d).
+\end{align}
+Las zonas muy oscuras se recortan de forma suave: bajo el piso $p=0{,}35\cdot\text{base}$, la luminosidad pasa a $p-0{,}25\,(p-L')$; llamamos $L''$ al resultado. Así un hueco oscuro entre mechones no se vuelve un punto negro.
+
+\textbf{Paso 4: color.} El croma se toma del tinte y se atenúa en las sombras más profundas, como ocurre con un pigmento real:
+\begin{equation}
+  a'=128+(a_t-128)\,\operatorname{clip}(0{,}55+0{,}45\,q,\;0,\;1{,}1),\qquad q=\operatorname{clip}\!\left(\frac{L''}{\max(L_t,35)},\;0,\;1{,}3\right),
 \end{equation}
 y lo mismo para $b'$.
 
-\textbf{Paso 3: mezcla.} El resultado se mezcla con la imagen original según $\alpha$ multiplicado por la intensidad elegida.
+\textbf{Paso 5: mezcla.} El resultado se mezcla con la imagen original según $\alpha$ multiplicado por la intensidad elegida.
 
-\textbf{Máscara.} La máscara viene de MediaPipe o del YOLO propio (sección~\ref{sec:segmentacion}). Su borde se suaviza hacia adentro, para no teñir la piel ni el fondo.
+\textbf{Verificación.} Se revisó en 8 caras con 7 colores (negro, rubio, rojo, azul, verde, morado y rosado): no quedan puntos negros y la cobertura es completa en el rubio y en el pelo largo. La foto de ejemplo de la aplicación pasó a ser el retrato oficial de la NASA de Scott Horowitz, que muestra el pelo completo; en la foto anterior el pelo quedaba casi fuera del encuadre y el problema apenas se notaba. Si la foto no tiene pelo, la aplicación sugiere la Peluca 3D.
 
 \subsection{Motor de cortes de pelo}
 \label{sec:corte}
@@ -81,7 +100,7 @@ Después del relleno se buscan \textbf{mechones sueltos}: píxeles cerca del hue
   \label{fig:pullpush}
 \end{figure}
 
-\textbf{Piel bajo el pelo.} Dentro del cráneo, la piel que tapaba el pelo (cuero cabelludo o frente bajo un flequillo) se rellena con \emph{pull-push}. Como fuente se usan solo píxeles de piel de la cara alejados del pelo, porque la piel pegada a la línea del pelo suele estar sombreada y dejaba una marca. La transición hacia la piel real es gradual.
+\textbf{Piel bajo el pelo.} Dentro del cráneo, la piel que tapaba el pelo (cuero cabelludo o frente bajo un flequillo) se rellena con \emph{pull-push}. Como fuente se usan solo píxeles de piel de la cara alejados del pelo, porque la piel pegada a la línea del pelo suele estar sombreada y dejaba una marca. El \emph{pull-push} rellena a la vez el color y el sombreado $s$ de esos píxeles (ver abajo), y el cuero cabelludo se vuelve a iluminar con $\operatorname{clip}(s/s_{\text{muestra}},\,0{,}8,\,1{,}12)$: así la piel nueva tiene la luz de la cabeza en ese punto y no la de la frente de donde salió. El cuero cabelludo usa un cráneo un poco más chico que el pelo, para que detrás del borde del pelo quede fondo y no un anillo de piel.
 
 \textbf{Pelo corto.} El pelo nuevo tiene el color del propio pelo: la mediana en CIELAB del 45~\% más oscuro de los píxeles de pelo. Se sombrea con un modelo de Lambert \cite{marschner2016}:
 \begin{itemize}
@@ -89,11 +108,15 @@ Después del relleno se buscan \textbf{mechones sueltos}: píxeles cerca del hue
   \item la dirección de la luz se estima de la asimetría de brillo entre las dos mitades de la cara, más una componente desde arriba;
   \item la luminosidad final es $L=L_{\text{pelo}}\,(0{,}55+0{,}6\,s)$, donde $s=0{,}62+0{,}38\max(0,\hat n\cdot\hat l)$ es el sombreado.
 \end{itemize}
-La textura combina dos ruidos: uno anisótropo (desenfoque gaussiano mucho más largo en vertical que en horizontal) que imita trazos cortos, y uno de baja frecuencia para variaciones de densidad. La cobertura del pelo corto es
+El pelo corto se dibuja como un grano fino y no como una capa semitransparente. Se usan dos ruidos: una fibra anisótropa $n_{\text{fibra}}$ (desenfoque gaussiano mucho más largo en vertical que en horizontal) que imita hebras cortas, y uno de baja frecuencia $n_{\text{parche}}$ para variaciones de densidad. Primero se calcula cuánto pelo hay:
 \begin{equation}
-  c = \rho(x,y)\cdot z_{\text{pelo}}\cdot h_{\text{cráneo}}\cdot(1+0{,}08\,n_{\text{trazo}}+0{,}06\,n_{\text{parche}}),
+  a = \rho(x,y)\cdot z_{\text{pelo}}\cdot h_{\text{cráneo}}\cdot(1+0{,}05\,n_{\text{parche}}),\qquad u = \operatorname{clip}(a/\rho_0,\,0,\,1),
 \end{equation}
-donde $z_{\text{pelo}}$ vale 1 por encima de la línea del pelo y $\rho$ es la densidad del estilo. La densidad base depende de la intensidad elegida $t$: $\rho_0=0{,}92\,(1{,}1-0{,}4\,t)$. Más intensidad significa pelo más corto, con más cuero cabelludo visible.
+y luego la cobertura sale del grano:
+\begin{equation}
+  c = \min(0{,}9,\;1{,}1\,\rho_0)\cdot\operatorname{clip}\!\big(u\,(1+g\,(0{,}2+(1-u))\,n_{\text{fibra}}),\,0,\,1\big),
+\end{equation}
+donde $z_{\text{pelo}}$ vale 1 por encima de la línea del pelo (más las sienes donde la persona ya tenía pelo), $h_{\text{cráneo}}$ es el cráneo con un borde difuso y ruidoso, $\rho$ es la densidad del estilo y $g=\operatorname{clip}(w_{\text{cara}}/420,\,0{,}45,\,1)$ baja el grano en fotos chicas para que no parezca arena. Con $u$ bajo, el término $(1-u)$ agranda el grano: un degradado se aclara mostrando más cuero cabelludo entre pelos, como en la realidad, en vez de volverse transparente. La densidad base depende de la intensidad elegida $t$: $\rho_0=0{,}92\,(1{,}1-0{,}4\,t)$. Más intensidad significa pelo más corto, con más cuero cabelludo visible. El borde entre el pelo que se conserva arriba y los costados lleva ruido a escala de mechones, para que se lea como puntas de pelo y no como un recorte.
 
 \textbf{Estilos.} Todos los cortes se definen sobre el mismo marco. La parte de arriba se conserva dentro de una franja $|x|<r(y)$, con
 \begin{equation}
@@ -101,9 +124,9 @@ donde $z_{\text{pelo}}$ vale 1 por encima de la línea del pelo y $\rho$ es la d
 \end{equation}
 que se ensancha hacia la coronilla. En los costados, la densidad sube desde la piel en $y_{\text{piel}}$ hasta pelo corto en $y_{\text{corto}}$:
 \begin{equation}
-  \rho(y)=\rho_0\,\min\!\Big(f+(1-f)\sqrt{\operatorname{smoothstep}\big(\tfrac{y_{\text{piel}}-y}{y_{\text{piel}}-y_{\text{corto}}}\big)},\;c_{\max}\Big),
+  \rho(y)=\rho_0\,\max\!\Big(\min\!\big(f+(1-f)\,r(y)^{1{,}4},\;c_{\max}\big),\;b(y)\Big),\qquad r(y)=\operatorname{smoothstep}\!\Big(\tfrac{y_{\text{piel}}+0{,}02\,n-y}{y_{\text{piel}}-y_{\text{corto}}}\Big),
 \end{equation}
-donde $f$ es la densidad mínima y $c_{\max}$, la máxima. La tabla~\ref{tab:cortes} da los parámetros.
+donde $f$ es la densidad mínima, $c_{\max}$ la máxima, $n$ un ruido suave que ondula la línea del degradado y $b(y)=0{,}12\,\operatorname{smoothstep}\big((y_{\text{piel}}+0{,}16-y)/0{,}12\big)$ deja una barba de pocos días que se apaga un poco por debajo de $y_{\text{piel}}$. La tabla~\ref{tab:cortes} da los parámetros.
 
 \begin{table}[ht]
 \centering

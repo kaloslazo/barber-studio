@@ -196,6 +196,7 @@ uvicorn app.main:app --port 8000</pre>
           <li>Tinte en CIELAB que conserva la textura del pelo, también sobre la barba.</li>
           <li>Ocho cortes con relleno pull-push, modelo de cráneo y sombreado de Lambert.</li>
           <li>Forma de la cara calibrada con 419 caras, y sugerencias de estilos.</li>
+          <li>Cambio de cara en vivo: warp por mapeo inverso, color de Reinhard en Lab y mezcla con pirámides laplacianas.</li>
         </ul>
         <ul>
           <li>Física de la barba con Verlet y restricciones de distancia.</li>
@@ -204,6 +205,7 @@ uvicorn app.main:app --port 8000</pre>
           <li>Peluca 3D multivista con envolvente visual por cortes.</li>
           <li>Juego de afeitado con detección de corte por cápsula.</li>
           <li>Segmentador de pelo YOLOv8 ajustado por el equipo (mAP50 de máscara 0,968).</li>
+          <li>Caricatura de Brennan contra una cara promedio de 400 personas, y fusión de dos caras con morphing.</li>
         </ul>
       </div>
     </section>
@@ -211,8 +213,8 @@ uvicorn app.main:app --port 8000</pre>
     <section aria-labelledby="t-equipo">
       <h2 id="t-equipo">Equipo</h2>
       <div class="team">
-        <div class="member"><h3>Kalos Lazo Mera</h3><p>Arquitectura y API, tinte, YOLO, interfaz, motor de cortes, combinación de looks, forma de cara, Docker y pruebas.</p></div>
-        <div class="member"><h3>Gianpier Segovia</h3><p>Barba con plantillas, Delaunay de Fortune, warp, física, gaussianas 2D, juego y espejo 3D.</p></div>
+        <div class="member"><h3>Kalos Lazo Mera</h3><p>Arquitectura y API, tinte, YOLO, interfaz, motor de cortes, combinación de looks, forma de cara, Fiesta (cambio de cara, caricatura y fusión), Docker y pruebas.</p></div>
+        <div class="member"><h3>Gianpier Segovia</h3><p>Barba con plantillas, Delaunay de Fortune, warp, física, barba en vivo sobre la malla 3D, gaussianas 2D, juego, espejo 3D y peluca en una vuelta.</p></div>
         <div class="member"><h3>Sofía Herrera</h3><p>Peluca 3D: escaneo, peluca de gaussianas multivista, cara 3D y estudio de color y recorte.</p></div>
       </div>
     </section>
