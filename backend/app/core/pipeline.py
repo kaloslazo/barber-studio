@@ -10,6 +10,7 @@ from app.core.coloring.dye import apply_dye, hex_to_hsv
 from app.core.compositing.alpha import inside_feather
 from app.core.compositing.beard import apply_beard as render_beard
 from app.core.compositing.beard import LiveAnchor, apply_real_beard, beard_mask, load_templates
+from app.core.compositing.beard_mesh import MeshBeard
 from app.core.compositing.beard_physics import BeardPhysics
 from app.core.detection.hands import FingerTracker, draw_hand
 from app.core.game.speedrun import SpeedrunGame
@@ -41,6 +42,12 @@ except ImportError:
     MultiClassSegmenter = None
 
 
+LIVE_LOST_YAW = 40.0
+MESH_REFERENCE_YAW = 12.0
+LIVE_RESTART_GAP = 1.0
+LIVE_HAIR_EVERY = 8
+
+
 class StylePipeline:
     def __init__(self):
         self.detector = FaceDetector()
@@ -52,6 +59,9 @@ class StylePipeline:
         self._physics = None
         self._live_last_points = None
         self._live_misses = 0
+        self._live_yaw = None
+        self._live_clock = None
+        self._mesh_beard = None
         self._live_last_gray = None
         self.game = None
         self.finger_tracker = FingerTracker()
@@ -345,15 +355,25 @@ class StylePipeline:
         stats["target"] = self.game.target
         return out, stats
 
-    def _live_hair_estimate(self, image_bgr, face):
-        hair_mask = self.hair_mask(image_bgr, face)
-        pixels = image_bgr[hair_mask > 0]
-        if len(pixels) > 200:
+    def _live_hair_estimate(self, image_bgr, face, points=None):
+        """Median hair colour from MediaPipe's hair class (the colour-based
+        mask is only a fallback), re-measured every LIVE_HAIR_EVERY frames."""
+        self._live_hair_tick = (getattr(self, "_live_hair_tick", -1) + 1) % LIVE_HAIR_EVERY
+        if self._live_hair_color is not None and self._live_hair_tick:
+            return self._live_hair_color
+        pixels, trusted = None, False
+        if points is not None:
+            probabilities = self._part_probabilities(image_bgr, self._head_geometry(points, face, live=True))
+            if probabilities is not None and (probabilities[HAIR] > 0.6).sum() > 150:
+                pixels, trusted = image_bgr[probabilities[HAIR] > 0.6], True
+        if pixels is None:
+            pixels = image_bgr[self.hair_mask(image_bgr, face) > 0]
+        if len(pixels) > 150:
             ycc = cv2.cvtColor(
                 np.median(pixels, axis=0).reshape(1, 1, 3).astype(np.uint8), cv2.COLOR_BGR2YCrCb,
             )[0, 0].astype(np.float32)
-            ycc[1] = max(ycc[1], 136.0)
-            ycc[2] = min(ycc[2], 121.0)
+            ycc[1] = max(ycc[1], 131.0 if trusted else 136.0)
+            ycc[2] = min(ycc[2], 126.0 if trusted else 121.0)
             if self._live_hair_color is not None:
                 ycc = 0.9 * self._live_hair_color + 0.1 * ycc
             self._live_hair_color = ycc
@@ -366,36 +386,53 @@ class StylePipeline:
         mode). The crop keeps a constant size so the face-anchored textures
         (no jitter) survive while the crop window follows the face."""
         h, w = image_bgr.shape[:2]
+        now = time.monotonic()
+        if self._live_clock is None or now - self._live_clock > LIVE_RESTART_GAP:
+            self._mesh_beard = None
+        self._live_clock = now
         scale = min(1.0, work_width / w)
         small = cv2.resize(image_bgr, (int(round(w * scale)), int(round(h * scale))), interpolation=cv2.INTER_AREA) if scale < 1 else image_bgr
         points = self._live_points(small)
         if points is None:
             self._live_anchor = None
             return None
-        hair = self._live_hair_estimate(small, self._box_from_landmarks(points))
+        if self._lost_turned_face():
+            self._live_anchor = None
+            return image_bgr
+        hair = self._live_hair_estimate(small, self._box_from_landmarks(points), points)
         pts = points / scale
         face_w = float(np.linalg.norm(pts[16] - pts[0]))
-        wanted = (int(min(w, face_w * 1.45)) // 8 * 8, int(min(h, face_w * 1.35)) // 8 * 8)
+        mesh = self._live_mesh(scale)
+        window_w = face_w if mesh is None else self.live_landmark_detector.last_head_width / scale
+        wanted = (int(min(w, window_w * 1.45)) // 8 * 8, int(min(h, window_w * 1.35)) // 8 * 8)
         size = getattr(self, "_hd_size", None)
         if size is None or abs(wanted[0] - size[0]) > 0.25 * size[0] or size[0] > w or size[1] > h:
             size = wanted
             self._hd_size = size
             self._live_anchor = None
         cw, ch = size
-        cx = float(0.5 * (pts[0, 0] + pts[16, 0]))
+        cx = float(0.5 * (pts[0, 0] + pts[16, 0])) if mesh is None else float(0.5 * (mesh[:, 0].min() + mesh[:, 0].max()))
         top = float(min(pts[0, 1], pts[16, 1], pts[29, 1])) - 0.08 * face_w
         x0 = int(np.clip(cx - cw / 2, 0, w - cw))
         y0 = int(np.clip(top, 0, h - ch))
         crop = image_bgr[y0:y0 + ch, x0:x0 + cw]
         local = (pts - np.array([x0, y0], np.float32)).astype(np.float32)
+        view = self._mesh_region(mesh, style, pts, (h, w), (x0, y0), (ch, cw), local, face_w, crop)
+        region = None if view is None or view is False else view["region"]
+        if view is False:
+            self._live_anchor = None
+            return image_bgr
         current = self._live_anchor
         if current is None or current.stale or current.style != style or current.shape != (ch, cw):
             current = LiveAnchor(local, (ch, cw), style)
             self._live_anchor = current
+        if view is not None:
+            current.bind(self._mesh_beard, view["xy"], view["front"])
         try:
             painted = apply_real_beard(
                 crop, local, style, strength, self.beard_templates,
-                hair_yccrb=hair, anchor=current,
+                hair_yccrb=hair, anchor=current, region_mask=region,
+                region_gain=None if view is None else view["gain"],
             )
         except Exception:
             painted = None
@@ -404,6 +441,34 @@ class StylePipeline:
         result = image_bgr.copy()
         result[y0:y0 + ch, x0:x0 + cw] = painted
         return result
+
+    def _live_mesh(self, scale):
+        detector = self.live_landmark_detector
+        if detector is None or detector.last_mesh3d is None or detector.last_yaw is None:
+            return None
+        return detector.last_mesh3d / scale
+
+    def _mesh_region(self, mesh, style, pts, frame_shape, origin, crop_shape, local, face_w, crop):
+        """Beard view from the 3D face mesh (see MeshBeard.view). None when
+        there is no mesh this frame (the 2D region is used); False while
+        there is no frontal reference yet and the head is turned."""
+        if mesh is None:
+            return None
+        if self._mesh_beard is None:
+            if abs(self.live_landmark_detector.last_yaw) > MESH_REFERENCE_YAW:
+                return False
+            self._mesh_beard = MeshBeard(mesh, pts, frame_shape)
+        return self._mesh_beard.view(mesh, style, origin, crop_shape, local, max(1, int(0.015 * face_w)), crop)
+
+    def _lost_turned_face(self):
+        """MediaPipe lost a face turned past LIVE_LOST_YAW: the fallback
+        points collapse onto the cheek, so no beard is drawn."""
+        detector = self.live_landmark_detector
+        yaw = detector.last_yaw if detector is not None else None
+        if yaw is not None:
+            self._live_yaw = abs(yaw)
+            return False
+        return self._live_yaw is not None and self._live_yaw > LIVE_LOST_YAW
 
     def apply_beard_physics(self, image_bgr, strength=0.9, now=None, length=1.0):
         base = self.apply_beard(image_bgr, "full", strength, live=True, detail=False)
