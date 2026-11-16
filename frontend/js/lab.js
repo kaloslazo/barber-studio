@@ -1,6 +1,7 @@
 (() => {
   const LAB_API = "/api";
   const MODEL_FLOATS = 17;
+  const LAB_DISTANCE = 2.6;
   const SIDE_A = 234;
   const SIDE_B = 454;
 
@@ -129,7 +130,7 @@
     button.addEventListener("click", () => {
       document.querySelectorAll("[data-lab-view]").forEach((b) => b.classList.remove("active"));
       button.classList.add("active");
-      if (viewer) viewer.setView(parseFloat(button.dataset.labView), 0.05, 1.9);
+      if (viewer) viewer.setView(parseFloat(button.dataset.labView), 0.05, LAB_DISTANCE);
     });
   });
 
@@ -221,7 +222,7 @@
         window.labViewer = viewer;
       }
       viewer.setModel(model);
-      viewer.setView(0, 0.05, 1.9);
+      viewer.setView(0, 0.05, LAB_DISTANCE);
       showMetrics(model.metrics);
       const seconds = ((performance.now() - started) / 1000).toFixed(1);
       stats.textContent = `${model.count.toLocaleString()} gaussianas ancladas (${model.beard.toLocaleString()} de barba) · ${model.metrics.views} vistas · lista en ${seconds} s`;

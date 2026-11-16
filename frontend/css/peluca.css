@@ -1,0 +1,3 @@
+.stage-col:has(> #hair3d-stage:not([hidden])) > .turn-stage {
+  display: none;
+}

@@ -235,9 +235,14 @@ async function finishTurn() {
     turnPercent.textContent = "";
     const gap = turnGap(solved.bins);
     const note = `${Math.round(solved.coverage * 100)} % de la vuelta${gap ? `, ${gap}` : ""} · ${ownFace ? "cara de tu escaneo de 8 vistas" : "cara de este giro"}`;
-    await buildHair3d({ frames: picks.map((index) => frames[index]), angles: yaws.map((yaw) => yaw.toFixed(2)), turn: true, note }, "Peluca 360");
-    turnStage.hidden = true;
+    const built = await buildHair3d({ frames: picks.map((index) => frames[index]), angles: yaws.map((yaw) => yaw.toFixed(2)), turn: true, note }, "Peluca 360");
     turnStart.textContent = "Escanear de nuevo";
+    if (!built) {
+      turnStatus.textContent = "No se pudo armar la peluca: vuelve a girar despacio con todo el pelo en el cuadro";
+      turnEmpty.hidden = false;
+      return;
+    }
+    turnStage.hidden = true;
   } catch (error) {
     turnShowError(error.message);
     turnStatus.textContent = "No se pudo armar la peluca";
@@ -279,7 +284,11 @@ async function useTurnVideo(file) {
     const gap = turnGap(result.bins);
     const note = `${Math.round(result.coverage * 100)} % de la vuelta${gap ? `, ${gap}` : ""} · ${ownFace ? "cara de tu escaneo de 8 vistas" : "cara del video"}`;
     turnStatus.textContent = `Video leído: ${result.sampled} cuadros, ${blobs.length} vistas. Armando la peluca…`;
-    await buildHair3d({ frames: blobs, angles: result.yaws.map((yaw) => yaw.toFixed(2)), turn: true, note }, "Peluca 360 (video)");
+    const built = await buildHair3d({ frames: blobs, angles: result.yaws.map((yaw) => yaw.toFixed(2)), turn: true, note }, "Peluca 360 (video)");
+    if (!built) {
+      turnStatus.textContent = "No se pudo armar la peluca con este video";
+      return;
+    }
     turnStage.hidden = true;
     turnStart.textContent = "Escanear de nuevo";
   } catch (error) {

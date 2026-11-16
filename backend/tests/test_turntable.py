@@ -87,6 +87,14 @@ def test_turn_store_keeps_frames_and_angles(tmp_path):
     assert sorted(path.name for path in folder.iterdir()) == ["00_+0000.0.jpg", "01_-0012.5.jpg", "angles.json"]
 
 
+def test_turn_store_never_fails_when_the_disk_cannot_be_written(tmp_path):
+    from app.core.splatting import turn_store
+
+    blocked = tmp_path / "blocked"
+    blocked.write_bytes(b"")
+    assert turn_store.save([b"a"], [0.0], root=blocked) is None
+
+
 def test_video_endpoint_rejects_a_file_that_is_not_a_video():
     from fastapi.testclient import TestClient
 
