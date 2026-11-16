@@ -30,7 +30,7 @@ Para revisar antes de entregar (lunes 16-nov, 23:59) y antes de exponer. No va e
 | Comunicación oral (2) | Claridad, tiempo, recursos visuales, contacto visual | Diapositivas Beamer + demo en vivo (`demo-en-vivo.md`) | Ensayar una vez con cronómetro; cada uno habla de lo suyo |
 | Liderazgo / iniciativa (1,5) | Participación constante, propone mejoras | Historial de git por integrante, PRs | Que cada uno muestre y explique su módulo |
 | Colaboración (2) | Integra ideas de otros, clima positivo | Ramas y PRs integrados (la de Gianpier entra en este PR) | Presentar como un solo producto, no tres partes sueltas |
-| Desarrollo de software (2) | Metodología, calidad, verificación de requisitos | 117 pruebas automáticas (`pytest`), CI en GitHub Actions, Docker, API documentada, `verificar.py` | Correr las pruebas antes de exponer y mostrarlas 10 s |
+| Desarrollo de software (2) | Metodología, calidad, verificación de requisitos | 121 pruebas automáticas (`pytest`), CI en GitHub Actions, Docker, API documentada, `verificar.py` | Correr las pruebas antes de exponer y mostrarlas 10 s |
 
 ## Pendiente de cada uno
 

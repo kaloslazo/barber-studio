@@ -292,7 +292,7 @@ def scan_face(views):
     tris = oriented_triangles(ref_mesh, np.vstack([base, strip]))
     scanned = AnchoredHead(ref_mesh, tris)
     _surface(scanned, np.random.default_rng(5), FACE_BUDGET)
-    pos, cov, _ = scanned.place(ref_mesh)
+    pos, cov, _ = scanned.place(ref_mesh, smooth=True)
     fused, hair_everywhere = fuse_colors(scanned, views, meshes, views.index(reference))
     color = smooth_color(pos, fused)
     forehead = scanned.tri >= len(base)

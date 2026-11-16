@@ -57,6 +57,24 @@ def test_hair_splats_wrap_the_head_from_one_photo():
     assert np.isfinite(rows).all()
 
 
+def test_hair_splats_keep_the_colour_of_the_hair():
+    from app.core.splatting.hair3d import HairView, build_hair_splats
+
+    image, probabilities, geometry = scene()
+    rng = np.random.default_rng(2)
+    hair = np.all(image == (30, 30, 35), axis=2)
+    brown = np.clip(np.array([40, 70, 110]) * rng.uniform(0.8, 1.2, (hair.sum(), 1)), 0, 255).astype(np.uint8)
+    image[hair] = brown
+    _, alpha = transfer_mask(image, geometry, probabilities)
+    face = np.zeros(alpha.shape, np.uint8)
+    cv2.fillPoly(face, [geometry["polygon"]], 255)
+    rows, meta = build_hair_splats([HairView(image, alpha, face, geometry, 0.0)], budget=8000, mannequin=0)
+    source = image[hair].mean(axis=0)[::-1] / 255.0
+    colour = rows[:meta["hair"], 9:12].mean(axis=0)
+    assert 0.75 < colour.mean() / source.mean() < 1.0
+    assert colour[0] > colour[2]
+
+
 def test_hair_splats_from_several_angles_form_one_closed_peluca():
     from app.core.splatting.hair3d import HairView, build_hair_splats
 

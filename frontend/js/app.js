@@ -757,10 +757,11 @@ function sweepAngles(captures) {
   if (!tracked.length) return captures.map((capture) => capture.yaw);
   const first = tracked[0];
   const last = tracked[tracked.length - 1];
+  const side = Math.sign(last.yaw - first.yaw) || 1;
   return captures.map((capture) => {
     if (capture.tracked) return capture.yaw;
-    if (capture.time <= first.time) return Math.min(first.yaw, -90);
-    if (capture.time >= last.time) return Math.max(last.yaw, 90);
+    if (capture.time <= first.time) return side > 0 ? Math.min(first.yaw, -90) : Math.max(first.yaw, 90);
+    if (capture.time >= last.time) return side > 0 ? Math.max(last.yaw, 90) : Math.min(last.yaw, -90);
     const after = tracked.findIndex((item) => item.time >= capture.time);
     const before = tracked[after - 1];
     const next = tracked[after];
@@ -1153,7 +1154,7 @@ function hair3dForm(source, extra = {}) {
   source.frames.forEach((frame, index) => formData.append("frames", frame, `view-${index}.jpg`));
   formData.append("angles", source.angles.join(","));
   if (source.turn) formData.append("turn", "true");
-  if (faceScan && faceScan.webcam) formData.append("face_mirror", "true");
+  if (faceScan && faceScan.webcam && !source.mirrored) formData.append("face_mirror", "true");
   if (hair3dMyFace.checked && faceScan) {
     formData.append("head", "face");
     faceScan.frames.forEach((frame, index) => formData.append("face_frames", frame, `face-${index}.jpg`));
@@ -1465,10 +1466,13 @@ async function buildHair3d(source, label) {
     const head = hair3dMyFace.checked ? " en tu cara" : "";
     hair3dStats.textContent = `${label}${head} · ${hair3dModel.hair.toLocaleString()} gaussianas de pelo desde ${views} · lista en ${seconds} s${source.note ? ` · ${source.note}` : ""}`;
     hair3dPly.disabled = false;
+    return true;
   } catch (error) {
     hair3dError.textContent = error.message;
     hair3dError.hidden = false;
     hair3dStats.textContent = "--";
+    if (!hair3dModel) hair3dStage.hidden = true;
+    return false;
   } finally {
     hair3dScan.disabled = !(selectedPeluca && selectedPeluca.frames);
   }
@@ -1476,7 +1480,7 @@ async function buildHair3d(source, label) {
 
 function buildHair3dFromPeluca() {
   if (!selectedPeluca || !selectedPeluca.frames) return;
-  buildHair3d({ frames: selectedPeluca.frames, angles: selectedPeluca.angles }, selectedPeluca.name);
+  buildHair3d({ frames: selectedPeluca.frames, angles: selectedPeluca.angles, mirrored: true }, selectedPeluca.name);
 }
 
 hair3dScan.addEventListener("click", buildHair3dFromPeluca);

@@ -11,7 +11,13 @@ KEEP = 12
 def save(frames, angles, root=None):
     """Keeps the frames of a 360 scan and their solved yaws on disk (data/ is
     not versioned), so a scan can be inspected or rebuilt later."""
-    root = Path(root) if root else TURN_DIR
+    try:
+        return _write(frames, angles, Path(root) if root else TURN_DIR)
+    except OSError:
+        return None
+
+
+def _write(frames, angles, root):
     folder = root / time.strftime("%Y%m%d-%H%M%S")
     folder.mkdir(parents=True, exist_ok=True)
     for index, (data, angle) in enumerate(zip(frames, angles)):

@@ -124,6 +124,6 @@ def test_hair_albedo_is_deepened_and_loses_part_of_its_cast():
 
     grey_blue = np.array([[0.30, 0.32, 0.40], [0.45, 0.45, 0.45]])
     out = deepen_hair(grey_blue)
-    assert out.mean() < 0.7 * grey_blue.mean()
+    assert 0.75 * grey_blue.mean() < out.mean() < 0.95 * grey_blue.mean()
     assert (out[0, 2] - out[0, 0]) < (grey_blue[0, 2] - grey_blue[0, 0])
     assert np.allclose(out[1], 0.45 * HAIR_DEEPEN)

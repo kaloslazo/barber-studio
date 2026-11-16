@@ -11,6 +11,7 @@ from app.core.geometry.delaunay_fortune import delaunay_triangles
 MODELS_DIR = Path(__file__).resolve().parents[3] / "models"
 SIDE_A, SIDE_B = 234, 454
 GAUSSIAN_FLOATS = 17
+COLOR_BOX = 0.04
 
 
 class MeshTracker:
@@ -88,6 +89,30 @@ def triangle_frames(mesh, tris):
     return np.stack([e1, e2, n], axis=2), n
 
 
+def vertex_normals(mesh, tris):
+    """Area-weighted average of the normals of the triangles around each
+    vertex (the triangles are already wound toward the camera)."""
+    a, b, c = (mesh[tris[:, k]].astype(np.float64) for k in range(3))
+    face = np.cross(b - a, c - a)
+    normals = np.zeros((len(mesh), 3))
+    for k in range(3):
+        np.add.at(normals, tris[:, k], face)
+    return normals / (np.linalg.norm(normals, axis=1, keepdims=True) + 1e-9)
+
+
+def smooth_frames(mesh, tris, tri, bary):
+    """Phong-style frame per Gaussian: the normal is the vertex normals
+    blended with the Gaussian's barycentric weights, so neighbouring
+    triangles share a continuous surface and a lit render shows no facets."""
+    normal = (bary[:, :, None] * vertex_normals(mesh, tris)[tris[tri]]).sum(axis=1)
+    normal /= np.linalg.norm(normal, axis=1, keepdims=True) + 1e-9
+    corners = mesh[tris[tri]].astype(np.float64)
+    e1 = corners[:, 1] - corners[:, 0]
+    e1 -= (e1 * normal).sum(axis=1, keepdims=True) * normal
+    e1 /= np.linalg.norm(e1, axis=1, keepdims=True) + 1e-9
+    return np.stack([e1, np.cross(normal, e1), normal], axis=2)
+
+
 def _sample(image_bgr, xy):
     h, w = image_bgr.shape[:2]
     x = np.clip(xy[:, 0], 0, w - 1.001)
@@ -133,13 +158,15 @@ class AnchoredHead:
         self.alpha = np.concatenate([self.alpha, alpha])
         self.is_beard = np.concatenate([self.is_beard, np.full(len(tri), beard)])
 
-    def place(self, mesh):
-        """World positions, covariances and facing (n_z) of every Gaussian for a mesh."""
+    def place(self, mesh, smooth=False):
+        """World positions, covariances and facing (n_z) of every Gaussian for
+        a mesh. With `smooth`, each Gaussian is oriented by the interpolated
+        vertex normal instead of its flat triangle."""
         mesh = mesh.astype(np.float64)
         frames, normals = triangle_frames(mesh, self.tris)
         scale = face_width(mesh) / self.fw
         corners = mesh[self.tris[self.tri]]
-        R = frames[self.tri]
+        R = smooth_frames(mesh, self.tris, self.tri, self.bary) if smooth else frames[self.tri]
         pos = (self.bary[:, :, None] * corners).sum(axis=1) + np.einsum("nij,nj->ni", R, self.offset) * self.fw * scale
         cov = np.einsum("nij,njk,nlk->nil", R, self.cov, R) * (self.fw * scale) ** 2
         return pos, cov, normals[self.tri][:, 2]
@@ -299,6 +326,14 @@ def build_scanned_head(views_bgr, meshes, beard_texture=None, beard_region=None,
         mask = d["mask"] & (weight > 1e-3)
         return _psnr(img, d["target"], mask)
 
+    share = np.zeros(len(fused))
+    for i in train:
+        d = data[i]
+        weight = np.bincount(d["flat"].ravel(), weights=d["g"].ravel(), minlength=d["size"])
+        inside = d["mask"][d["flat"]] & (weight[d["flat"]] > 1e-3)
+        share += (np.where(inside, d["g"] / np.maximum(weight[d["flat"]], 1e-6), 0.0)).sum(axis=1)
+    trust = np.clip(share / max(float(np.percentile(share, 60)), 1e-6), 0.0, 1.0)[:, None]
+
     colors = fused.copy()
     m = np.zeros_like(colors)
     v = np.zeros_like(colors)
@@ -314,8 +349,8 @@ def build_scanned_head(views_bgr, meshes, beard_texture=None, beard_region=None,
             grad += (per_pixel * d["g"][..., None]).sum(axis=1) * 2.0 / max(int(mask.sum()), 1)
         m = 0.9 * m + 0.1 * grad
         v = 0.999 * v + 0.001 * grad * grad
-        colors -= 0.01 * (m / (1 - 0.9 ** step)) / (np.sqrt(v / (1 - 0.999 ** step)) + 1e-8)
-        colors = np.clip(colors, 0, 1)
+        colors -= 0.01 * trust * (m / (1 - 0.9 ** step)) / (np.sqrt(v / (1 - 0.999 ** step)) + 1e-8)
+        colors = np.clip(colors, np.maximum(fused - COLOR_BOX, 0.0), np.minimum(fused + COLOR_BOX, 1.0))
 
     metrics = {
         "views": len(views_bgr),
