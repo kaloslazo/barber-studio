@@ -20,13 +20,13 @@
 \node[paso, text width=3.3cm, minimum height=0.95cm] (pipe) at (6.3, -0.3) {\textbf{StylePipeline}\\cara, puntos y geometría};
 \node[paso=model!20, text width=3.3cm, minimum height=0.95cm] (models) at (6.3, -1.5) {\textbf{Modelos}\\MediaPipe ($\times3$) y YOLOv8 propio};
 
-\foreach \name [count=\i from 0] in {detection, segmentation, geometry, coloring, compositing, splatting, game, lab} {
+\foreach \name [count=\i from 0] in {detection, segmentation, geometry, coloring, compositing, splatting, faces, game, lab} {
   \pgfmathsetmacro{\col}{mod(\i, 2)}
   \pgfmathsetmacro{\row}{int(\i / 2)}
   \node[draw=ink, line width=0.5pt, fill=white, font=\sffamily\scriptsize, minimum width=1.9cm, minimum height=0.52cm, inner sep=1pt]
-    (m\i) at ({10.1 + 2.05 * \col}, {1.9 - 0.8 * \row}) {\texttt{\name}};
+    (m\i) at ({10.1 + 2.05 * \col}, {1.9 - 0.66 * \row}) {\texttt{\name}};
 }
-\node[grupo=red, fit=(m0)(m7)] (core) {};
+\node[grupo=red, fit=(m0)(m1)(m8)] (core) {};
 \node[titulo=red] at (core.north west) {\texttt{core/} $\cdot$ algoritmos propios};
 
 \begin{scope}[on background layer]
@@ -41,7 +41,7 @@
 \draw[flecha] (pipe) -- (models);
 \draw[flecha] (pipe.east) -- (core.west |- pipe.east);
 
-\node[paso, text width=3.6cm, minimum height=0.8cm, anchor=north] (ci) at ($(core.south |- docker.south) + (0, -0.35)$) {\textbf{GitHub Actions}\\54 pruebas en cada cambio};
+\node[paso, text width=3.6cm, minimum height=0.8cm, anchor=north] (ci) at ($(core.south |- docker.south) + (0, -0.35)$) {\textbf{GitHub Actions}\\123 pruebas en cada cambio};
 \draw[flecha, dash pattern=on 2pt off 1.5pt] (ci.north) -- (core.south);
 
 \end{tikzpicture}
