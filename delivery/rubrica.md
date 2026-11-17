@@ -13,9 +13,9 @@ Para revisar antes de entregar (lunes 16-nov, 23:59) y antes de exponer. No va e
 | c. Descripción de 1 o 2 párrafos | `delivery/descripcion-breve.txt` | Listo |
 | d. Código fuente y cómo reproducir | `codigo-fuente/` (git archive de HEAD) + `README.md` | Listo; el zip toma el último commit |
 | e. Video corto ≤ 1:30 | `delivery/videos/video-corto.mp4` | Listo: pitch de 1:16 hecho con capturas de la app real (ver `guion-video-corto.md`) |
-| f. Video largo ≤ 20 min | `delivery/videos/video-largo.mp4` | **Falta grabarlo** (guion en `guion-video-largo.md`) |
+| f. Video largo ≤ 20 min | `delivery/videos/video-largo.mp4` | **Falta grabarlo**: cada uno graba sus bloques con `guion-video-largo.md` (10 bloques, 19:30) |
 | g. Imágenes y videos extra | `imagenes-y-videos/` (galería, GIFs, diagramas) | Listo |
-| h. Diapositivas (PDF y original) | `slides/` → `diapositivas-exposicion-final/` | Listo, 34 diapositivas |
+| h. Diapositivas (PDF y original) | `slides/` → `diapositivas-exposicion-final/` | Listo, 37 diapositivas (una lámina por bloque del video largo) |
 | i. Página HTML con todo | `pagina-web/index.html`, sin internet | Listo |
 | j. Todo en un solo .zip, sin links | `python3 delivery/build_zip.py` | Armar al final |
 | k. El zip puede ir por Drive | Subir `dist/entrega-cs4016-fresh.zip` | Al final |

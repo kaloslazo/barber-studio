@@ -457,6 +457,27 @@
   \end{columns}
 \end{frame}
 
+\begin{frame}{Peluca en una vuelta}
+  \begin{itemize}
+    \item De espaldas no hay cara: el giro se mide con flujo óptico (Lucas--Kanade).
+    \item La cabeza es una esfera que gira sobre un eje vertical; cada punto vota:
+    \[ \Delta\theta = \arcsin u_1 - \arcsin u_0 \qquad\text{(se toma la mediana)} \]
+    \item Los cuadros con la cara fijan el ángulo real; mínimos cuadrados reparte el error del resto de la vuelta.
+    \item De cada tramo de $12^\circ$, el cuadro más nítido (varianza del laplaciano) entra al mismo constructor de la peluca.
+    \item Guiada por voz y sonidos; si falla, dice por qué.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Laboratorio: avatar en vivo}
+  \begin{itemize}
+    \item Cada gaussiana guarda su triángulo, sus baricéntricas y su covarianza en el marco local del triángulo.
+    \item Marco ortonormal $R=[\,e_1\;\;e_2\;\;n\,]$, con $e_2 = n\times e_1$; en el mundo:
+    \[ \Sigma_{\text{mundo}} = R\,\Sigma_{\text{local}}\,R^\top s^2 \]
+    \item En cada cuadro la malla nueva mueve los marcos: el avatar copia tus gestos.
+    \item Color de varias vistas y ajuste con Adam dentro de $\pm0{,}04$ del color fusionado: sin vetas.
+  \end{itemize}
+\end{frame}
+
 \begin{frame}{Contrarreloj: el proceso}
   \centering
   \vfill
@@ -480,6 +501,12 @@
   \centering
   \includegraphics[width=\linewidth]{galeria.jpg}\\[0.6em]
   \small Siete retratos de dominio público. Tu cara entra con el cambio de cara de Fiesta, pero la barba del retrato queda encima, las fotos antiguas la vuelven blanco y negro y el autorretrato la repinta con el filtro de Kuwahara (imágenes integrales).
+\end{frame}
+
+\begin{frame}{El practicante}
+  \centering
+  \includegraphics[width=0.9\linewidth]{practicante.jpg}\\[0.6em]
+  \small Primer día en la barbería: elige barba, tinte y corte al azar y los encadena sobre tu foto (barba $\rightarrow$ tinte $\rightarrow$ corte), con las mismas herramientas de Estilos.
 \end{frame}
 
 \begin{frame}{Fiesta: el proceso}
@@ -537,7 +564,7 @@
   \begin{columns}[T]
     \begin{column}{0.46\textwidth}
       \begin{itemize}
-        \item 121 pruebas automáticas, integración continua en GitHub Actions.
+        \item 123 pruebas automáticas, integración continua en GitHub Actions.
         \item Docker: un comando, con modelos incluidos.
         \item Probado en 26 caras: piel clara, morena y negra; pelo liso, rizado, largo, corto.
         \item Funciona con o sin YOLO instalado.

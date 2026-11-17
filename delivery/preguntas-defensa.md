@@ -27,7 +27,7 @@ Porque inventa la cara completa: cambia la identidad, la piel y la luz, y necesi
 La API responde 422 y la interfaz muestra el mensaje. En vivo se reutilizan los últimos puntos hasta tres cuadros, desplazados por correlación de fase. Sin puntos no hay malla, así que no se aplica ningún estilo: es la única dependencia fuerte.
 
 **¿Cómo saben que funciona?**
-Con 121 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
+Con 123 pruebas automáticas que corren en GitHub Actions en cada cambio, con recorridos completos en Chrome controlado por código y con revisión visual en 26 caras distintas: piel clara, morena y negra; pelo liso, rizado, largo y corto.
 
 **¿Por qué todo en CPU?**
 Es una restricción del proyecto: que cualquiera lo reproduzca con `docker compose up`, sin GPU. Todo está vectorizado con NumPy. La GPU solo se usa en el navegador, para el visor 3D.
@@ -483,6 +483,21 @@ No en la interfaz final: esa vista quedó fuera. Los endpoints siguen en la API 
 
 **¿Por qué antes la cara sobre la peluca se veía en triángulos?**
 Cada gaussiana es un disco tangente a la superficie y el visor ilumina con su normal. Con la normal plana de cada triángulo se veía el facetado. Ahora la normal es la de los vértices interpolada con las coordenadas baricéntricas (como el sombreado de Phong), así que dos triángulos vecinos comparten la normal en su arista (`smooth_frames` en `lab/avatar.py`).
+
+**¿Cómo se arma el busto (hombros y pecho)?**
+Con gaussianas sobre una superficie analítica (`_torso` en `splatting/hair3d.py`). A cada altura $y$ la sección es una superelipse $|x/w(y)|^{2,6}+|z/d(y)|^{2,6}=1$: entre redonda y cuadrada, como un torso. El ancho $w(y)$ sube con un *smoothstep* del cuello (0,29 anchos de cara) a los hombros (1,18) y la profundidad de 0,25 a 0,44. Las alturas se muestrean en proporción al área de cada franja para que las gaussianas queden parejas. La normal es el gradiente de la superficie, así que la pendiente de los hombros recibe bien la luz. Abajo la opacidad baja a cero, como un busto.
+
+**¿De dónde sale el color de la ropa?**
+Del segmentador de partes de MediaPipe: en cada vista del escaneo se toma la mediana de los píxeles que marca como ropa con más de 0,6 de probabilidad, y entre vistas otra mediana. Si no ve ropa, usa un gris oscuro.
+
+**¿Por qué cambiar entre «Mi cara», «Maniquí» y «Solo pelo» es instantáneo?**
+Porque el pelo no depende de la cabeza. Antes cada cambio volvía a pedir toda la peluca al servidor (unos 7 s). Ahora el servidor arma una vez el pelo, la cara, el maniquí y el torso (`heads=both`) y manda cuántas gaussianas tiene cada tramo en las cabeceras `X-Splat-*`; el visor solo elige qué tramos dibujar (unos 10 ms).
+
+**¿Qué hicieron para que el visor no se trabe con 180 mil gaussianas?**
+Las normales para la luz se calculan una vez por peluca y no en cada corte; los *buffers* de la GPU se reservan una vez y se actualizan con `bufferSubData`; el orden por profundidad se rehace cuando la vista gira más de 0,7° y no en cada cuadro; y si el navegador pierde el contexto WebGL, el visor lo recupera solo.
+
+**¿Cómo se guía el escaneo?**
+Con la voz del navegador (`speechSynthesis`, sin internet) y sonidos hechos con WebAudio: cuenta regresiva, un clic por cada tramo nuevo de la vuelta que sube de tono con el avance, avisos como «más despacio» y una campanita al terminar. Si falla, dice por qué («giraste muy rápido», «casi no te vi») a partir de lo que midió en cada cuadro.
 
 ### Laboratorio (`backend/app/core/lab/avatar.py`)
 
