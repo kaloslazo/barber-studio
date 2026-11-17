@@ -104,7 +104,7 @@ Sofía maneja la laptop. Kalos y Gianpier se paran a un metro de la cámara, hom
 ### 10:30 – 11:15 · Calidad y límites (Sofía)
 
 - **Láminas:** «Calidad y rendimiento» y «Límites que conocemos».
-- **Decir:** «121 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
+- **Decir:** «123 pruebas automáticas en GitHub Actions. Probado en 26 caras. El tinte nuevo se revisó en 8 caras con 7 colores. Límites: una mano delante de la cara, el espejo 3D sin nuca, y en Fiesta, con la cabeza muy girada, el lado lejano de la cara se estira».
 
 ### 11:15 – 12:00 · Cierre y preguntas (Kalos)
 
@@ -128,7 +128,7 @@ La última lámina, «Demo», todavía lista gaussianas, en vivo y Contrarreloj.
 ### La noche antes
 
 - [ ] Construir y levantar: `docker compose up -d --build app` (la primera vez tarda unos minutos). Sin Docker: `./run.sh`.
-- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (121).
+- [ ] Correr las pruebas: `cd backend && venv/bin/python -m pytest tests/ -q` (123).
 - [ ] Ensayar la demo completa una vez con el reloj, en el mismo orden.
 - [ ] Carpeta en el escritorio con fotos de respaldo: `frontend/assets/samples/ejemplo.jpg` (Scott Horowitz, NASA), `frontend/assets/samples/muestra.jpg` (Frank Rubio, NASA), una foto del equipo con dos o tres caras de frente y una foto de cada uno. Solo retratos de la NASA o caras propias.
 - [ ] Video de respaldo en la laptop, sin depender de internet: `delivery/videos/video-largo.mp4`, con el bloque de Fiesta en 16:00.
